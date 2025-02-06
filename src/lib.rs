@@ -171,10 +171,8 @@ impl ExtendedVerifyingKey {
             *elem = 0;
         });
 
-        // We know this is deprecated but it is much faster.
-        #[allow(deprecated)]
         let child_key = self.key.decompress().unwrap()
-            + EdwardsPoint::mul_base(&Scalar::from_bits(z_left));
+            + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
         let chain_code_hash: [u8; 64] = chain_code_hmac.finalize_fixed().into();
         let [_, child_chain_code]: [[u8; 32]; 2] = transmute!(chain_code_hash);
 

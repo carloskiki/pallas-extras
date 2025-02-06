@@ -19,3 +19,4 @@ zerocopy = "0.8.16"
 [dev-dependencies]
 ed25519-bip32 = "0.4.1"
 criterion = "0.5.1"
+cryptoxide = "0.5"

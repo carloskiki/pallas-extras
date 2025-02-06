@@ -10,20 +10,14 @@ pub fn private_derive(c: &mut Criterion) {
     let xprv = XPrv::from_nonextended_force(&master, &ponk.chain_code);
 
     group.bench_function("ponk", |b| {
-        b.iter_with_setup(
-            random,
-            |i: u32| {
-                black_box(xprv.derive(ed25519_bip32::DerivationScheme::V2, i));
-            },
-        )
+        b.iter_with_setup(random, |i: u32| {
+            black_box(ponk.derive_child(i));
+        })
     });
     group.bench_function("Reference", |b| {
-        b.iter_with_setup(
-            random,
-            |i: u32| {
-                black_box(ponk.derive_child(i));
-            },
-        )
+        b.iter_with_setup(random, |i: u32| {
+            black_box(xprv.derive(ed25519_bip32::DerivationScheme::V2, i));
+        })
     });
 }
 
@@ -34,8 +28,8 @@ pub fn public_derive(c: &mut Criterion) {
     let xprv = XPrv::from_nonextended_force(&master, &ponk.chain_code);
     let ponk = ponk.verifying_key();
     let xpub = xprv.public();
-
-    group.bench_function("Reference", |b| {
+    
+    group.bench_function("ponk", |b| {
         b.iter_with_setup(
             || random::<u32>() >> 1,
             |i: u32| {
@@ -43,7 +37,8 @@ pub fn public_derive(c: &mut Criterion) {
             },
         )
     });
-    group.bench_function("ponk", |b| {
+
+    group.bench_function("Reference", |b| {
         b.iter_with_setup(
             || random::<u32>() >> 1,
             |i: u32| {
