@@ -9,7 +9,7 @@ harness = false
 
 [dependencies]
 ed25519-dalek = { version = "2.1", features = ["digest"] }
-curve25519-dalek = { version = "4.1.3", features = ["digest", "legacy_compatibility"] }
+curve25519-dalek = { version = "4.1.3", features = ["digest"] }
 rand = "0.8"
 digest = "0.10"
 sha2 = "0.10"

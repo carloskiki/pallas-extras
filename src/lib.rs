@@ -4,6 +4,32 @@ use hmac::Hmac;
 use sha2::{Digest, Sha256};
 use zerocopy::transmute;
 
+pub struct HardIndex(u32);
+
+impl HardIndex {
+    /// Generates a hardened index from the given `u32`. The MSB is forced to 1.
+    pub fn new(index: u32) -> Self {
+        Self(index | (1 << 31))
+    }
+
+    pub fn as_u32(&self) -> u32 {
+        self.0
+    }
+}
+
+pub struct SoftIndex(u32);
+
+impl SoftIndex {
+    /// Generates a soft index from the given `u32`. The MSB is forced to 0.
+    pub fn new(index: u32) -> Self {
+        Self(index & !(1 << 31))
+    }
+
+    pub fn as_u32(&self) -> u32 {
+        self.0
+    }
+}
+
 pub struct ExtendedSecretKey {
     // Invariant: Must be a valid scalar (clamped).
     key: SecretKey,
@@ -30,29 +56,22 @@ impl ExtendedSecretKey {
         }
     }
 
-    pub fn derive_child(&self, index: u32) -> Self {
+    pub fn derive_child(&self, index: HardIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
         let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
 
-        if index < (1 << 31) {
-            let point = EdwardsPoint::mul_base_clamped(self.key).compress();
-            key_hmac.update(&[2u8]);
-            key_hmac.update(point.as_bytes());
-            chain_code_hmac.update(&[3u8]);
-            chain_code_hmac.update(point.as_bytes());
-        } else {
-            key_hmac.update(&[0u8]);
-            key_hmac.update(&self.key);
-            key_hmac.update(&self.hash_prefix);
-            chain_code_hmac.update(&[1u8]);
-            chain_code_hmac.update(&self.key);
-            chain_code_hmac.update(&self.hash_prefix);
-        }
-        key_hmac.update(&index.to_le_bytes());
-        chain_code_hmac.update(&index.to_le_bytes());
+        key_hmac.update(&[0u8]);
+        key_hmac.update(&self.key);
+        key_hmac.update(&self.hash_prefix);
+        chain_code_hmac.update(&[1u8]);
+        chain_code_hmac.update(&self.key);
+        chain_code_hmac.update(&self.hash_prefix);
+        
+        key_hmac.update(&index.0.to_le_bytes());
+        chain_code_hmac.update(&index.0.to_le_bytes());
 
         let new_skey: [u8; 64] = key_hmac.finalize_fixed().into();
         let [mut child_skey_left, mut child_skey_right]: [[u8; 32]; 2] = transmute!(new_skey);
@@ -139,11 +158,7 @@ pub struct ExtendedVerifyingKey {
 }
 
 impl ExtendedVerifyingKey {
-    /// This truncates the index to the range [0, 2^31), forcing normal derivation (to have
-    /// hardened derivation, private key is needed).
-    pub fn derive_child(&self, mut index: u32) -> Self {
-        index &= (1 << 31) - 1;
-
+    pub fn derive_child(&self, index: SoftIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
@@ -152,22 +167,21 @@ impl ExtendedVerifyingKey {
 
         key_hmac.update(&[2u8]);
         key_hmac.update(&self.key.0);
-        key_hmac.update(&index.to_le_bytes());
+        key_hmac.update(&index.0.to_le_bytes());
         chain_code_hmac.update(&[3u8]);
         chain_code_hmac.update(&self.key.0);
-        chain_code_hmac.update(&index.to_le_bytes());
+        chain_code_hmac.update(&index.0.to_le_bytes());
 
         let z: [u8; 64] = key_hmac.finalize_fixed().into();
         let [mut z_left, _]: [[u8; 32]; 2] = transmute!(z);
-        let mut iter = z_left.iter_mut();
         let mut carry = 0;
-        iter.by_ref().take(28).for_each(|elem| {
+        z_left[0..28].iter_mut().for_each(|elem| {
             let new = ((*elem as u16) << 3) + carry;
             *elem = new as u8;
             carry = new >> 8;
         });
-        *iter.by_ref().next().unwrap() = carry as u8;
-        iter.by_ref().for_each(|elem| {
+        z_left[28] = carry as u8;
+        z_left[29..].iter_mut().for_each(|elem| {
             *elem = 0;
         });
 
@@ -190,7 +204,7 @@ mod tests {
     use rand::random;
     use zerocopy::transmute;
 
-    use crate::ExtendedSecretKey;
+    use crate::{ExtendedSecretKey, HardIndex, SoftIndex};
 
     const D1: [u8; 96] = [
         0xf8, 0xa2, 0x92, 0x31, 0xee, 0x38, 0xd6, 0xc5, 0xbf, 0x71, 0x5d, 0x5b, 0xac, 0x21, 0xc7,
@@ -222,7 +236,7 @@ mod tests {
             key: scalar,
             hash_prefix,
         };
-        let child = skey.derive_child(0x80000000);
+        let child = skey.derive_child(HardIndex::new(0x80000000));
         let [expected_scalar, expected_hash_prefix, expected_chain_code]: [[u8; 32]; 3] =
             transmute!(D1_H0);
 
@@ -238,8 +252,8 @@ mod tests {
             let implementation = ExtendedSecretKey::new_force(master);
             let reference = XPrv::from_nonextended_force(&master, &implementation.chain_code);
             for _ in 0..100 {
-                let index: u32 = random();
-                let impl_child = implementation.derive_child(index);
+                let index = random::<u32>() | (1 << 31);
+                let impl_child = implementation.derive_child(HardIndex::new(index));
                 let ref_child = reference.derive(ed25519_bip32::DerivationScheme::V2, index);
                 let [ref_key, ref_hash_prefix]: [[u8; 32]; 2] =
                     transmute!(ref_child.extended_secret_key());
@@ -266,7 +280,7 @@ mod tests {
             for _ in 0..100 {
                 let index = random::<u32>() >> 1;
 
-                let impl_child = impl_pub.derive_child(index);
+                let impl_child = impl_pub.derive_child(SoftIndex::new(index));
                 let ref_child = ref_pub
                     .derive(ed25519_bip32::DerivationScheme::V2, index)
                     .unwrap();
