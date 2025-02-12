@@ -16,7 +16,7 @@ pub fn private_derive(c: &mut Criterion) {
     });
     group.bench_function("Reference", |b| {
         b.iter_with_setup(random, |i: u32| {
-            black_box(xprv.derive(ed25519_bip32::DerivationScheme::V2, i));
+            black_box(xprv.derive(ed25519_bip32::DerivationScheme::V2, i | 0x80000000));
         })
     });
 }

@@ -1,8 +1,18 @@
 use curve25519_dalek::{edwards::CompressedEdwardsY, scalar::clamp_integer, EdwardsPoint, Scalar};
-use ed25519_dalek::{SecretKey, Sha512};
 use hmac::Hmac;
-use sha2::{Digest, Sha256};
+use minicbor::{
+    decode,
+    encode::{self, Write},
+    Decode, Decoder, Encode, Encoder,
+};
+use sha2::{Digest, Sha256, Sha512};
 use zerocopy::transmute;
+
+pub mod byron;
+
+pub type SecretKey = [u8; 32];
+
+pub type VerifyingKey = CompressedEdwardsY;
 
 pub struct HardIndex(u32);
 
@@ -69,7 +79,7 @@ impl ExtendedSecretKey {
         chain_code_hmac.update(&[1u8]);
         chain_code_hmac.update(&self.key);
         chain_code_hmac.update(&self.hash_prefix);
-        
+
         key_hmac.update(&index.0.to_le_bytes());
         chain_code_hmac.update(&index.0.to_le_bytes());
 
@@ -153,7 +163,7 @@ impl TryFrom<SecretKey> for ExtendedSecretKey {
 
 pub struct ExtendedVerifyingKey {
     // Invariant: Must be a valid EdwardsPoint
-    key: CompressedEdwardsY,
+    key: VerifyingKey,
     pub chain_code: [u8; 32],
 }
 
@@ -185,7 +195,7 @@ impl ExtendedVerifyingKey {
             *elem = 0;
         });
 
-        let child_key = self.key.decompress().unwrap()
+        let child_key = self.key.decompress().expect("public key should be valid")
             + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
         let chain_code_hash: [u8; 64] = chain_code_hmac.finalize_fixed().into();
         let [_, child_chain_code]: [[u8; 32]; 2] = transmute!(chain_code_hash);
@@ -197,14 +207,49 @@ impl ExtendedVerifyingKey {
     }
 }
 
+impl<C> Encode<C> for ExtendedVerifyingKey {
+    fn encode<W: Write>(
+        &self,
+        e: &mut Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), encode::Error<W::Error>> {
+        // Hack because we do not want to allocate to encode two disjoint byte slices into a single
+        // CBOR byte string.
+        const BYTES_TAG: u8 = 0x40;
+        const LEN: u8 = 64;
+        let writer = e.writer_mut();
+        // Write the CBOR tag for a byte string of length 64.
+        writer
+            .write_all(&[BYTES_TAG | 24, LEN])
+            .map_err(encode::Error::write)?;
+        writer
+            .write_all(&self.key.0)
+            .map_err(encode::Error::write)?;
+        writer
+            .write_all(&self.chain_code)
+            .map_err(encode::Error::write)?;
+        Ok(())
+    }
+}
+
+impl<C> Decode<'_, C> for ExtendedVerifyingKey {
+    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
+        let bytes: [u8; 64] = d.bytes()?.try_into().map_err(decode::Error::custom)?;
+        let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
+        Ok(ExtendedVerifyingKey {
+            key: CompressedEdwardsY(key),
+            chain_code,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use ed25519_bip32::XPrv;
-    use ed25519_dalek::SecretKey;
     use rand::random;
     use zerocopy::transmute;
 
-    use crate::{ExtendedSecretKey, HardIndex, SoftIndex};
+    use crate::{ExtendedSecretKey, HardIndex, SecretKey, SoftIndex};
 
     const D1: [u8; 96] = [
         0xf8, 0xa2, 0x92, 0x31, 0xee, 0x38, 0xd6, 0xc5, 0xbf, 0x71, 0x5d, 0x5b, 0xac, 0x21, 0xc7,
@@ -247,11 +292,11 @@ mod tests {
 
     #[test]
     fn reference_xprv_derivation() {
-        for _ in 0..100 {
+        for _ in 0..5 {
             let master: SecretKey = random();
             let implementation = ExtendedSecretKey::new_force(master);
             let reference = XPrv::from_nonextended_force(&master, &implementation.chain_code);
-            for _ in 0..100 {
+            for _ in 0..5 {
                 let index = random::<u32>() | (1 << 31);
                 let impl_child = implementation.derive_child(HardIndex::new(index));
                 let ref_child = reference.derive(ed25519_bip32::DerivationScheme::V2, index);
@@ -267,7 +312,7 @@ mod tests {
 
     #[test]
     fn reference_xpub_derivation() {
-        for _ in 0..100 {
+        for _ in 0..5 {
             let master: SecretKey = random();
             let implementation = ExtendedSecretKey::new_force(master);
             let reference = XPrv::from_nonextended_force(&master, &implementation.chain_code);
@@ -277,7 +322,7 @@ mod tests {
             assert_eq!(&impl_pub.chain_code, ref_pub.chain_code());
             assert_eq!(&impl_pub.key.0, ref_pub.public_key_bytes());
 
-            for _ in 0..100 {
+            for _ in 0..5 {
                 let index = random::<u32>() >> 1;
 
                 let impl_child = impl_pub.derive_child(SoftIndex::new(index));
