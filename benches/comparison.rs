@@ -6,8 +6,9 @@ use rand::random;
 pub fn private_derive(c: &mut Criterion) {
     let mut group = c.benchmark_group("Private Key Derivation");
     let master: [u8; 32] = random();
-    let ponk = ExtendedSecretKey::new_force(master);
-    let xprv = XPrv::from_nonextended_force(&master, &ponk.chain_code);
+    let cc: [u8; 32] = random();
+    let ponk = ExtendedSecretKey::from_nonextended(master, cc);
+    let xprv = XPrv::from_nonextended_force(&master, &cc);
 
     group.bench_function("ponk", |b| {
         b.iter_with_setup(random, |i: u32| {
@@ -24,8 +25,9 @@ pub fn private_derive(c: &mut Criterion) {
 pub fn public_derive(c: &mut Criterion) {
     let mut group = c.benchmark_group("Public Key Derivation");
     let master: [u8; 32] = random();
-    let ponk = ExtendedSecretKey::new_force(master);
-    let xprv = XPrv::from_nonextended_force(&master, &ponk.chain_code);
+    let cc: [u8; 32] = random();
+    let ponk = ExtendedSecretKey::from_nonextended(master, cc);
+    let xprv = XPrv::from_nonextended_force(&master, &cc);
     let ponk = ponk.verifying_key();
     let xpub = xprv.public();
     

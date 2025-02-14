@@ -1,16 +1,18 @@
 use curve25519_dalek::{edwards::CompressedEdwardsY, scalar::clamp_integer, EdwardsPoint, Scalar};
+use entropy::Entropy;
 use hmac::Hmac;
 use minicbor::{
     decode,
     encode::{self, Write},
     Decode, Decoder, Encode, Encoder,
 };
-use sha2::{Digest, Sha256, Sha512};
+use pbkdf2::pbkdf2_hmac;
+use sha2::{Digest, Sha512};
 use zerocopy::transmute;
 
 pub mod byron;
-
-pub type SecretKey = [u8; 32];
+pub mod entropy;
+pub mod bip39;
 
 pub type VerifyingKey = CompressedEdwardsY;
 
@@ -42,30 +44,46 @@ impl SoftIndex {
 
 pub struct ExtendedSecretKey {
     // Invariant: Must be a valid scalar (clamped).
-    key: SecretKey,
+    pub key: [u8; 32],
     pub hash_prefix: [u8; 32],
     pub chain_code: [u8; 32],
 }
 
 impl ExtendedSecretKey {
-    /// This forces the third bit of the highest byte to a zero, which may not be what you want. If you
-    /// want the function to error when the master key is not valid, use `TryFrom` instead.
-    pub fn new_force(master: SecretKey) -> Self {
-        let full_key: [u8; 64] = Sha512::digest(master).into();
-        let [mut key, hash_prefix]: [[u8; 32]; 2] = transmute!(full_key);
+    /// Generate an [`ExtendedSecretKey`] from [`Entropy`] and a password.
+    ///
+    /// This uses the Icarus method to generate the key, which is the method recommended by 
+    /// [CIP3](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0003).
+    pub fn from_entropy_icarus(entropy: Entropy, password: &[u8]) -> Self {
+        let mut output = [0; 96];
+        const ITERATION_COUNT: u32 = 4096;
+        pbkdf2_hmac::<Sha512>(password, entropy.as_ref(), ITERATION_COUNT, &mut output);
+        let [mut key, hash_prefix, chain_code]: [[u8; 32]; 3] = transmute!(output);
         key[31] &= 0b1101_1111;
         let key = clamp_integer(key);
-        let chain_code: [u8; 32] = Sha256::new_with_prefix([1])
-            .chain_update(master)
-            .finalize()
-            .into();
         Self {
             key,
             hash_prefix,
             chain_code,
         }
     }
-
+    
+    /// Generate an [`ExtendedSecretKey`] from a 32 bytes secret and chain code.
+    ///
+    /// This follows the method defined in [BIP32-Ed25519 Hierarchical Deterministic Keys over a
+    /// Non-linear Keyspace](https://input-output-hk.github.io/adrestia/static/Ed25519_BIP.pdf)
+    pub fn from_nonextended(master: [u8; 32], chain_code: [u8; 32]) -> Self {
+        let full_key: [u8; 64] = Sha512::digest(master).into();
+        let [mut key, hash_prefix]: [[u8; 32]; 2] = transmute!(full_key);
+        key[31] &= 0b1101_1111;
+        let key = clamp_integer(key);
+        Self {
+            key,
+            hash_prefix,
+            chain_code,
+        }
+    }
+    
     pub fn derive_child(&self, index: HardIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
@@ -138,28 +156,6 @@ impl ExtendedSecretKey {
     }
 }
 
-/// The master provided to derive the extended secret key was invalid.
-pub struct InvalidMaster;
-
-impl TryFrom<SecretKey> for ExtendedSecretKey {
-    type Error = InvalidMaster;
-
-    fn try_from(master: SecretKey) -> Result<Self, Self::Error> {
-        let full_key: [u8; 64] = Sha512::digest(master).into();
-        let [mut key, hash_prefix]: [[u8; 32]; 2] = transmute!(full_key);
-        key[31] &= 0b1101_1111;
-        let key = clamp_integer(key);
-        let chain_code: [u8; 32] = Sha256::new_with_prefix([1])
-            .chain_update(master)
-            .finalize()
-            .into();
-        Ok(Self {
-            key,
-            hash_prefix,
-            chain_code,
-        })
-    }
-}
 
 pub struct ExtendedVerifyingKey {
     // Invariant: Must be a valid EdwardsPoint
@@ -249,7 +245,7 @@ mod tests {
     use rand::random;
     use zerocopy::transmute;
 
-    use crate::{ExtendedSecretKey, HardIndex, SecretKey, SoftIndex};
+    use crate::{ExtendedSecretKey, HardIndex, SoftIndex};
 
     const D1: [u8; 96] = [
         0xf8, 0xa2, 0x92, 0x31, 0xee, 0x38, 0xd6, 0xc5, 0xbf, 0x71, 0x5d, 0x5b, 0xac, 0x21, 0xc7,
@@ -293,9 +289,10 @@ mod tests {
     #[test]
     fn reference_xprv_derivation() {
         for _ in 0..5 {
-            let master: SecretKey = random();
-            let implementation = ExtendedSecretKey::new_force(master);
-            let reference = XPrv::from_nonextended_force(&master, &implementation.chain_code);
+            let secret: [u8; 32] = random();
+            let cc: [u8; 32] = random();
+            let implementation = ExtendedSecretKey::from_nonextended(secret, cc);
+            let reference = XPrv::from_nonextended_force(&secret, &cc);
             for _ in 0..5 {
                 let index = random::<u32>() | (1 << 31);
                 let impl_child = implementation.derive_child(HardIndex::new(index));
@@ -313,9 +310,10 @@ mod tests {
     #[test]
     fn reference_xpub_derivation() {
         for _ in 0..5 {
-            let master: SecretKey = random();
-            let implementation = ExtendedSecretKey::new_force(master);
-            let reference = XPrv::from_nonextended_force(&master, &implementation.chain_code);
+            let secret: [u8; 32] = random();
+            let cc: [u8; 32] = random();
+            let implementation = ExtendedSecretKey::from_nonextended(secret, cc);
+            let reference = XPrv::from_nonextended_force(&secret, &cc);
             let impl_pub = implementation.verifying_key();
             let ref_pub = reference.public();
 

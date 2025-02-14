@@ -1,7 +1,7 @@
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use digest::{consts::U28, Digest};
 use minicbor::{
-    bytes::{ByteArray, ByteVec},
+    bytes::{ByteArray, ByteSlice, ByteVec},
     data::IanaTag,
     decode,
     encode::{self, Write},
@@ -12,7 +12,7 @@ use sha3::Sha3_256;
 use crate::{ExtendedVerifyingKey, VerifyingKey};
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
-type Blake2b224Digest = ByteArray<28>;
+type Blake2b224Digest = [u8; 28];
 
 pub struct Address {
     payload: Payload,
@@ -35,9 +35,9 @@ impl Address {
             .unwrap();
 
         let root_bytes = root_encoder.into_writer();
-        let root_digest: Blake2b224Digest = ByteArray::from(<[u8; 28]>::from(Blake2b224::digest(
+        let root_digest: Blake2b224Digest = Blake2b224::digest(
             Sha3_256::digest(&root_bytes),
-        )));
+        ).into();
         let payload = Payload {
             root_digest,
             attributes,
@@ -115,7 +115,7 @@ impl<C> Decode<'_, C> for Address {
 
 #[derive(Encode, Decode)]
 struct Payload {
-    #[n(0)]
+    #[cbor(n(0), with = "minicbor::bytes")]
     root_digest: Blake2b224Digest,
     #[n(1)]
     attributes: Attributes,
@@ -143,7 +143,7 @@ impl<C> Encode<C> for StakeDistribution {
             StakeDistribution::SingleKey(x) => {
                 e.array(2)?;
                 e.u32(0)?;
-                e.encode(x)?;
+                e.encode(<&ByteSlice>::from(x.as_slice()))?;
             }
             StakeDistribution::Bootstrap => {
                 e.array(1)?;
@@ -155,12 +155,12 @@ impl<C> Encode<C> for StakeDistribution {
 }
 
 impl<C> Decode<'_, C> for StakeDistribution {
-    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
+    fn decode(d: &mut Decoder<'_>, ctx: &mut C) -> Result<Self, decode::Error> {
         d.array()?;
         let variant = d.u32()?;
 
         match variant {
-            0 => Ok(StakeDistribution::SingleKey(d.decode()?)),
+            0 => Ok(StakeDistribution::SingleKey(ByteArray::<28>::decode(d, ctx)?.into())),
             1 => Ok(StakeDistribution::Bootstrap),
             _ => Err(minicbor::decode::Error::message(
                 "Invalid StakeDistribution variant",
