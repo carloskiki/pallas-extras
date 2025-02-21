@@ -1,4 +1,5 @@
 use curve25519_dalek::{edwards::CompressedEdwardsY, scalar::clamp_integer, EdwardsPoint, Scalar};
+use digest::consts::U28;
 use entropy::Entropy;
 use hmac::Hmac;
 use minicbor::{
@@ -11,8 +12,12 @@ use sha2::{Digest, Sha512};
 use zerocopy::transmute;
 
 pub mod byron;
+pub mod shelley;
 pub mod entropy;
 pub mod bip39;
+
+pub type Blake2b224 = blake2::Blake2b<U28>;
+type Blake2b224Digest = [u8; 28];
 
 pub type VerifyingKey = CompressedEdwardsY;
 

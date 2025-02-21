@@ -1,5 +1,5 @@
 use curve25519_dalek::edwards::CompressedEdwardsY;
-use digest::{consts::U28, Digest};
+use digest::Digest;
 use minicbor::{
     bytes::{ByteArray, ByteSlice, ByteVec},
     data::IanaTag,
@@ -9,10 +9,7 @@ use minicbor::{
 };
 use sha3::Sha3_256;
 
-use crate::{ExtendedVerifyingKey, VerifyingKey};
-
-pub type Blake2b224 = blake2::Blake2b<U28>;
-type Blake2b224Digest = [u8; 28];
+use crate::{Blake2b224, Blake2b224Digest, ExtendedVerifyingKey, VerifyingKey};
 
 pub struct Address {
     payload: Payload,
