@@ -292,8 +292,7 @@ impl Iterator for ChainPointerIter {
             return None;
         };
 
-        let leading_zeros = num.leading_zeros();
-        let bit_count = 64 - leading_zeros;
+        let bit_count = 64 - num.leading_zeros();
         // Get the first 7 bits in the correct window.
         // We do (- 1) because if there is a multiple of 7 bits, we don't want to shift by the
         // bitcount.
@@ -508,23 +507,103 @@ mod tests {
     fn type6() {
         const ADDR_MAIN: &str = "addr1vx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzers66hrl8";
         const ADDR_TEST: &str = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
+
+        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        assert!(matches!(
+            main,
+            Address::Enterprise {
+                payment: PaymentCredential::VerificationKey(VK)
+            }
+        ));
+        let serialized = main.to_string();
+        assert_eq!(serialized, ADDR_MAIN);
+
+        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        assert!(matches!(
+            test,
+            Address::Enterprise {
+                payment: PaymentCredential::VerificationKey(VK)
+            }
+        ));
+        let serialized = test.to_string();
+        assert_eq!(serialized, ADDR_TEST);
     }
 
     #[test]
     fn type7() {
         const ADDR_MAIN: &str = "addr1w8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcyjy7wx";
         const ADDR_TEST: &str = "addr_test1wrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcl6szpr";
+
+        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        assert!(matches!(
+            main,
+            Address::Enterprise {
+                payment: PaymentCredential::Script(SCRIPT_HASH)
+            }
+        ));
+        let serialized = main.to_string();
+        assert_eq!(serialized, ADDR_MAIN);
+
+        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        assert!(matches!(
+            test,
+            Address::Enterprise {
+                payment: PaymentCredential::Script(SCRIPT_HASH)
+            }
+        ));
+        let serialized = test.to_string();
+        assert_eq!(serialized, ADDR_TEST);
     }
 
     #[test]
     fn type14() {
         const ADDR_MAIN: &str = "stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw";
         const ADDR_TEST: &str = "stake_test1uqehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gssrtvn";
+
+        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        assert!(matches!(
+            main,
+            Address::Stake {
+                credential: PaymentCredential::VerificationKey(STAKE_VK)
+            }
+        ));
+        let serialized = main.to_string();
+        assert_eq!(serialized, ADDR_MAIN);
+
+        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        assert!(matches!(
+            test,
+            Address::Stake {
+                credential: PaymentCredential::VerificationKey(STAKE_VK)
+            }
+        ));
+        let serialized = test.to_string();
+        assert_eq!(serialized, ADDR_TEST);
     }
 
     #[test]
     fn type15() {
         const ADDR_MAIN: &str = "stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5";
         const ADDR_TEST: &str = "stake_test17rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcljw6kf";
+
+        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        assert!(matches!(
+            main,
+            Address::Stake {
+                credential: PaymentCredential::Script(SCRIPT_HASH)
+            }
+        ));
+        let serialized = main.to_string();
+        assert_eq!(serialized, ADDR_MAIN);
+
+        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        assert!(matches!(
+            test,
+            Address::Stake {
+                credential: PaymentCredential::Script(SCRIPT_HASH)
+            }
+        ));
+        let serialized = test.to_string();
+        assert_eq!(serialized, ADDR_TEST);
     }
 }
