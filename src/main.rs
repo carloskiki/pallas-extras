@@ -1,15 +1,27 @@
-use blake2::Blake2b;
-use digest::consts::U28;
-use ponk::shelley::ChainPointer;
-use sha2::Digest;
+use std::{
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    time::Duration,
+};
 
-fn main() {
-    let pointer = ChainPointer {
-        slot: 45,
-        tx_index: 254,
-        cert_index: 34,
-    };
+use blake2::Blake2bVarCore;
+use ponk::network::{
+    handshake::{self, VersionTable}, Header, NetworkMagic
+};
+use digest::{consts::U64, OutputSizeUser};
 
-    let pointer_bytes: Vec<u8> = pointer.into_iter().collect();
-    println!("Pointer: {:?}", pointer_bytes);
+use minicbor::{Decode, Encode};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let name1 = std::any::type_name::<<Blake2bVarCore as OutputSizeUser>::OutputSize>();
+    let name2 = std::any::type_name::<U64>();
+    println!("{} == {}", name1, name2);
+    Ok(())
+}
+
+#[derive(Debug, Encode, Decode)]
+#[cbor(flat)]
+enum Test {
+    #[n(0)]
+    A(#[n(0)] u32),
 }

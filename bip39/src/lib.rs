@@ -4,6 +4,7 @@
 //!
 
 mod language;
+pub mod entropy;
 
 use core::{error, fmt, str};
 use sha2::{Digest, Sha256};

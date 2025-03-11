@@ -7,6 +7,8 @@ use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 
 use crate::Blake2b224Digest;
 
+mod transaction;
+
 const HASH_SIZE: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,6 +24,7 @@ pub enum Address<const MAINNET: bool> {
         stake: DelegationCredential,
     },
 }
+
 
 impl<const M: bool> Display for Address<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -200,6 +203,11 @@ impl<const M: bool> FromStr for Address<M> {
             Err(AddressFromStrError::AddressType)
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StakeAddress {
+    pub credential: PaymentCredential,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

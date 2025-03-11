@@ -1,6 +1,6 @@
 use curve25519_dalek::{edwards::CompressedEdwardsY, scalar::clamp_integer, EdwardsPoint, Scalar};
-use digest::consts::U28;
-use entropy::Entropy;
+use digest::consts::{U28, U32};
+use bip39::entropy::Entropy;
 use hmac::Hmac;
 use minicbor::{
     decode,
@@ -13,11 +13,14 @@ use zerocopy::transmute;
 
 pub mod byron;
 pub mod shelley;
-pub mod entropy;
-pub mod bip39;
+pub mod network;
+pub mod header;
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
 type Blake2b224Digest = [u8; 28];
+
+pub type Blake2b256 = blake2::Blake2b<U32>;
+type Blake2b256Digest = [u8; 32];
 
 pub type VerifyingKey = CompressedEdwardsY;
 

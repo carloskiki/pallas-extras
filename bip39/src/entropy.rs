@@ -1,11 +1,8 @@
-use std::fmt::Display;
-use std::error::Error;
-
 use const_hex::{FromHex, FromHexError};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Ensure that the entropy source is in between 16 and 32 bytes in length and also it is a
+/// Ensures that the entropy source is in between 16 and 32 bytes in length and also it is a
 /// multiple of 4 bytes .
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Entropy(pub(crate) [u8; 32], pub(crate) u8);
 
 impl AsRef<[u8]> for Entropy {

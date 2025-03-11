@@ -1,0 +1,8 @@
+[package]
+name = "bip39"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sha2 = { workspace = true }
+const-hex = "1.14"
