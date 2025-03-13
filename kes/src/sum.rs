@@ -38,7 +38,6 @@ where
     R: KeySizeUser + KeypairRef,
     H: OutputSizeUser,
 {
-    /// We use `Result<T, U>` here to mean `Either<T, U>`
     inner: Either<(L, R::VerifyingKey), (R, L::VerifyingKey)>,
     seed: GenericArray<u8, R::KeySize>,
     vkey: GenericArray<u8, H::OutputSize>,

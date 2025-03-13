@@ -18,10 +18,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{} == {}", name1, name2);
     Ok(())
 }
-
-#[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-enum Test {
-    #[n(0)]
-    A(#[n(0)] u32),
-}

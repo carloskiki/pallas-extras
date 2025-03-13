@@ -5,105 +5,39 @@ use std::{
 
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 
-use crate::Blake2b224Digest;
+use crate::{Blake2b224Digest, Blake2b256Digest};
 
-mod transaction;
+pub mod transaction;
+pub mod witness;
+pub mod block;
+pub mod protocol;
 
 const HASH_SIZE: usize = 28;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Address<const MAINNET: bool> {
-    Stake {
-        credential: PaymentCredential,
-    },
-    Enterprise {
-        payment: PaymentCredential,
-    },
-    Ordinary {
-        payment: PaymentCredential,
-        stake: DelegationCredential,
-    },
+pub struct Nonce {
+    pub variant: NonceVariant,
+    pub nonce: Blake2b256Digest,
 }
 
+pub enum NonceVariant {
+    NeutralNonce,
+    Nonce,
+}
+
+pub struct RealNumber {
+    pub numerator: u64,
+    pub denominator: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Address<const MAINNET: bool> {
+    pub payment: PaymentCredential,
+    pub stake: Option<DelegationCredential>,
+}
 
 impl<const M: bool> Display for Address<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = match self {
-            Address::Stake { .. } => Hrp::parse_unchecked(if M { "stake" } else { "stake_test" }),
-            _ => Hrp::parse_unchecked(if M { "addr" } else { "addr_test" }),
-        };
-        let header = match self {
-            Address::Ordinary {
-                payment: PaymentCredential::VerificationKey(_),
-                stake: DelegationCredential::StakeKey(_),
-            } => 0b0000,
-            Address::Ordinary {
-                payment: PaymentCredential::Script(_),
-                stake: DelegationCredential::StakeKey(_),
-            } => 0b0001,
-            Address::Ordinary {
-                payment: PaymentCredential::VerificationKey(_),
-                stake: DelegationCredential::Script(_),
-            } => 0b0010,
-            Address::Ordinary {
-                payment: PaymentCredential::Script(_),
-                stake: DelegationCredential::Script(_),
-            } => 0b0011,
-            Address::Ordinary {
-                payment: PaymentCredential::VerificationKey(_),
-                stake: DelegationCredential::Pointer { .. },
-            } => 0b0100,
-            Address::Ordinary {
-                payment: PaymentCredential::Script(_),
-                stake: DelegationCredential::Pointer { .. },
-            } => 0b0101,
-            Address::Enterprise {
-                payment: PaymentCredential::VerificationKey(_),
-            } => 0b0110,
-            Address::Enterprise {
-                payment: PaymentCredential::Script(_),
-            } => 0b0111,
-            Address::Stake {
-                credential: PaymentCredential::VerificationKey(_),
-            } => 0b1110,
-            Address::Stake {
-                credential: PaymentCredential::Script(_),
-            } => 0b1111,
-        };
-        let network_magic = M as u8;
-        let first_byte = (header << 4) | network_magic;
-
-        match self {
-            Address::Stake { credential }
-            | Address::Enterprise {
-                payment: credential,
-            } => std::iter::once(first_byte)
-                .chain(credential.as_ref().iter().copied())
-                .bytes_to_fes()
-                .with_checksum::<Bech32>(&hrp)
-                .chars()
-                .try_for_each(|c| f.write_char(c)),
-            Address::Ordinary { payment, stake } => {
-                let first_part =
-                    std::iter::once(first_byte).chain(payment.as_ref().iter().copied());
-                match stake {
-                    DelegationCredential::StakeKey(hash) | DelegationCredential::Script(hash) => {
-                        first_part
-                            .chain(hash.iter().copied())
-                            .bytes_to_fes()
-                            .with_checksum::<Bech32>(&hrp)
-                            .chars()
-                            .try_for_each(|c| f.write_char(c))
-                    }
-                    DelegationCredential::Pointer(pointer) => first_part
-                        .chain(*pointer)
-                        .bytes_to_fes()
-                        .with_checksum::<Bech32>(&hrp)
-                        .chars()
-                        .try_for_each(|c| f.write_char(c)),
-                }
-            }
-        }
+        display_address::<M>(false, &self.payment, self.stake.as_ref(), f)
     }
 }
 
@@ -115,7 +49,7 @@ pub enum AddressFromStrError {
     TooLong,
     /// Incorrect network magic.
     NetworkMagic,
-    /// The header contains an unknown address type.
+    /// The header contains an invalid address type.
     AddressType,
     /// Invalid bech32 encoding.
     Bech32(bech32::DecodeError),
@@ -168,7 +102,7 @@ impl<const M: bool> FromStr for Address<M> {
                 ),
                 _ => unreachable!(),
             };
-            Ok(Address::Ordinary { payment, stake })
+            Ok(Address { payment, stake: Some(stake) })
         } else if header < 0b0110 {
             let pointer = ChainPointer::try_from(&data[1 + HASH_SIZE..]).unwrap();
             let payment = match header {
@@ -177,28 +111,22 @@ impl<const M: bool> FromStr for Address<M> {
                 _ => unreachable!(),
             };
 
-            Ok(Address::Ordinary {
+            Ok(Address {
                 payment,
-                stake: DelegationCredential::Pointer(pointer),
+                stake: Some(DelegationCredential::Pointer(pointer)),
             })
         } else if header < 0b1000 {
+            if data.len() != 1 + HASH_SIZE {
+                return Err(AddressFromStrError::TooShort);
+            }
+            
             let payment = match header {
                 0b0110 => PaymentCredential::VerificationKey(first_hash),
                 0b0111 => PaymentCredential::Script(first_hash),
                 _ => unreachable!(),
             };
 
-            Ok(Address::Enterprise { payment })
-        } else if header >= 0b1110 {
-            let payment = match header {
-                0b1110 => PaymentCredential::VerificationKey(first_hash),
-                0b1111 => PaymentCredential::Script(first_hash),
-                _ => unreachable!(),
-            };
-
-            Ok(Address::Stake {
-                credential: payment,
-            })
+            Ok(Address { payment, stake: None })
         } else {
             Err(AddressFromStrError::AddressType)
         }
@@ -206,8 +134,44 @@ impl<const M: bool> FromStr for Address<M> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct StakeAddress {
+pub struct StakeAddress<const MAINNET: bool> {
     pub credential: PaymentCredential,
+}
+
+impl<const M: bool> Display for StakeAddress<M> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        display_address::<M>(true, &self.credential, None, f)
+    }
+    
+}
+
+impl<const M: bool> FromStr for StakeAddress<M> {
+    type Err = AddressFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (_, data) = bech32::decode(s).map_err(AddressFromStrError::Bech32)?;
+
+        let first_byte = data.first().ok_or(AddressFromStrError::TooShort)?;
+        let header = first_byte >> 4;
+        let network_magic = first_byte & 0b0000_1111;
+        if network_magic != M as u8 {
+            return Err(AddressFromStrError::NetworkMagic);
+        }
+        if data.len() != 1 + HASH_SIZE {
+            return Err(AddressFromStrError::TooShort);
+        }
+        let hash = Blake2b224Digest::try_from(&data[1..1 + HASH_SIZE]).unwrap();
+        
+        let credential = if header == 0b1110 {
+            PaymentCredential::VerificationKey(hash)
+        } else if header == 0b1111  {
+            PaymentCredential::Script(hash)
+        } else {
+            return Err(AddressFromStrError::AddressType);
+        };
+        
+        Ok(StakeAddress { credential })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -312,6 +276,66 @@ impl Iterator for ChainPointerIter {
             value |= 0x80;
         }
         Some(value as u8)
+    }
+}
+
+fn display_address<const M: bool>(
+    is_stake: bool,
+    payment: &PaymentCredential,
+    stake: Option<&DelegationCredential>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    let hrp = if is_stake {
+        Hrp::parse_unchecked(if M { "stake" } else { "stake_test" })
+    } else {
+        Hrp::parse_unchecked(if M { "addr" } else { "addr_test" })
+    };
+
+    let header = match (payment, stake, is_stake) {
+        (PaymentCredential::VerificationKey(_), Some(DelegationCredential::StakeKey(_)), false) => {
+            0b0000
+        }
+        (PaymentCredential::Script(_), Some(DelegationCredential::StakeKey(_)), false) => 0b0001,
+        (PaymentCredential::VerificationKey(_), Some(DelegationCredential::Script(_)), false) => {
+            0b0010
+        }
+        (PaymentCredential::Script(_), Some(DelegationCredential::Script(_)), false) => 0b0011,
+        (PaymentCredential::VerificationKey(_), Some(DelegationCredential::Pointer(_)), false) => {
+            0b0100
+        }
+        (PaymentCredential::Script(_), Some(DelegationCredential::Pointer(_)), false) => 0b0101,
+        (PaymentCredential::VerificationKey(_), None, false) => 0b0110,
+        (PaymentCredential::Script(_), None, false) => 0b0111,
+        (PaymentCredential::VerificationKey(_), None, true) => 0b1110,
+        (PaymentCredential::Script(_), None, true) => 0b1111,
+        _ => unreachable!("Wrong combination of payment and stake credentials"),
+    };
+    let network_magic = M as u8;
+    let first_byte = (header << 4) | network_magic;
+
+    if let Some(stake) = stake {
+        let first_part = std::iter::once(first_byte).chain(payment.as_ref().iter().copied());
+        match stake {
+            DelegationCredential::StakeKey(hash) | DelegationCredential::Script(hash) => first_part
+                .chain(hash.iter().copied())
+                .bytes_to_fes()
+                .with_checksum::<Bech32>(&hrp)
+                .chars()
+                .try_for_each(|c| f.write_char(c)),
+            DelegationCredential::Pointer(pointer) => first_part
+                .chain(*pointer)
+                .bytes_to_fes()
+                .with_checksum::<Bech32>(&hrp)
+                .chars()
+                .try_for_each(|c| f.write_char(c)),
+        }
+    } else {
+        std::iter::once(first_byte)
+            .chain(payment.as_ref().iter().copied())
+            .bytes_to_fes()
+            .with_checksum::<Bech32>(&hrp)
+            .chars()
+            .try_for_each(|c| f.write_char(c))
     }
 }
 
