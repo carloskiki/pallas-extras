@@ -342,6 +342,17 @@ impl<L, R, H: OutputSizeUser> KeySizeUser for VerifyingKey<L, R, H> {
     type KeySize = H::OutputSize;
 }
 
+impl<L, R, H: OutputSizeUser> From<digest::Key<Self>> for VerifyingKey<L, R, H>
+where
+    L: KeypairRef,
+    R: KeySizeUser + KeypairRef,
+    H: OutputSizeUser,
+{
+    fn from(key: digest::Key<Self>) -> Self {
+        VerifyingKey(key, std::marker::PhantomData)
+    }
+}
+
 impl<'a, S, L, R, H> Verifier<KeyEvolvingSignature<'a, Signature<S, L, R>>>
     for VerifyingKey<L, R, H>
 where
@@ -411,31 +422,37 @@ where
 pub type Double<T, H> = Sum<T, T, H>;
 /// Signature of the summation of the same type.
 pub type DoubleSignature<S, T> = Signature<S, T, T>;
+pub type DoubleVerifyingKey<T, H> = VerifyingKey<T, T, H>;
 
 /// Repeated sum of the same type with `2^2` periods.
 pub type Pow2<T, H> = Double<Double<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^2` periods.
 pub type Pow2Signature<S, T, H> = DoubleSignature<DoubleSignature<S, T>, Double<T, H>>;
+pub type Pow2VerifyingKey<T, H> = DoubleVerifyingKey<Double<T, H>, H>;
 
 /// Repeated sum of the same type with `2^3` periods.
 pub type Pow3<T, H> = Double<Pow2<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^3` periods.
 pub type Pow3Signature<S, T, H> = DoubleSignature<Pow2Signature<S, T, H>, Pow2<T, H>>;
+pub type Pow3VerifyingKey<T, H> = DoubleVerifyingKey<Pow2<T, H>, H>;
 
 /// Repeated sum of the same type with `2^4` periods.
 pub type Pow4<T, H> = Double<Pow3<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^4` periods.
 pub type Pow4Signature<S, T, H> = DoubleSignature<Pow3Signature<S, T, H>, Pow3<T, H>>;
+pub type Pow4VerifyingKey<T, H> = DoubleVerifyingKey<Pow3<T, H>, H>;
 
 /// Repeated sum of the same type with `2^5` periods.
 pub type Pow5<T, H> = Double<Pow4<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^5` periods.
 pub type Pow5Signature<S, T, H> = DoubleSignature<Pow4Signature<S, T, H>, Pow4<T, H>>;
+pub type Pow5VerifyingKey<T, H> = DoubleVerifyingKey<Pow4<T, H>, H>;
 
 /// Repeated sum of the same type with `2^6` periods.
 pub type Pow6<T, H> = Double<Pow5<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^6` periods.
 pub type Pow6Signature<S, T, H> = DoubleSignature<Pow5Signature<S, T, H>, Pow5<T, H>>;
+pub type Pow6VerifyingKey<T, H> = DoubleVerifyingKey<Pow5<T, H>, H>;
 
 #[cfg(test)]
 mod tests {

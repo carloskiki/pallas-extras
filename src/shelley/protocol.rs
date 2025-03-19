@@ -7,7 +7,7 @@ use crate::Blake2b224Digest;
 use super::RealNumber;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-pub struct ProtocolVersion {
+pub struct Version {
     #[n(0)]
     pub major: MajorVersion,
     #[n(1)]
@@ -17,22 +17,27 @@ pub struct ProtocolVersion {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(index_only)]
 pub enum MajorVersion {
+    // The Byron Era
     #[n(1)]
-    V1,
+    Byron,
+    // The Shelley Era
     #[n(2)]
-    V2,
+    Shelley,
     #[n(3)]
-    V3,
+    Allegra,
     #[n(4)]
-    V4,
+    Mary,
     #[n(5)]
-    V5,
+    Alonzo,
+    /// Part of the Alonzo Era
     #[n(6)]
-    V6,
+    Lobster,
+    /// Part of the Babbage Era
     #[n(7)]
-    V7,
+    Vasil,
+    /// Part of the Babbage Era
     #[n(8)]
-    V8,
+    Valentine,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -51,7 +56,7 @@ pub enum Parameter {
     TreasuryGrowthRate(RealNumber),
     DecentralizationConstant(RealNumber),
     ExtraEntropy(Option<[u8; 32]>),
-    ProtocolVersion(ProtocolVersion),
+    ProtocolVersion(Version),
     MinimumUtxoValue(u64),
     MinimumPoolCost(u64),
     AdaPerUtxoByte(u64),
