@@ -7,7 +7,7 @@ use crate::{Blake2b256, Blake2b256Digest};
 
 use super::protocol;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderBody {
     pub block_number: u64,
     pub slot: u64,
@@ -26,7 +26,7 @@ pub struct HeaderBody {
     pub protocol_version: protocol::ProtocolVersion,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct VrfCertificate {
     #[n(0)]
     #[cbor(with = "minicbor::bytes")]
