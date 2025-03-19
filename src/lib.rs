@@ -1,19 +1,19 @@
-use curve25519_dalek::{edwards::CompressedEdwardsY, scalar::clamp_integer, EdwardsPoint, Scalar};
-use digest::consts::{U28, U32};
 use bip39::entropy::Entropy;
+use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY, scalar::clamp_integer};
+use digest::consts::{U28, U32};
 use hmac::Hmac;
 use minicbor::{
-    decode,
+    Decode, Decoder, Encode, Encoder, decode,
     encode::{self, Write},
-    Decode, Decoder, Encode, Encoder,
 };
 use pbkdf2::pbkdf2_hmac;
 use sha2::{Digest, Sha512};
 use zerocopy::transmute;
 
 pub mod byron;
-pub mod shelley;
+pub mod cbor;
 pub mod network;
+pub mod shelley;
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
 type Blake2b224Digest = [u8; 28];
@@ -59,7 +59,7 @@ pub struct ExtendedSecretKey {
 impl ExtendedSecretKey {
     /// Generate an [`ExtendedSecretKey`] from [`Entropy`] and a password.
     ///
-    /// This uses the Icarus method to generate the key, which is the method recommended by 
+    /// This uses the Icarus method to generate the key, which is the method recommended by
     /// [CIP3](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0003).
     pub fn from_entropy_icarus(entropy: Entropy, password: &[u8]) -> Self {
         let mut output = [0; 96];
@@ -74,7 +74,7 @@ impl ExtendedSecretKey {
             chain_code,
         }
     }
-    
+
     /// Generate an [`ExtendedSecretKey`] from a 32 bytes secret and chain code.
     ///
     /// This follows the method defined in [BIP32-Ed25519 Hierarchical Deterministic Keys over a
@@ -90,7 +90,7 @@ impl ExtendedSecretKey {
             chain_code,
         }
     }
-    
+
     pub fn derive_child(&self, index: HardIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
@@ -163,10 +163,10 @@ impl ExtendedSecretKey {
     }
 }
 
-
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExtendedVerifyingKey {
     // Invariant: Must be a valid EdwardsPoint
-    key: VerifyingKey,
+    pub key: VerifyingKey,
     pub chain_code: [u8; 32],
 }
 
@@ -207,6 +207,12 @@ impl ExtendedVerifyingKey {
             key: child_key.compress(),
             chain_code: child_chain_code,
         }
+    }
+
+    pub fn key(&self) -> ed25519_dalek::VerifyingKey {
+        ed25519_dalek::VerifyingKey::from(
+            self.key.decompress().expect("public key should be valid"),
+        )
     }
 }
 

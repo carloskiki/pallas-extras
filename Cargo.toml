@@ -25,7 +25,8 @@ crc32fast = "1.4"
 pbkdf2 = "0.12"
 
 bs58 = "0.2"
-minicbor = { version = "0.26", features = ["std", "half", "derive"] }
+# TODO: we don't need the half feature in prod
+minicbor = { path = "../minicbor/minicbor", features = ["std", "half", "derive"] }
 bech32 = "0.11"
 
 zerocopy = { workspace = true }

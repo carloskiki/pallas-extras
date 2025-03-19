@@ -27,26 +27,3 @@ pub enum ServerMessage {
     #[n(1)]
     AwaitReply,
 }
-
-enum State {
-    Idle,
-    Intersect,
-    Next { awaiting: bool },
-    Done,
-}
-
-pub trait StateMachine {
-    type Error: std::error::Error;
-    type ClientMessage;
-    type ServerMessage;
-
-    fn update_server(
-        &mut self,
-        message: Self::ClientMessage,
-    ) -> network::Result<Self::ServerMessage, Self::Error>;
-
-    fn update_client(
-        &mut self,
-        message: Self::ServerMessage,
-    ) -> network::Result<Self::ClientMessage, Self::Error>;
-}

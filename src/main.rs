@@ -3,8 +3,9 @@ use std::{
     net::TcpStream,
 };
 
+use minicbor::{data::Token, to_vec, Decode, Encode};
 use ponk::network::{
-    Header, NetworkMagic,
+    self, Header, NetworkMagic, NodeToClient,
     handshake::{self, VersionTable},
 };
 
@@ -14,36 +15,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let propose_versions = handshake::ClientMessage::ProposeVersions(VersionTable {
         versions: vec![(
-            14,
-            handshake::VersionData {
+            32788,
+            handshake::NodeToClientVersionData {
                 network_magic: NetworkMagic::Preview,
-                diffusion_mode: false,
-                peer_sharing: false,
-                query: false,
+                query: true,
             },
         )],
     });
-    let payload = minicbor::to_vec(propose_versions)?;
-    let header = Header {
-        timestamp: now.elapsed().as_micros() as u32,
-        protocol: 0,
-        payload_len: payload.len() as u16,
+    let encoded = to_vec(&propose_versions)?;
+    let header = network::Header {
+        timestamp: now.elapsed().as_secs() as u32,
+        protocol: network::Protocol {
+            responder: false,
+            protocol: NodeToClient::Handshake,
+        },
+        payload_len: encoded.len() as u16,
     };
-    let header_bytes: [u8; 8] = header.into();
 
-    stream.write_all(&header_bytes)?;
-    stream.write_all(&payload)?;
+    stream.write_all(&<[u8; 8]>::from(header))?;
+    stream.write_all(&encoded)?;
 
-    let mut buf = [0; 256];
-    let mut start = 0;
-    let _bytes_read = stream.read(&mut buf[start..])?;
-    
-    let header_bytes: [u8; 8] = buf[0..8].try_into()?;
-    let header = Header::from(header_bytes);
-    
-    let tokens: Vec<minicbor::data::Token> = minicbor::decode(&buf[8..])?;
-    let response: handshake::ServerMessage = minicbor::decode(&buf[8..])?;
-    dbg!(header, tokens, response);
+    let mut buf = [0; 1024];
+    stream.read_exact(&mut buf[0..8])?;
+    let header = network::Header::<NodeToClient>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
+    dbg!(&header);
+    stream.read_exact(&mut buf[8..8 + header.payload_len as usize])?;
+    let message = handshake::ServerMessage::<'_, handshake::NodeToClientVersionData>::decode(
+        &mut minicbor::Decoder::new(&buf[8..8 + header.payload_len as usize]),
+        &mut (),
+    )?;
+    dbg!(&message);
 
     Ok(())
 }
