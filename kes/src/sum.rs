@@ -43,13 +43,13 @@ where
     vkey: GenericArray<u8, H::OutputSize>,
 }
 
-impl<L, R, H> AsRef<VerifyingKey<L, R, H>> for Sum<L, R, H>
+impl<L, R, H> AsRef<VerifyingKey<H>> for Sum<L, R, H>
 where
     L: KeypairRef,
     R: KeySizeUser + KeypairRef,
     H: OutputSizeUser,
 {
-    fn as_ref(&self) -> &VerifyingKey<L, R, H> {
+    fn as_ref(&self) -> &VerifyingKey<H> {
         VerifyingKey::ref_cast(&self.vkey)
     }
 }
@@ -60,7 +60,7 @@ where
     R: KeySizeUser + KeypairRef,
     H: OutputSizeUser,
 {
-    type VerifyingKey = VerifyingKey<L, R, H>;
+    type VerifyingKey = VerifyingKey<H>;
 }
 
 impl<L, R, H> KeySizeUser for Sum<L, R, H>
@@ -292,69 +292,64 @@ where
 /// right parts of the sum.
 #[derive(RefCast)]
 #[repr(transparent)] 
-pub struct VerifyingKey<L, R, H>(
+pub struct VerifyingKey<H>(
     GenericArray<u8, H::OutputSize>,
-    // We need this to bound recursion in the type checker. Otherwise, typecheck goes into infinite
-    // recursion, and gives nasty error messages. Sad reality.
-    std::marker::PhantomData<(L, R)>,
 )
 where
     H: OutputSizeUser;
 
-impl<L, R, H: OutputSizeUser> Clone for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> Clone for VerifyingKey<H> {
     fn clone(&self) -> Self {
-        VerifyingKey(self.0.clone(), std::marker::PhantomData)
+        VerifyingKey(self.0.clone())
     }
 }
 
-impl<L, R, H: OutputSizeUser> AsRef<[u8]> for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> AsRef<[u8]> for VerifyingKey<H> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl<L, R, H: OutputSizeUser> PartialEq for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> PartialEq for VerifyingKey<H> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
-impl<L, R, H: OutputSizeUser> Eq for VerifyingKey<L, R, H> {}
+impl<H: OutputSizeUser> Eq for VerifyingKey<H> {}
 
-impl<L, R, H: OutputSizeUser> PartialOrd for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> PartialOrd for VerifyingKey<H> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.0.cmp(&other.0))
     }
 }
 
-impl<L, R, H: OutputSizeUser> Ord for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> Ord for VerifyingKey<H> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<L, R, H: OutputSizeUser> Debug for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> Debug for VerifyingKey<H> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("SumVerifyingKey").field(&self.0).finish()
     }
 }
 
-impl<L, R, H: OutputSizeUser> KeySizeUser for VerifyingKey<L, R, H> {
+impl<H: OutputSizeUser> KeySizeUser for VerifyingKey<H> {
     type KeySize = H::OutputSize;
 }
 
-impl<L, R, H: OutputSizeUser> From<digest::Key<Self>> for VerifyingKey<L, R, H>
+impl<H: OutputSizeUser> From<digest::Key<Self>> for VerifyingKey<H>
 where
-    L: KeypairRef,
-    R: KeySizeUser + KeypairRef,
     H: OutputSizeUser,
 {
     fn from(key: digest::Key<Self>) -> Self {
-        VerifyingKey(key, std::marker::PhantomData)
+        VerifyingKey(key)
     }
 }
 
 impl<'a, S, L, R, H> Verifier<KeyEvolvingSignature<'a, Signature<S, L, R>>>
-    for VerifyingKey<L, R, H>
+    for VerifyingKey<H>
 where
     L: KeypairRef + Evolve,
     L::VerifyingKey: Verifier<KeyEvolvingSignature<'a, S>> + AsRef<[u8]>,
@@ -422,37 +417,31 @@ where
 pub type Double<T, H> = Sum<T, T, H>;
 /// Signature of the summation of the same type.
 pub type DoubleSignature<S, T> = Signature<S, T, T>;
-pub type DoubleVerifyingKey<T, H> = VerifyingKey<T, T, H>;
 
 /// Repeated sum of the same type with `2^2` periods.
 pub type Pow2<T, H> = Double<Double<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^2` periods.
 pub type Pow2Signature<S, T, H> = DoubleSignature<DoubleSignature<S, T>, Double<T, H>>;
-pub type Pow2VerifyingKey<T, H> = DoubleVerifyingKey<Double<T, H>, H>;
 
 /// Repeated sum of the same type with `2^3` periods.
 pub type Pow3<T, H> = Double<Pow2<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^3` periods.
 pub type Pow3Signature<S, T, H> = DoubleSignature<Pow2Signature<S, T, H>, Pow2<T, H>>;
-pub type Pow3VerifyingKey<T, H> = DoubleVerifyingKey<Pow2<T, H>, H>;
 
 /// Repeated sum of the same type with `2^4` periods.
 pub type Pow4<T, H> = Double<Pow3<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^4` periods.
 pub type Pow4Signature<S, T, H> = DoubleSignature<Pow3Signature<S, T, H>, Pow3<T, H>>;
-pub type Pow4VerifyingKey<T, H> = DoubleVerifyingKey<Pow3<T, H>, H>;
 
 /// Repeated sum of the same type with `2^5` periods.
 pub type Pow5<T, H> = Double<Pow4<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^5` periods.
 pub type Pow5Signature<S, T, H> = DoubleSignature<Pow4Signature<S, T, H>, Pow4<T, H>>;
-pub type Pow5VerifyingKey<T, H> = DoubleVerifyingKey<Pow4<T, H>, H>;
 
 /// Repeated sum of the same type with `2^6` periods.
 pub type Pow6<T, H> = Double<Pow5<T, H>, H>;
 /// Signature of the repeated sum of the same type with `2^6` periods.
 pub type Pow6Signature<S, T, H> = DoubleSignature<Pow5Signature<S, T, H>, Pow5<T, H>>;
-pub type Pow6VerifyingKey<T, H> = DoubleVerifyingKey<Pow5<T, H>, H>;
 
 #[cfg(test)]
 mod tests {
