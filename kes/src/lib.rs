@@ -3,6 +3,9 @@ use signature::Signer;
 pub mod single_use;
 pub mod sum;
 
+pub use single_use::SingleUse;
+pub use sum::Sum;
+
 /// Trait for forward secure key evolution.
 pub trait Evolve: Sized {
     /// The number of periods for the key.

@@ -3,10 +3,9 @@ use std::{
     net::TcpStream,
 };
 
-use minicbor::{data::Token, to_vec, Decode, Encode};
+use minicbor::{Decode, Encode, data::Token, to_vec};
 use ponk::network::{
-    self, Header, NetworkMagic, NodeToClient,
-    handshake::{self, VersionTable},
+    self, handshake::{self, VersionTable}, Header, NetworkMagic, NodeToNode
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -15,19 +14,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let propose_versions = handshake::ClientMessage::ProposeVersions(VersionTable {
         versions: vec![(
-            32788,
-            handshake::NodeToClientVersionData {
+            14,
+            handshake::NodeToNodeVersionData {
                 network_magic: NetworkMagic::Preview,
-                query: true,
+                query: false,
+                diffusion_mode: false,
+                peer_sharing: false,
             },
         )],
     });
+    
     let encoded = to_vec(&propose_versions)?;
     let header = network::Header {
-        timestamp: now.elapsed().as_secs() as u32,
+        timestamp: now.elapsed().as_micros() as u32,
         protocol: network::Protocol {
             responder: false,
-            protocol: NodeToClient::Handshake,
+            protocol: NodeToNode::Handshake,
         },
         payload_len: encoded.len() as u16,
     };
@@ -35,16 +37,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     stream.write_all(&<[u8; 8]>::from(header))?;
     stream.write_all(&encoded)?;
 
-    let mut buf = [0; 1024];
+    let mut buf = [0; 4096];
     stream.read_exact(&mut buf[0..8])?;
-    let header = network::Header::<NodeToClient>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
+    let header = network::Header::<NodeToNode>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
     dbg!(&header);
     stream.read_exact(&mut buf[8..8 + header.payload_len as usize])?;
-    let message = handshake::ServerMessage::<'_, handshake::NodeToClientVersionData>::decode(
+    let message = handshake::ServerMessage::<'_, handshake::NodeToNodeVersionData>::decode(
         &mut minicbor::Decoder::new(&buf[8..8 + header.payload_len as usize]),
         &mut (),
     )?;
     dbg!(&message);
+
+    let chain_sync = network::chain_sync::ClientMessage::Next;
+    let msg_encoded = to_vec(&chain_sync)?;
+    
+    let header = network::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: network::Protocol {
+            responder: false,
+            protocol: NodeToNode::ChainSync
+        },
+        payload_len: msg_encoded.len() as u16,
+    };
+
+    stream.write_all(&<[u8; 8]>::from(header))?;
+    stream.write_all(&msg_encoded)?;
+
+    stream.read_exact(&mut buf[0..8])?;
+    let header = network::Header::<NodeToNode>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
+    dbg!(&header);
+    stream.read_exact(&mut buf[8..8 + header.payload_len as usize])?;
+    let mut decoder = minicbor::Decoder::new(&buf[8..8 + header.payload_len as usize]);
+    let response = network::chain_sync::ServerMessage::decode(&mut decoder, &mut ())?;
+    dbg!(&response);
+
+    let header = network::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: network::Protocol {
+            responder: false,
+            protocol: NodeToNode::ChainSync
+        },
+        payload_len: msg_encoded.len() as u16,
+    };
+    stream.write_all(&<[u8; 8]>::from(header))?;
+    stream.write_all(&msg_encoded)?;
+    
+    stream.read_exact(&mut buf[0..8])?;
+    let header = network::Header::<NodeToNode>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
+    dbg!(&header);
+    stream.read_exact(&mut buf[8..8 + header.payload_len as usize])?;
+    let mut decoder = minicbor::Decoder::new(&buf[8..8 + header.payload_len as usize]);
+    let tokens: Vec<_> = decoder.tokens().collect();
+    dbg!(&tokens);
 
     Ok(())
 }

@@ -37,7 +37,7 @@ pub mod boxed_slice {
         let v: Vec<T> = d.decode_with(ctx)?;
         Ok(v.into_boxed_slice())
     }
-    
+
     pub fn nil<T>() -> Option<Box<[T]>> {
         Some(Vec::new().into_boxed_slice())
     }
@@ -118,24 +118,29 @@ pub mod bounded_bytes {
     }
 }
 
+/// For anything that implements `SignatureEncoding`.
 pub mod signature {
-    use ed25519_dalek::ed25519;
     use minicbor::{Decoder, Encoder, decode as de, encode as en};
+    use signature::SignatureEncoding;
 
-    pub fn encode<C, W: en::Write>(
-        value: &ed25519::Signature,
+    pub fn encode<C, S, W: en::Write>(
+        value: &S,
         e: &mut Encoder<W>,
         _: &mut C,
-    ) -> Result<(), en::Error<W::Error>> {
-        e.bytes(&value.to_bytes())?.ok()
+    ) -> Result<(), en::Error<W::Error>>
+    where
+        S: SignatureEncoding + TryInto<S::Repr, Error: core::error::Error + Send + Sync + 'static>,
+    {
+        let repr: S::Repr = value.clone().try_into().map_err(en::Error::custom)?;
+        e.bytes(repr.as_ref())?.ok()
     }
 
-    pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<ed25519::Signature, de::Error> {
-        let bytes: minicbor::bytes::ByteArray<64> = d.decode()?;
-
-        Ok(ed25519::Signature::from(<[u8; 64] as From<
-            minicbor::bytes::ByteArray<64>,
-        >>::from(bytes)))
+    pub fn decode<S, Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<S, de::Error>
+    where
+        S: SignatureEncoding + for<'a> TryFrom<&'a [u8], Error: core::error::Error + Send + Sync + 'static>,
+    {
+        let bytes = d.bytes()?;
+        S::try_from(bytes).map_err(de::Error::custom)
     }
 }
 

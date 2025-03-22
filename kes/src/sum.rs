@@ -12,14 +12,16 @@ use digest::{
     consts::U64,
     crypto_common::KeySizeUser,
     generic_array::{ArrayLength, GenericArray},
-    typenum::{IsLessOrEqual, LeEq, NonZero},
+    typenum::{IsLessOrEqual, LeEq, NonZero, Unsigned},
 };
-use ref_cast::RefCast;
 use either::Either::{self, Left, Right};
+use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, SignatureEncoding, Signer, Verifier};
 use std::{
+    array::TryFromSliceError,
     error::Error,
     fmt::{Debug, Display},
+    hash::Hash,
 };
 
 use crate::{Evolve, KeyEvolvingSignature};
@@ -186,7 +188,7 @@ where
 /// This can be chosen as the output of [`Sum::sign`] by setting the `Signer<S>` type parameter.
 /// To [`Verifier::verify`] this signature, it must first be assembled into a
 /// [`KeyEvolvingSignature`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord)]
 pub struct Signature<S, L, R>
 where
     L: KeypairRef,
@@ -195,6 +197,40 @@ where
     pub signature: S,
     pub left_vkey: L::VerifyingKey,
     pub right_vkey: R::VerifyingKey,
+}
+
+impl<S, L, R> PartialEq for Signature<S, L, R>
+where
+    S: PartialEq,
+    L: KeypairRef<VerifyingKey: PartialEq>,
+    R: KeypairRef<VerifyingKey: PartialEq>,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.signature == other.signature
+            && self.left_vkey == other.left_vkey
+            && self.right_vkey == other.right_vkey
+    }
+}
+
+impl<S, L, R> Eq for Signature<S, L, R>
+where
+    S: Eq,
+    L: KeypairRef<VerifyingKey: Eq>,
+    R: KeypairRef<VerifyingKey: Eq>,
+{
+}
+
+impl<S, L, R> Hash for Signature<S, L, R>
+where
+    S: Hash,
+    L: KeypairRef<VerifyingKey: Hash>,
+    R: KeypairRef<VerifyingKey: Hash>,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.signature.hash(state);
+        self.left_vkey.hash(state);
+        self.right_vkey.hash(state);
+    }
 }
 
 impl<'a, S, L, R> TryFrom<&'a [u8]> for Signature<S, L, R>
@@ -291,10 +327,8 @@ where
 /// Internally this is simply the hash of the concatenation of the verifying keys of the left and
 /// right parts of the sum.
 #[derive(RefCast)]
-#[repr(transparent)] 
-pub struct VerifyingKey<H>(
-    GenericArray<u8, H::OutputSize>,
-)
+#[repr(transparent)]
+pub struct VerifyingKey<H>(GenericArray<u8, H::OutputSize>)
 where
     H: OutputSizeUser;
 
@@ -307,6 +341,22 @@ impl<H: OutputSizeUser> Clone for VerifyingKey<H> {
 impl<H: OutputSizeUser> AsRef<[u8]> for VerifyingKey<H> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+impl<H: OutputSizeUser> TryFrom<&[u8]> for VerifyingKey<H>
+where
+    H: OutputSizeUser,
+{
+    type Error = TryFromSliceError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != H::OutputSize::to_usize() {
+            let _ = <[u8; 1] as TryFrom<&[u8]>>::try_from(&[])?;
+            unreachable!()
+        } else {
+            Ok(VerifyingKey(GenericArray::from_slice(value).clone()))
+        }
     }
 }
 
@@ -348,8 +398,7 @@ where
     }
 }
 
-impl<'a, S, L, R, H> Verifier<KeyEvolvingSignature<'a, Signature<S, L, R>>>
-    for VerifyingKey<H>
+impl<'a, S, L, R, H> Verifier<KeyEvolvingSignature<'a, Signature<S, L, R>>> for VerifyingKey<H>
 where
     L: KeypairRef + Evolve,
     L::VerifyingKey: Verifier<KeyEvolvingSignature<'a, S>> + AsRef<[u8]>,

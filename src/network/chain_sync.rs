@@ -1,6 +1,6 @@
 use minicbor::{Decode, Encode};
 
-use crate::network;
+use super::{Point, Tip};
 
 #[derive(Debug, Encode, Decode)]
 #[cbor(flat)]
@@ -8,7 +8,11 @@ pub enum ClientMessage {
     #[n(0)]
     Next,
     #[n(4)]
-    FindIntersect,
+    FindIntersect {
+        #[n(0)]
+        #[cbor(with = "crate::cbor::boxed_slice")]
+        points: Box<[Point]>,
+    },
     #[n(7)]
     Done,
 }
@@ -17,13 +21,31 @@ pub enum ClientMessage {
 #[cbor(flat)]
 pub enum ServerMessage {
     #[n(5)]
-    IntersectFound,
+    IntersectFound {
+        #[n(0)]
+        point: Point,
+        #[n(1)]
+        tip: Tip,
+    },
     #[n(6)]
-    IntersectNotFound,
+    IntersectNotFound {
+        #[n(0)]
+        tip: Tip,
+    },
     #[n(2)]
-    RollForward,
+    RollForward {
+        #[n(0)]
+        header: Box<crate::shelley::block::header::Header>,
+        #[n(1)]
+        tip: Tip,
+    },
     #[n(3)]
-    RollBackward,
+    RollBackward {
+        #[n(0)]
+        point: Point,
+        #[n(1)]
+        tip: Tip,
+    },
     #[n(1)]
     AwaitReply,
 }

@@ -1,5 +1,5 @@
 use bip39::entropy::Entropy;
-use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY, scalar::clamp_integer};
+use curve25519_dalek::{edwards::EdwardsPoint, Scalar, edwards::CompressedEdwardsY, scalar::clamp_integer};
 use digest::consts::{U28, U32};
 use hmac::Hmac;
 use minicbor::{

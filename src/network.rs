@@ -1,7 +1,8 @@
-pub mod handshake;
-pub mod chain_sync;
 pub mod block_fetch;
+pub mod chain_sync;
+pub mod handshake;
 
+use digest::generic_array::arr;
 use minicbor::{Decode, Encode};
 use zerocopy::transmute;
 
@@ -15,7 +16,7 @@ impl Protocol<NodeToNode> {
     pub fn from_u16(value: u16) -> Result<Self, UnknownProtocol> {
         let responder = value & (1 << 15) != 0;
         let value = value & !(1 << 15);
-        
+
         let protocol = match value {
             0 => NodeToNode::Handshake,
             2 => NodeToNode::ChainSync,
@@ -45,7 +46,7 @@ impl Protocol<NodeToClient> {
     pub fn from_u16(value: u16) -> Result<Self, UnknownProtocol> {
         let responder = value & (1 << 15) != 0;
         let value = value & !(1 << 15);
-        
+
         let protocol = match value {
             0 => NodeToClient::Handshake,
             5 => NodeToClient::ChainSync,
@@ -60,7 +61,7 @@ impl Protocol<NodeToClient> {
             protocol,
         })
     }
-    
+
     pub fn to_u16(&self) -> u16 {
         let mut value = self.protocol as u16;
         if self.responder {
@@ -98,7 +99,7 @@ pub struct Header<T> {
 
 impl TryFrom<[u8; 8]> for Header<NodeToNode> {
     type Error = UnknownProtocol;
-    
+
     fn try_from(value: [u8; 8]) -> std::result::Result<Self, UnknownProtocol> {
         let [timestamp, rest]: [[u8; 4]; 2] = transmute!(value);
         let [protocol, payload_len]: [[u8; 2]; 2] = transmute!(rest);
@@ -113,12 +114,11 @@ impl TryFrom<[u8; 8]> for Header<NodeToNode> {
             payload_len,
         })
     }
-
 }
 
 impl TryFrom<[u8; 8]> for Header<NodeToClient> {
     type Error = UnknownProtocol;
-    
+
     fn try_from(value: [u8; 8]) -> std::result::Result<Self, UnknownProtocol> {
         let [timestamp, rest]: [[u8; 4]; 2] = transmute!(value);
         let [protocol, payload_len]: [[u8; 2]; 2] = transmute!(rest);
@@ -133,7 +133,6 @@ impl TryFrom<[u8; 8]> for Header<NodeToClient> {
             payload_len,
         })
     }
-
 }
 
 impl From<Header<NodeToNode>> for [u8; 8] {
@@ -184,3 +183,113 @@ impl std::fmt::Display for UnknownProtocol {
 }
 
 impl std::error::Error for UnknownProtocol {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Point {
+    Genesis,
+    Block { slot: u64, hash: [u8; 32] },
+}
+
+impl<C> Encode<C> for Point {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        e: &mut minicbor::Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        if let Point::Block { slot, hash } = self {
+            e.array(2)?;
+            e.u64(*slot)?;
+            e.bytes(hash).map(|_| ())
+        } else {
+            e.array(0).map(|_| ())
+        }
+    }
+}
+
+impl<C> Decode<'_, C> for Point {
+    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+        let len = d.array()?;
+        if len == Some(0) {
+            Ok(Point::Genesis)
+        } else if len.is_none_or(|len| len == 2) {
+            let slot = d.u64()?;
+            let hash: minicbor::bytes::ByteArray<32> = d.decode()?;
+            if len.is_none() {
+                let ty = d.datatype()?;
+                if ty != minicbor::data::Type::Break {
+                    return Err(minicbor::decode::Error::type_mismatch(ty));
+                }
+                d.skip()?;
+            }
+            Ok(Point::Block {
+                slot,
+                hash: hash.into(),
+            })
+        } else {
+            Err(minicbor::decode::Error::message("invalid array size"))
+        }
+    }
+}
+
+impl From<Tip> for Point {
+    fn from(value: Tip) -> Self {
+        match value {
+            Tip::Genesis => Point::Genesis,
+            Tip::Block { slot, hash, .. } => Point::Block { slot, hash },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Tip {
+    Genesis,
+    Block {
+        slot: u64,
+        hash: [u8; 32],
+        block_number: u64,
+    },
+}
+
+
+impl<C> Encode<C> for Tip {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        e: &mut minicbor::Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        e.array(2)?;
+        let block_no = match self {
+            Tip::Genesis => 0,
+            Tip::Block { block_number, .. } => *block_number,
+        };
+        e.encode(Point::from(*self))?;
+        e.u64(block_no).map(|_| ())
+    }
+}
+
+impl<C> Decode<'_, C> for Tip {
+    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+        let arr_len = d.array()?;
+        if arr_len.is_some_and(|len| len != 2) {
+            return Err(minicbor::decode::Error::message("invalid array size"));
+        }
+        let point = Point::decode(d, &mut ())?;
+        let block_number = d.u64()?;
+        if arr_len.is_none() {
+            let ty = d.datatype()?;
+            if  ty != minicbor::data::Type::Break {
+                return Err(minicbor::decode::Error::type_mismatch(ty));
+            }
+            d.skip()?;
+        }
+        Ok(match point {
+            Point::Genesis => Tip::Genesis,
+            Point::Block { slot, hash } => Tip::Block {
+                slot,
+                hash,
+                block_number,
+            },
+        })
+    }
+}
+
