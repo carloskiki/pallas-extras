@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use minicbor::{Decode, Encode};
 
-use crate::Blake2b256Digest;
+use crate::crypto::Blake2b256Digest;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct Metadata {

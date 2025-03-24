@@ -3,11 +3,15 @@
 use digest::generic_array::GenericArray;
 use minicbor::{Decode, Encode};
 
-use crate::{Blake2b256, Blake2b256Digest};
+use crate::crypto::{self, Blake2b256, Blake2b256Digest};
 
-use crate::shelley::protocol;
+use crate::protocol;
 
-type Signature = kes::sum::Pow6Signature<ed25519_dalek::Signature, kes::SingleUse<ed25519_dalek::SigningKey>, Blake2b256>;
+type Signature = kes::sum::Pow6Signature<
+    ed25519_dalek::Signature,
+    kes::SingleUse<ed25519_dalek::SigningKey>,
+    Blake2b256,
+>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Header {
@@ -23,18 +27,17 @@ pub struct Body {
     pub block_number: u64,
     pub slot: u64,
     pub previous_hash: Option<[u8; 32]>,
-    pub issuer_vkey: crate::VerifyingKey,
-    pub vrf_vkey: crate::VerifyingKey,
+    pub issuer_vkey: crypto::VerifyingKey,
+    pub vrf_vkey: crypto::VerifyingKey,
     /// In Babbage and beyond, this serves both as the leader VRF and the nonce VRF.
     pub leader_vrf: VrfCertificate,
     pub nonce_vrf: VrfCertificate,
     pub block_body_size: u32,
     pub block_body_hash: Blake2b256Digest,
-    // TODO: I think this is the correct hash function
-    pub kes_verifying_key: kes::sum::VerifyingKey<Blake2b256>,
+    pub kes_verifying_key: crypto::kes::VerifyingKey,
     pub sequence_number: u64,
     pub key_period: u8,
-    pub signature: ed25519_dalek::Signature,
+    pub signature: crypto::Signature,
     pub protocol_version: protocol::Version,
 }
 
@@ -59,8 +62,8 @@ impl<C> Encode<C> for Body {
         } else {
             e.null()?;
         }
-        crate::cbor::compressed_edwards_y::encode(&self.issuer_vkey, e, &mut ())?;
-        crate::cbor::compressed_edwards_y::encode(&self.vrf_vkey, e, &mut ())?;
+        minicbor::bytes::encode(&self.issuer_vkey, e, &mut ())?;
+        minicbor::bytes::encode(&self.vrf_vkey, e, &mut ())?;
         e.encode(&self.leader_vrf)?;
         if self.protocol_version.major < protocol::MajorVersion::Vasil {
             e.encode(&self.nonce_vrf)?;
@@ -99,8 +102,8 @@ impl<C> Decode<'_, C> for Body {
                     Err(err)
                 }
             })?;
-        let issuer_vkey = crate::cbor::compressed_edwards_y::decode(d, &mut ())?;
-        let vrf_vkey = crate::cbor::compressed_edwards_y::decode(d, &mut ())?;
+        let issuer_vkey: crypto::VerifyingKey = minicbor::bytes::decode(d, &mut ())?;
+        let vrf_vkey: crypto::VerifyingKey = minicbor::bytes::decode(d, &mut ())?;
         let leader_vrf: VrfCertificate = d.decode()?;
 
         use minicbor::data::Type;
@@ -116,13 +119,8 @@ impl<C> Decode<'_, C> for Body {
             d.decode()?
         };
         let block_body_size = d.u32()?;
-        // TODO:                                    32 should not be hardcoded
-        let block_body_hash: minicbor::bytes::ByteArray<32> = d.decode()?;
-        let block_body_hash =
-            <[u8; 32] as From<minicbor::bytes::ByteArray<32>>>::from(block_body_hash);
-        let kes_verifying_key_bytes: minicbor::bytes::ByteArray<32> = d.decode()?;
-        let kes_verifying_key_bytes =
-            <[u8; 32] as From<minicbor::bytes::ByteArray<32>>>::from(kes_verifying_key_bytes);
+        let block_body_hash: Blake2b256Digest = minicbor::bytes::decode(d, &mut ())?;
+        let kes_verifying_key_bytes: Blake2b256Digest = minicbor::bytes::decode(d, &mut ())?;
         let kes_verifying_key_bytes: GenericArray<_, _> =
             GenericArray::from(kes_verifying_key_bytes);
         let kes_verifying_key = kes::sum::VerifyingKey::from(kes_verifying_key_bytes);

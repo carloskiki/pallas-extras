@@ -8,7 +8,7 @@ use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 use minicbor::{Decode, Encode, decode, encode};
 
 use super::credential::{self, ChainPointerIter};
-use crate::Blake2b224Digest;
+use crate::crypto::Blake2b224Digest;
 
 const HASH_SIZE: usize = 28;
 

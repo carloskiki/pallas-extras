@@ -1,4 +1,4 @@
-use crate::Blake2b256Digest;
+use crate::crypto::Blake2b256Digest;
 
 use super::{certificate, protocol, witness, address::{Address, StakeAddress}};
 

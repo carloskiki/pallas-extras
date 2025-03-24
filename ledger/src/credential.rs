@@ -1,6 +1,6 @@
 use minicbor::{Decode, Encode};
 
-use crate::Blake2b224Digest;
+use crate::crypto::Blake2b224Digest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(flat)]

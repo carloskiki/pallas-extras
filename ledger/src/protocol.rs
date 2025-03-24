@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use minicbor::{Decode, Encode};
 
-use crate::Blake2b224Digest;
+use crate::crypto::Blake2b224Digest;
 
 use super::RealNumber;
 

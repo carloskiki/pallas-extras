@@ -1,0 +1,9 @@
+[package]
+name = "cbor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# TODO: we don't need the half feature in prod
+minicbor = { version = "0.26", features = ["std", "half", "derive"] }
+signature = { workspace = true }

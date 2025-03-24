@@ -1,3 +1,5 @@
+pub use minicbor::*;
+
 pub mod bool_as_u8 {
     use minicbor::{Decoder, Encoder, decode as de, encode as en};
 
@@ -45,24 +47,6 @@ pub mod boxed_slice {
     #[allow(clippy::borrowed_box)]
     pub fn is_nil<T>(v: &Box<[T]>) -> bool {
         v.is_empty()
-    }
-}
-
-pub mod boxed_bytes {
-    use minicbor::{Decoder, Encoder, bytes::ByteVec, decode as de, encode as en};
-
-    #[allow(clippy::borrowed_box)]
-    pub fn encode<C, W: en::Write>(
-        value: &Box<[u8]>,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), en::Error<W::Error>> {
-        e.bytes(value)?.ok()
-    }
-
-    pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Box<[u8]>, de::Error> {
-        let v: ByteVec = d.decode()?;
-        Ok(Vec::from(v).into_boxed_slice())
     }
 }
 
@@ -141,23 +125,5 @@ pub mod signature {
     {
         let bytes = d.bytes()?;
         S::try_from(bytes).map_err(de::Error::custom)
-    }
-}
-
-pub mod compressed_edwards_y {
-    use curve25519_dalek::edwards::CompressedEdwardsY;
-    use minicbor::{Decoder, Encoder, decode as de, encode as en};
-
-    pub fn encode<C, W: en::Write>(
-        value: &CompressedEdwardsY,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), en::Error<W::Error>> {
-        e.bytes(value.as_bytes())?.ok()
-    }
-
-    pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<CompressedEdwardsY, de::Error> {
-        let bytes: minicbor::bytes::ByteArray<32> = d.decode()?;
-        Ok(CompressedEdwardsY(bytes.into()))
     }
 }

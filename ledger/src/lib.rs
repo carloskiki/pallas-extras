@@ -10,6 +10,7 @@ pub mod witness;
 pub mod address;
 pub mod plutus;
 pub mod cbor;
+pub mod crypto;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(tag(30))]

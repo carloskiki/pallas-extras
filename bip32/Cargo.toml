@@ -1,0 +1,20 @@
+[package]
+name = "bip32"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cbor = { workspace = true }
+zerocopy = { workspace = true }
+
+curve25519-dalek = { workspace = true }
+digest = { workspace = true }
+sha2 = { workspace = true }
+hmac = "0.12"
+pbkdf2 = "0.12"
+
+[dev-dependencies]
+curve25519-dalek = { workspace = true }
+ed25519-bip32 = "0.4"
+criterion = "0.5"
+rand = "0.8"

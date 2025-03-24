@@ -1,7 +1,8 @@
+use bip32::ExtendedVerifyingKey;
 use ed25519_dalek::Signature;
 use minicbor::{Decode, Encode};
 
-use crate::{Blake2b224Digest, ExtendedVerifyingKey, shelley::{plutus, protocol}};
+use crate::{crypto::Blake2b224Digest, plutus, protocol};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 #[cbor(map)]
@@ -32,8 +33,8 @@ pub struct Set {
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct VerifyingKey {
     #[n(0)]
-    #[cbor(with = "crate::cbor::compressed_edwards_y")]
-    pub vkey: crate::VerifyingKey,
+    #[cbor(with = "minicbor::bytes")]
+    pub vkey: crate::crypto::VerifyingKey,
     #[n(1)]
     #[cbor(with = "crate::cbor::signature")]
     pub signature: Signature,
@@ -71,10 +72,10 @@ impl<C> Encode<C> for Bootstrap {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
-        _: &mut C,
+        ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         e.array(4)?;
-        crate::cbor::compressed_edwards_y::encode(&self.key.key, e, &mut ())?;
+        minicbor::bytes::encode(self.key.key_bytes(), e, ctx)?;
         crate::cbor::signature::encode(&self.signature, e, &mut ())?;
 
         e.bytes(&self.key.chain_code)?.bytes(&self.attributes)?.ok()
@@ -87,22 +88,19 @@ impl<C> Decode<'_, C> for Bootstrap {
         if !matches!(array_size, Some(4)) {
             return Err(minicbor::decode::Error::message("Invalid array size"));
         }
-        use minicbor::bytes::ByteArray;
         
-        let compressed_y = crate::cbor::compressed_edwards_y::decode(d, &mut ())?;
+        let verifying_key: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
         let signature = crate::cbor::signature::decode(d, &mut ())?;
-        let chain_code: ByteArray<32> = d.decode()?;
-        let attributes = crate::cbor::boxed_bytes::decode(d, &mut ())?;
+        let chain_code: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
+        let attributes: Vec<u8> = minicbor::bytes::decode(d, &mut ())?;
 
-        let key = ExtendedVerifyingKey {
-            key: compressed_y,
-            chain_code: *chain_code,
-        };
+        let key = ExtendedVerifyingKey::new(verifying_key, chain_code)
+            .ok_or(minicbor::decode::Error::message("Invalid verifying key curve point"))?;
 
         Ok(Bootstrap {
             key,
             signature,
-            attributes,
+            attributes: attributes.into_boxed_slice(),
         })
     }
 }

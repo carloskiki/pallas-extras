@@ -1,5 +1,5 @@
 [workspace]
-members = ["bip39", "kes", "ledger", "vrf"]
+members = [ "bip32","bip39", "cbor", "kes", "ledger", "vrf"]
 
 [workspace.dependencies]
 zerocopy = "0.8"
@@ -14,9 +14,7 @@ sha2 = "0.10"
 curve25519-dalek = { path = "../curve25519-dalek/curve25519-dalek", features = ["digest"] }
 # TODO: Use the crates.io version once it's updated
 ed25519-dalek = { path = "../curve25519-dalek/ed25519-dalek", features = ["digest"] }
-
-# TODO: we don't need the half feature in prod
-minicbor = { version = "0.26", features = ["std", "half", "derive"] }
+cbor = { path = "cbor" }
 
 [package]
 name = "ponk"
@@ -24,14 +22,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-sha3 = "0.10"
-hmac = "0.12"
 crc32fast = "1.4"
-pbkdf2 = "0.12"
-
 bs58 = "0.2"
 futures = "0.3"
-minicbor = { workspace = true }
+cbor = { workspace = true }
 
 ed25519-dalek = { workspace = true }
 
@@ -44,14 +38,6 @@ signature = { workspace = true }
 
 bip39 = { path = "bip39" }
 kes = { path = "kes" }
-
-
-[dev-dependencies]
-# TODO: Use the crates.io version once it's updated
-ed25519-dalek = { path = "../curve25519-dalek/ed25519-dalek" }
-ed25519-bip32 = "0.4"
-criterion = "0.5"
-rand = "0.8"
 
 [[bench]]
 name = "comparison"

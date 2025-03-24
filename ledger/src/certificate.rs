@@ -1,7 +1,7 @@
 use either::Either;
 use minicbor::{Decode, Encode};
 
-use crate::{Blake2b224Digest, Blake2b256Digest};
+use crate::crypto::{Blake2b224Digest, Blake2b256Digest};
 
 use super::{RealNumber, address::StakeAddress, credential, pool};
 
