@@ -13,7 +13,6 @@ use zerocopy::transmute;
 pub mod byron;
 pub mod cbor;
 pub mod network;
-pub mod shelley;
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
 type Blake2b224Digest = [u8; 28];

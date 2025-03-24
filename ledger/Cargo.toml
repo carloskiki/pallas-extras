@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+minicbor = { workspace = true }
+digest = { workspace = true }
+ed25519-dalek = { workspace = true }
+either = { workspace = true }
+kes = { path = "../kes" }
+
+bech32 = "0.11"
