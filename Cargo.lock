@@ -685,6 +685,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "network"
+version = "0.1.0"
+dependencies = [
+ "cbor-util",
+ "futures",
+ "ledger",
+ "minicbor",
+ "zerocopy",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -769,17 +780,8 @@ dependencies = [
 name = "ponk"
 version = "0.1.0"
 dependencies = [
- "bip39",
- "blake2",
- "digest",
- "ed25519-dalek 2.1.1",
- "either",
- "futures",
- "kes",
  "minicbor",
- "sha2",
- "signature",
- "zerocopy",
+ "network",
 ]
 
 [[package]]

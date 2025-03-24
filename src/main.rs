@@ -4,7 +4,7 @@ use std::{
 };
 
 use minicbor::{Decode, Encode, data::Token, to_vec};
-use ponk::network::{
+use network::{
     self, handshake::{self, VersionTable}, Header, NetworkMagic, NodeToNode
 };
 

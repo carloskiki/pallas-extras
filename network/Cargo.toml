@@ -1,0 +1,14 @@
+[package]
+name = "network"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+minicbor = { workspace = true }
+cbor-util = { workspace = true }
+
+zerocopy = { workspace = true }
+
+ledger = { path = "../ledger" }
+
+futures = "0.3"

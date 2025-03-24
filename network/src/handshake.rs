@@ -77,7 +77,7 @@ pub struct NodeToNodeVersionData {
     #[n(1)]
     pub diffusion_mode: bool,
     #[n(2)]
-    #[cbor(with = "crate::cbor::bool_as_u8")]
+    #[cbor(with = "cbor_util::bool_as_u8")]
     pub peer_sharing: bool,
     #[n(3)]
     pub query: bool,

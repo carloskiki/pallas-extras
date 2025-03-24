@@ -10,7 +10,7 @@ pub enum ClientMessage {
     #[n(4)]
     FindIntersect {
         #[n(0)]
-        #[cbor(with = "crate::cbor::boxed_slice")]
+        #[cbor(with = "cbor_util::boxed_slice")]
         points: Box<[Point]>,
     },
     #[n(7)]
@@ -35,7 +35,7 @@ pub enum ServerMessage {
     #[n(2)]
     RollForward {
         #[n(0)]
-        header: Box<crate::shelley::block::header::Header>,
+        header: Box<ledger::block::Header>,
         #[n(1)]
         tip: Tip,
     },

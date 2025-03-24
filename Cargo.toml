@@ -1,5 +1,5 @@
 [workspace]
-members = ["bip32", "bip39", "cbor-util", "kes", "ledger", "vrf"]
+members = ["bip32", "bip39", "cbor-util", "kes", "ledger", "network", "vrf"]
 
 [workspace.dependencies]
 # TODO: we don't need the half feature in prod
@@ -29,20 +29,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-futures = "0.3"
 minicbor = { workspace = true }
-
-ed25519-dalek = { workspace = true }
-
-zerocopy = { workspace = true }
-digest = { workspace = true }
-sha2 = { workspace = true }
-blake2 = { workspace = true }
-either = { workspace = true }
-signature = { workspace = true }
-
-bip39 = { path = "bip39" }
-kes = { path = "kes" }
+network = { path = "network" }
 
 [[bench]]
 name = "comparison"
