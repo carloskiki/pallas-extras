@@ -1,6 +1,6 @@
 use crate::crypto::Blake2b256Digest;
 
-use super::{certificate, protocol, witness, address::{Address, StakeAddress}};
+use super::{certificate, protocol, witness, address::shelley::{Address, StakeAddress}};
 
 pub struct Transaction {
     pub body: Body,

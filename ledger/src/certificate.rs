@@ -3,7 +3,7 @@ use minicbor::{Decode, Encode};
 
 use crate::crypto::{Blake2b224Digest, Blake2b256Digest};
 
-use super::{RealNumber, address::StakeAddress, credential, pool};
+use super::{address::shelley::StakeAddress, credential, pool, protocol::RealNumber};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(flat)]
@@ -40,10 +40,10 @@ pub enum Certificate {
         #[n(5)]
         reward_account: StakeAddress<false>,
         #[n(6)]
-        #[cbor(with = "crate::cbor::boxed_slice")]
+        #[cbor(with = "cbor_util::boxed_slice")]
         owners: Box<[Blake2b224Digest]>,
         #[n(7)]
-        #[cbor(with = "crate::cbor::boxed_slice")]
+        #[cbor(with = "cbor_util::boxed_slice")]
         relays: Box<[pool::Relay]>,
         #[n(8)]
         metadata: Option<pool::Metadata>,
@@ -68,7 +68,7 @@ pub enum Certificate {
     MoveRewards {
         /// If `true`, take the funds from the treasury, otherwise take them from the reserve.
         #[n(0)]
-        #[cbor(with = "crate::cbor::bool_as_u8")]
+        #[cbor(with = "cbor_util::bool_as_u8")]
         from_treasury: bool,
         #[n(1)]
         to: RewardTarget,

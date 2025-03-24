@@ -4,15 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-cbor = { workspace = true }
+minicbor = { workspace = true }
+cbor-util = { workspace = true }
 either = { workspace = true }
 
 digest = { workspace = true }
 ed25519-dalek = { workspace = true }
 blake2 = { workspace = true }
+sha3 = "0.10"
 bech32 = "0.11"
+crc32fast = "1.4"
+bs58 = "0.2"
 
-signature = { workspace = true }
 kes = { path = "../kes" }
-
 bip32 = { path = "../bip32" }

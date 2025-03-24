@@ -1,25 +1,17 @@
-// TODO: Types for the different hashes and signatures
-
 use digest::generic_array::GenericArray;
 use minicbor::{Decode, Encode};
 
-use crate::crypto::{self, Blake2b256, Blake2b256Digest};
+use crate::crypto::{self, Blake2b256Digest};
 
 use crate::protocol;
-
-type Signature = kes::sum::Pow6Signature<
-    ed25519_dalek::Signature,
-    kes::SingleUse<ed25519_dalek::SigningKey>,
-    Blake2b256,
->;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Header {
     #[n(0)]
     body: Body,
     #[n(1)]
-    #[cbor(with = "crate::cbor::signature")]
-    signature: Signature,
+    #[cbor(with = "cbor_util::signature")]
+    signature: crypto::kes::Signature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,7 +118,7 @@ impl<C> Decode<'_, C> for Body {
         let kes_verifying_key = kes::sum::VerifyingKey::from(kes_verifying_key_bytes);
         let sequence_number = d.u64()?;
         let key_period = d.u8()?;
-        let signature = crate::cbor::signature::decode(d, &mut ())?;
+        let signature = cbor_util::signature::decode(d, &mut ())?;
         let protocol_version: protocol::Version = if protocol_less_than_vasil {
             let major = d.decode()?;
             let minor = d.u8()?;

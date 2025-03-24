@@ -1,4 +1,3 @@
-use curve25519_dalek::edwards::CompressedEdwardsY;
 use digest::Digest;
 use minicbor::{
     bytes::{ByteArray, ByteSlice, ByteVec},
@@ -9,7 +8,8 @@ use minicbor::{
 };
 use sha3::Sha3_256;
 
-use crate::{Blake2b224, Blake2b224Digest, ExtendedVerifyingKey, VerifyingKey};
+use crate::crypto::{Blake2b224, Blake2b224Digest, VerifyingKey};
+use bip32::ExtendedVerifyingKey;
 
 pub struct Address {
     payload: Payload,
@@ -218,7 +218,7 @@ impl<C> Encode<C> for SpendingData {
             SpendingData::Redeem(x) => {
                 e.array(2)?;
                 e.u32(1)?;
-                e.encode(x.as_bytes())?;
+                e.bytes(x)?;
             }
         }
         Ok(())
@@ -233,7 +233,7 @@ impl<C> Decode<'_, C> for SpendingData {
             0 => SpendingData::PublicKey(d.decode()?),
             1 => {
                 let bytes: [u8; 32] = d.bytes()?.try_into().map_err(decode::Error::custom)?;
-                SpendingData::Redeem(CompressedEdwardsY(bytes))
+                SpendingData::Redeem(bytes)
             }
             _ => return Err(decode::Error::message("invalid SpendingData discriminant")),
         })

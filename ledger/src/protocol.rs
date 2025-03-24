@@ -4,8 +4,6 @@ use minicbor::{Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
-use super::RealNumber;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct Version {
     #[n(0)]
@@ -237,8 +235,17 @@ pub enum CostModel {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct Update {
     #[n(0)]
-    #[cbor(with = "crate::cbor::list_as_map")]
+    #[cbor(with = "cbor_util::list_as_map")]
     pub proposed: Box<[(Blake2b224Digest, ParameterUpdate)]>,
     #[n(1)]
     pub epoch: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[cbor(tag(30))]
+pub struct RealNumber {
+    #[n(0)]
+    pub numerator: u64,
+    #[n(1)]
+    pub denominator: u64,
 }

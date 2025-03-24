@@ -1,32 +1,31 @@
 use bip32::ExtendedVerifyingKey;
-use ed25519_dalek::Signature;
 use minicbor::{Decode, Encode};
 
-use crate::{crypto::Blake2b224Digest, plutus, protocol};
+use crate::{crypto::{Blake2b224Digest, Signature}, plutus, protocol};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 #[cbor(map)]
 pub struct Set {
     #[n(0)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub verifying_keys: Box<[VerifyingKey]>,
     #[n(1)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub native_scripts: Box<[Script]>,
     #[n(2)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub bootstraps: Box<[Bootstrap]>,
     #[n(3)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub plutus_v1: Box<[plutus::Script]>,
     #[n(4)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub plutus_data: Box<[plutus::Data]>,
     #[n(5)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub redeemers: Box<[Redeemer]>,
     #[n(6)]
-    #[cbor(with = "crate::cbor::boxed_slice", has_nil)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub plutus_v2: Box<[plutus::Script]>,
 }
 
@@ -36,7 +35,7 @@ pub struct VerifyingKey {
     #[cbor(with = "minicbor::bytes")]
     pub vkey: crate::crypto::VerifyingKey,
     #[n(1)]
-    #[cbor(with = "crate::cbor::signature")]
+    #[cbor(with = "cbor_util::signature")]
     pub signature: Signature,
 }
 
@@ -46,13 +45,13 @@ pub enum Script {
     #[n(0)]
     Vkey(#[n(0)] Blake2b224Digest),
     #[n(1)]
-    All(#[cbor(n(0), with = "crate::cbor::boxed_slice")] Box<[Script]>),
+    All(#[cbor(n(0), with = "cbor_util::boxed_slice")] Box<[Script]>),
     #[n(2)]
-    Any(#[cbor(n(0), with = "crate::cbor::boxed_slice")] Box<[Script]>),
+    Any(#[cbor(n(0), with = "cbor_util::boxed_slice")] Box<[Script]>),
     #[n(3)]
     NofK(
         #[n(0)] u64,
-        #[cbor(n(1), with = "crate::cbor::boxed_slice")] Box<[Script]>,
+        #[cbor(n(1), with = "cbor_util::boxed_slice")] Box<[Script]>,
     ),
     #[n(4)]
     InvalidBefore(#[n(0)] u64),
@@ -76,7 +75,7 @@ impl<C> Encode<C> for Bootstrap {
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         e.array(4)?;
         minicbor::bytes::encode(self.key.key_bytes(), e, ctx)?;
-        crate::cbor::signature::encode(&self.signature, e, &mut ())?;
+        cbor_util::signature::encode(&self.signature, e, &mut ())?;
 
         e.bytes(&self.key.chain_code)?.bytes(&self.attributes)?.ok()
     }
@@ -90,7 +89,7 @@ impl<C> Decode<'_, C> for Bootstrap {
         }
         
         let verifying_key: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
-        let signature = crate::cbor::signature::decode(d, &mut ())?;
+        let signature = cbor_util::signature::decode(d, &mut ())?;
         let chain_code: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
         let attributes: Vec<u8> = minicbor::bytes::decode(d, &mut ())?;
 
