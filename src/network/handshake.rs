@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use minicbor::{Decode, Encode, Encoder, encode};
 
-use super::NetworkMagic;
+use super::{Request, NetworkMagic};
 
 pub type Version = u16;
 
@@ -9,6 +11,14 @@ pub type Version = u16;
 pub enum ClientMessage<D> {
     #[n(0)]
     ProposeVersions(#[n(0)] VersionTable<D>),
+}
+
+impl<D> Request for ClientMessage<D>
+where D: Encode<()> + for<'b> Decode<'b, ()>
+
+{
+    const TIMEOUT: Option<std::time::Duration> = Some(Duration::from_secs(10));
+    type Response<'a> = ServerMessage<'a, D>;
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -20,6 +30,13 @@ pub enum ServerMessage<'a, D> {
     Refuse(#[b(0)] RefuseReason<'a>),
     #[n(3)]
     QueryReply(#[n(0)] VersionTable<D>),
+}
+
+impl<D> Request for ServerMessage<'_, D>
+where D: Encode<()>
+{
+    const TIMEOUT: Option<std::time::Duration> = None;
+    type Response<'b> = ();
 }
 
 #[derive(Debug)]

@@ -1,8 +1,8 @@
 pub mod block_fetch;
 pub mod chain_sync;
 pub mod handshake;
+pub mod mux;
 
-use digest::generic_array::arr;
 use minicbor::{Decode, Encode};
 use zerocopy::transmute;
 
@@ -293,3 +293,7 @@ impl<C> Decode<'_, C> for Tip {
     }
 }
 
+pub trait Request: Encode<()> {
+    const TIMEOUT: Option<std::time::Duration>;
+    type Response<'a>: Decode<'a, ()>;
+}
