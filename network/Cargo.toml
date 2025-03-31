@@ -6,9 +6,10 @@ edition = "2024"
 [dependencies]
 minicbor = { workspace = true }
 cbor-util = { workspace = true }
-
 zerocopy = { workspace = true }
 
 ledger = { path = "../ledger" }
 
 futures = "0.3"
+frunk = "0.4"
+tower-service = "0.3"

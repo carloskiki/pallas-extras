@@ -1,48 +1,192 @@
-use std::{
-    convert::Infallible,
-    io,
-    pin::pin,
-    sync::{Arc, Mutex},
+use std::{convert::Infallible, error::Error, fmt::Display, io, pin::pin};
+
+use frunk::{
+    Func, Poly, ToRef,
+    coproduct::{CoproductFoldable, CoproductMappable},
+};
+use futures::{channel::mpsc::Receiver, AsyncRead, AsyncWrite, AsyncWriteExt, StreamExt};
+use header::{Header, ProtocolNumber};
+use minicbor::{Decode, Encode};
+
+use crate::{
+    protocol::{
+        Agency, Message, MiniProtocol, Protocol, State, UnknownProtocol
+    },
+    utilities::{FuncOnce, PolyOnce, TypeMap, ProtocolMessage, MiniProtocolMessage},
 };
 
-use futures::{
-    AsyncRead, AsyncReadExt, AsyncWrite,
-    future::RemoteHandle,
-    task::{Spawn, SpawnExt},
-};
+mod header;
 
-use super::Request;
-
-#[derive(Debug, Clone)]
-pub struct Mux<W> {
-    writer: W,
-    handle: Arc<Mutex<RemoteHandle<io::Result<Infallible>>>>,
+pub struct Mux<P> {
+    protocol: std::marker::PhantomData<P>,
 }
 
-impl<W: AsyncWrite> Mux<W> {
-    pub fn new(
-        reader: impl AsyncRead + Send + 'static,
-        writer: W,
-        spawner: impl Spawn,
-    ) -> Result<Self, futures::task::SpawnError> {
-        let handle = Arc::new(Mutex::new(spawner.spawn_with_handle(reader_task(reader))?));
+pub struct Client<MP> {
+    mini_protocol: std::marker::PhantomData<MP>,
+}
 
-        Ok(Self { writer, handle })
-    }
+#[derive(Debug)]
+pub enum MuxError {
+    Io(io::Error),
+    Protocol(UnknownProtocol),
+    Decode(minicbor::decode::Error),
+    Encode(minicbor::encode::Error<Infallible>),
+}
 
-    pub async fn write<'a, M>(&'a mut self, message: &M) -> io::Result<M::Response<'a>>
-    where
-        M: Request,
-    {
-        todo!()
+impl From<io::Error> for MuxError {
+    fn from(e: io::Error) -> Self {
+        Self::Io(e)
     }
 }
 
-async fn reader_task<R: AsyncRead>(read: R) -> io::Result<Infallible> {
-    let mut pinned_read = pin!(read);
-    let mut header_buf = [0; 8];
+impl From<UnknownProtocol> for MuxError {
+    fn from(e: UnknownProtocol) -> Self {
+        Self::Protocol(e)
+    }
+}
 
-    loop {
-        pinned_read.read_exact(&mut header_buf).await?;
+impl From<minicbor::decode::Error> for MuxError {
+    fn from(e: minicbor::decode::Error) -> Self {
+        Self::Decode(e)
+    }
+}
+
+impl Display for MuxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(e) => write!(f, "IO error: {}", e),
+            Self::Protocol(e) => write!(f, "Unknown protocol: {}", e),
+            Self::Decode(e) => write!(f, "Decode error: {}", e),
+            Self::Encode(e) => write!(f, "Encode error: {}", e),
+        }
+    }
+}
+
+impl Error for MuxError {}
+
+async fn writer_task<P>(
+    mut writer: impl AsyncWrite,
+    mut rx: Receiver<ProtocolMessage<P>>,
+) -> Result<Infallible, MuxError>
+where
+    P: Protocol,
+    // Encode<()> + 'static
+    ProtocolMessage<P>: for<'a> CoproductFoldable<
+            PolyOnce<&'a mut minicbor::Encoder<Vec<u8>>>,
+            Result<(), minicbor::encode::Error<Infallible>>,
+        > + for<'a> ToRef<'a>
+        + 'static,
+    // Sent from server or client? + Get Protocol from message
+    for<'a> <ProtocolMessage<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, bool>
+     + CoproductFoldable<Poly<MiniProtocolNumber>, u16>,
+{
+    let mut writer = pin!(writer);
+    let encode_buffer = Vec::with_capacity(64 * 1024);
+    let mut encoder = minicbor::Encoder::new(encode_buffer);
+    let mut peeked: Option<ProtocolMessage<P>> = None;
+    let time = std::time::Instant::now();
+
+    while let Some(message) = {
+        if peeked.is_none() {
+            rx.next().await
+        } else {
+            peeked.take()
+        }
+    } {
+        let server_sent = message.to_ref().fold(Poly(FromAgency));
+        let protocol_number = message.to_ref().map(Poly(MessageMiniProtocol));
+        message.fold(PolyOnce(&mut encoder));
+
+        loop {
+            if encoder.writer().len() >= u16::MAX as usize {
+                break;
+            }
+            if let Ok(Some(next_message)) = rx.try_next() {
+                if next_message.to_ref().map(Poly(MessageMiniProtocol)) == protocol_number {
+                    next_message.fold(PolyOnce(&mut encoder));
+                } else {
+                    peeked = Some(next_message);
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        for chunk in encoder.writer().chunks(u16::MAX as usize) {
+            let header = Header {
+                timestamp: time.elapsed().as_micros() as u32,
+                protocol: ProtocolNumber {
+                    protocol,
+                    server: server_sent,
+                },
+                payload_len: chunk.len() as u16,
+            };
+            let header_bytes: [u8; 8] = header.into();
+
+            writer.write_all(&header_bytes).await?;
+            writer.write_all(chunk).await?;
+        }
+    }
+
+    return Err(MuxError::Io(std::io::Error::new(
+        std::io::ErrorKind::BrokenPipe,
+        "All senders have disconnected",
+    )));
+}
+
+async fn reader_task<P>(
+    reader: impl AsyncRead,
+    senders: P,
+) {
+    // we recieve a Protocol Message which can be deconstructed into a mini protocol message
+    // because of the protocol number associated with it.
+    // This mini protocol message is a coproduct of the message of the different states.
+    //
+    // The structure:
+    // - For every MiniProtocol, we have a receiver that receive the senders through which the
+    // messages should be sent.
+}
+
+impl<Input> FuncOnce<&Input> for &'_ mut minicbor::Encoder<Vec<u8>>
+where
+    Input: Encode<()>,
+{
+    type Output = Result<(), minicbor::encode::Error<Infallible>>;
+
+    fn call(self, input: &Input) -> Self::Output {
+        input.encode(self, &mut ())
+    }
+}
+
+struct FromAgency;
+
+impl<T: Message> Func<T> for FromAgency {
+    type Output = bool;
+
+    fn call(_: T) -> Self::Output {
+        <T::FromState as State>::Agency::SERVER
+    }
+}
+
+impl<MP> FuncOnce<&MP> for &'_ mut minicbor::Decoder<'_>
+where
+    MP: MiniProtocol,
+    MiniProtocolMessage<MP>: for<'a> Decode<'a, ()>,
+{
+    type Output = Result<MiniProtocolMessage<MP>, minicbor::decode::Error>;
+
+    fn call(self, _: &MP) -> Self::Output {
+        self.decode()
+    }
+}
+
+pub struct MessageProtocolNumber<P>(std::marker::PhantomData<P>);
+
+impl<P: Protocol> Func<&ProtocolMessage<P>> for MessageProtocolNumber<P>
+{
+    type Output = u16;
+
+    fn call(i: &ProtocolMessage<P>) -> Self::Output {
     }
 }

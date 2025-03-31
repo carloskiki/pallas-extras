@@ -3,50 +3,159 @@ use std::{
     net::TcpStream,
 };
 
-use minicbor::{Decode, Encode, data::Token, to_vec};
 use network::{
-    self, handshake::{self, VersionTable}, Header, NetworkMagic, NodeToNode
+    self, NetworkMagic, Tip, chain_sync,
+    handshake::{self, NodeToNodeVersionData, VersionTable},
+    mux::header::{Header, ProtocolNumber},
+    protocol::NodeToNode,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now = std::time::Instant::now();
     let mut stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001")?;
 
-    // let propose_versions = handshake::ClientMessage::ProposeVersions(VersionTable {
-    //     versions: vec![(
-    //         14,
-    //         handshake::NodeToNodeVersionData {
-    //             network_magic: NetworkMagic::Preview,
-    //             query: false,
-    //             diffusion_mode: false,
-    //             peer_sharing: false,
-    //         },
-    //     )],
-    // });
-    // 
-    // let encoded = to_vec(&propose_versions)?;
-    // let header = network::Header {
-    //     timestamp: now.elapsed().as_micros() as u32,
-    //     protocol: network::Protocol {
-    //         responder: false,
-    //         protocol: NodeToNode::Handshake,
-    //     },
-    //     payload_len: encoded.len() as u16,
-    // };
+    // Handshake
 
-    // stream.write_all(&<[u8; 8]>::from(header))?;
-    // stream.write_all(&encoded)?;
+    let message = handshake::ClientMessage::ProposeVersions(VersionTable {
+        versions: vec![(
+            14,
+            handshake::NodeToNodeVersionData {
+                network_magic: NetworkMagic::Preview,
+                diffusion_mode: false,
+                peer_sharing: false,
+                query: false,
+            },
+        )],
+    });
+    let payload = minicbor::to_vec(&message)?;
+    let header = network::mux::header::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: ProtocolNumber {
+            protocol: network::protocol::NodeToNode::Handshake,
+            server: false,
+        },
+        payload_len: payload.len() as u16,
+    };
+    let header_bytes: [u8; 8] = header.into();
 
-    let mut buf = [0; 4096];
-    stream.read_exact(&mut buf[0..8])?;
-    let header = network::Header::<NodeToNode>::try_from(<[u8; 8]>::try_from(&buf[0..8])?)?;
-    dbg!(&header);
-    stream.read_exact(&mut buf[8..8 + header.payload_len as usize])?;
-    let message = handshake::ClientMessage::<handshake::NodeToNodeVersionData>::decode(
-        &mut minicbor::Decoder::new(&buf[8..8 + header.payload_len as usize]),
-        &mut (),
-    )?;
-    dbg!(&message);
+    stream.write_all(&header_bytes)?;
+    stream.write_all(&payload)?;
+
+    let mut header_buf = [0; 8];
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    let mut payload_buf = [0; 4096];
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+    let msg: handshake::ServerMessage<NodeToNodeVersionData> =
+        minicbor::decode(&payload_buf[..header.payload_len as usize])?;
+    dbg!(msg);
+
+    // Chain Sync first request
+
+    let msg = chain_sync::ClientMessage::Next;
+    let payload = minicbor::to_vec(&msg)?;
+    let header = network::mux::header::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: ProtocolNumber {
+            protocol: network::protocol::NodeToNode::ChainSync,
+            server: false,
+        },
+        payload_len: payload.len() as u16,
+    };
+
+    let header_bytes: [u8; 8] = header.into();
+    stream.write_all(&header_bytes)?;
+    stream.write_all(&payload)?;
+
+    let mut header_buf = [0; 8];
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    let mut payload_buf = [0; 4096];
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+    let msg: chain_sync::ServerMessage =
+        minicbor::decode(&payload_buf[..header.payload_len as usize])?;
+
+    let chain_sync::ServerMessage::RollBackward {
+        tip: Tip::Block { slot, hash, .. },
+        ..
+    } = msg
+    else {
+        panic!("Expected RollBackward, got {:?}", msg);
+    };
+
+    // Chain Sync find intersection with latest block
+
+    let msg = chain_sync::ClientMessage::FindIntersect {
+        points: vec![network::Point::Block { slot, hash }].into_boxed_slice(),
+    };
+    let payload = minicbor::to_vec(&msg)?;
+    let header = network::mux::header::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: ProtocolNumber {
+            protocol: network::protocol::NodeToNode::ChainSync,
+            server: false,
+        },
+        payload_len: payload.len() as u16,
+    };
+
+    let header_bytes: [u8; 8] = header.into();
+    stream.write_all(&header_bytes)?;
+    stream.write_all(&payload)?;
+
+    let mut header_buf = [0; 8];
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    let mut payload_buf = [0; 4096];
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+
+    let msg: chain_sync::ServerMessage =
+        minicbor::decode(&payload_buf[..header.payload_len as usize])?;
+    dbg!(msg);
+
+    // Chain Sync with upstream
+
+    let msg = chain_sync::ClientMessage::Next;
+    let payload = minicbor::to_vec(&msg)?;
+    let header = network::mux::header::Header {
+        timestamp: now.elapsed().as_micros() as u32,
+        protocol: ProtocolNumber {
+            protocol: network::protocol::NodeToNode::ChainSync,
+            server: false,
+        },
+        payload_len: payload.len() as u16,
+    };
+
+    let header_bytes: [u8; 8] = header.into();
+    stream.write_all(&header_bytes)?;
+    stream.write_all(&payload)?;
+
+    let mut header_buf = [0; 8];
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    let mut payload_buf = [0; 4096];
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+    let msg: chain_sync::ServerMessage =
+        minicbor::decode(&payload_buf[..header.payload_len as usize])?;
+
+    dbg!(msg);
+    
+    // Setup Await Reply
+    
+    stream.write_all(&header_bytes)?;
+    stream.write_all(&payload)?;
+
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+    let msg: chain_sync::ServerMessage =
+        minicbor::decode(&payload_buf[..header.payload_len as usize])?;
+    
+    dbg!(msg, header);
+
+    stream.read_exact(&mut header_buf)?;
+    let header: Header<NodeToNode> = Header::try_from(header_buf)?;
+    stream.read_exact(&mut payload_buf[..header.payload_len as usize])?;
+    dbg!(header);
 
     Ok(())
 }
