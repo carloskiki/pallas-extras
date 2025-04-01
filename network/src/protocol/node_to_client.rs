@@ -1,4 +1,4 @@
-use super::UnknownProtocol;
+use crate::traits::protocol::UnknownProtocol;
 
 #[derive(Debug, Clone, Copy)]
 pub enum NodeToClient {

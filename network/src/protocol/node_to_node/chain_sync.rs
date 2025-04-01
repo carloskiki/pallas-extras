@@ -1,6 +1,6 @@
 use minicbor::{Decode, Encode};
 
-use super::{Point, Tip};
+use crate::{Point, Tip};
 
 #[derive(Debug, Encode, Decode)]
 #[cbor(flat)]

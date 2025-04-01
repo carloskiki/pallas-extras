@@ -4,16 +4,16 @@ pub trait Constructor<C>: TypeMap<C> {
     fn construct() -> Self::Output;
 }
 
-impl Constructor<HMap<HNil>> for HNil {
-    fn construct() -> Self {
+impl Constructor<HNil> for HMap<HNil> {
+    fn construct() -> Self::Output {
         HNil
     }
 }
 
-impl<Head, Tail, C> Constructor<HMap<C>> for HCons<Head, Tail>
+impl<Head, Tail, C> Constructor<HCons<Head, Tail>> for HMap<C>
 where
     C: Constructor<Head>,
-    Tail: Constructor<HMap<C>>
+    HMap<C>: Constructor<Tail>,
 {
     fn construct() -> Self::Output {
         HCons {

@@ -4,35 +4,31 @@ use minicbor::{Decode, Encode, Encoder, encode};
 
 use crate::NetworkMagic;
 
-use super::{Client, State};
-
 pub type Version = u16;
 
-pub struct Propose<VD>(std::marker::PhantomData<VD>);
-
-impl<VD> Default for Propose<VD> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
-impl<VD> State for Propose<VD> {
-    const TIMEOUT: std::time::Duration = Duration::from_secs(10);
-    type Agency = Client;
-
-    type Message = ProposeVersions<VD>;
-}
-
-pub struct Confirm;
-
-impl State for Confirm {
-    const TIMEOUT: std::time::Duration = Duration::from_secs(10);
-    type Agency = Client;
-
-    type Message = ();
-}
-
-pub struct Done;
+// pub struct Propose<VD>(std::marker::PhantomData<VD>);
+// 
+// impl<VD> Default for Propose<VD> {
+//     fn default() -> Self {
+//         Self(Default::default())
+//     }
+// }
+// 
+// impl<VD> State for Propose<VD> {
+//     const TIMEOUT: std::time::Duration = Duration::from_secs(10);
+//     type Agency = Client;
+// 
+//     type Message = ProposeVersions<VD>;
+// }
+// 
+// pub struct Confirm;
+// 
+// impl State for Confirm {
+//     const TIMEOUT: std::time::Duration = Duration::from_secs(10);
+//     type Agency = Client;
+// 
+//     type Message = ();
+// }
 
 #[derive(Debug, Encode, Decode)]
 #[cbor(transparent)]

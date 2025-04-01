@@ -60,3 +60,6 @@ impl std::fmt::Display for UnknownProtocol {
 }
 
 impl std::error::Error for UnknownProtocol {}
+
+pub type Message<P: Protocol> = <CMap<mini_protocol::Message> as TypeMap<P>>::Output;
+pub type List<P: Protocol> = <HMap<Identity> as TypeMap<P>>::Output;

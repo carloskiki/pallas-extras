@@ -3,7 +3,9 @@ pub mod chain_sync;
 
 use minicbor::{Decode, Encode};
 
-use super::{handshake, UnknownProtocol};
+use crate::traits::protocol::UnknownProtocol;
+
+use super::handshake;
 
 #[derive(Debug, Clone, Copy)]
 pub enum NodeToNode {
@@ -38,6 +40,6 @@ impl TryFrom<u16> for NodeToNode {
 }
 
 pub enum NodeToNodeRequest {
-    Handshake(handshake::ClientMessage<handshake::NodeToNodeVersionData>),
+    Handshake(handshake::ProposeVersions<handshake::NodeToNodeVersionData>),
     ChainSync(chain_sync::ClientMessage),
 }

@@ -1,19 +1,21 @@
 use std::{convert::Infallible, error::Error, fmt::Display, io, pin::pin};
 
-use frunk::{
-    Coproduct, Func, HCons, Poly, ToRef,
-    coproduct::{CoproductFoldable, CoproductMappable},
-};
 use futures::{AsyncRead, AsyncWrite, AsyncWriteExt, StreamExt, channel::mpsc::Receiver};
 use header::{Header, ProtocolNumber};
 use minicbor::{Decode, Encode};
 
 use crate::{
-    protocol::{Agency, Message, MiniProtocol, Protocol, State, UnknownProtocol},
+    traits::{
+        message::Message,
+        mini_protocol::{self, MiniProtocol},
+        protocol::{self, Protocol, UnknownProtocol},
+        state::{self, State},
+    },
     typefu::{
-        Constructor, FuncOnce, HMap, MiniProtocolMessage, PolyOnce, ProtocolList, ProtocolMessage,
-        TypeMap, constructors,
-        type_maps::{self, Identity},
+        Func, FuncOnce, Poly, PolyOnce, ToRef,
+        constructor::Constructor,
+        coproduct::{CoproductFoldable, CoproductMappable},
+        map::{CMap, HMap, Identity, TypeMap},
     },
 };
 
@@ -68,15 +70,18 @@ impl Error for MuxError {}
 
 async fn writer_task<P>(
     mut writer: impl AsyncWrite,
-    mut rx: Receiver<ProtocolMessage<P>>,
+    mut rx: Receiver<protocol::Message<P>>,
 ) -> Result<Infallible, MuxError>
 where
     P: Protocol,
-    ProtocolList<P>: Constructor<HMap<DefaultFn>>,
+    CMap<mini_protocol::Message>: TypeMap<P>,
+    HMap<Identity>: TypeMap<P>,
+    HMap<DefaultFn>: TypeMap<protocol::List<P>>,
+    protocol::List<P>: Constructor<HMap<DefaultFn>>,
     // Get ref + 'static
-    ProtocolMessage<P>: for<'a> ToRef<'a> + 'static,
+    protocol::Message<P>: for<'a> ToRef<'a> + 'static,
     // Sent from server or client? + Encode<()> + Get protocol number from message
-    for<'a> <ProtocolMessage<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, bool>
+    for<'a> <protocol::Message<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, bool>
         + CoproductFoldable<
             PolyOnce<&'a mut minicbor::Encoder<Vec<u8>>>,
             Result<(), minicbor::encode::Error<Infallible>>,
@@ -85,7 +90,7 @@ where
     let mut writer = pin!(writer);
     let encode_buffer = Vec::with_capacity(64 * 1024);
     let mut encoder = minicbor::Encoder::new(encode_buffer);
-    let mut peeked: Option<ProtocolMessage<P>> = None;
+    let mut peeked: Option<protocol::Message<P>> = None;
     let time = std::time::Instant::now();
 
     while let Some(message) = {
@@ -98,14 +103,14 @@ where
         let server_sent = message.to_ref().fold(Poly(FromAgency));
         message.to_ref().fold(PolyOnce(&mut encoder));
 
-        let protocol = message.to_ref().map(ProtocolList::<P>::construct());
+        let protocol = message.to_ref().map(protocol::List::<P>::construct());
 
         loop {
             if encoder.writer().len() >= u16::MAX as usize {
                 break;
             }
             if let Ok(Some(next_message)) = rx.try_next() {
-                if next_message.to_ref().map(ProtocolList::<P>::construct()) == protocol {
+                if next_message.to_ref().map(protocol::List::<P>::construct()) == protocol {
                     next_message.to_ref().fold(PolyOnce(&mut encoder));
                 } else {
                     peeked = Some(next_message);
@@ -172,9 +177,9 @@ impl<T: Message> Func<T> for FromAgency {
 impl<MP> FuncOnce<&MP> for &'_ mut minicbor::Decoder<'_>
 where
     MP: MiniProtocol,
-    MiniProtocolMessage<MP>: for<'a> Decode<'a, ()>,
+    CMap<state::Message>: TypeMap<MP, Output: for<'a> Decode<'a, ()>>,
 {
-    type Output = Result<MiniProtocolMessage<MP>, minicbor::decode::Error>;
+    type Output = Result<<mini_protocol::Message as TypeMap<MP>>::Output, minicbor::decode::Error>;
 
     fn call(self, _: &MP) -> Self::Output {
         self.decode()
@@ -182,7 +187,6 @@ where
 }
 
 pub struct DefaultFn;
-
 impl<Input> TypeMap<Input> for DefaultFn {
     type Output = fn() -> Input;
 }
@@ -193,5 +197,4 @@ impl<Input: Default> Constructor<Input> for DefaultFn {
     }
 }
 
-type ProtocolConstructor<P> =
-    <<P as TypeMap<HMap<Identity>>>::Output as TypeMap<HMap<DefaultFn>>>::Output;
+type ProtocolConstructor<P: Protocol> = <HMap<DefaultFn> as TypeMap<protocol::List<P>>>::Output;
