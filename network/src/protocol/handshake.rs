@@ -1,26 +1,64 @@
+use std::{borrow::Cow, time::Duration};
+
 use minicbor::{Decode, Encode, Encoder, encode};
 
-use super::NetworkMagic;
+use crate::NetworkMagic;
+
+use super::{Client, State};
 
 pub type Version = u16;
 
+pub struct Propose<VD>(std::marker::PhantomData<VD>);
+
+impl<VD> Default for Propose<VD> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<VD> State for Propose<VD> {
+    const TIMEOUT: std::time::Duration = Duration::from_secs(10);
+    type Agency = Client;
+
+    type Message = ProposeVersions<VD>;
+}
+
+pub struct Confirm;
+
+impl State for Confirm {
+    const TIMEOUT: std::time::Duration = Duration::from_secs(10);
+    type Agency = Client;
+
+    type Message = ();
+}
+
+pub struct Done;
+
 #[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-pub enum ClientMessage<D> {
-    #[n(0)]
-    ProposeVersions(#[n(0)] VersionTable<D>),
+#[cbor(transparent)]
+pub struct ProposeVersions<D>(pub VersionTable<D>);
+
+#[derive(Debug)]
+pub struct AcceptVersion<D>(pub Version, pub D);
+
+impl<C, D: Encode<C>> Encode<C> for AcceptVersion<D> {
+    fn encode<W: encode::Write>(
+        &self,
+        e: &mut Encoder<W>,
+        ctx: &mut C,
+    ) -> Result<(), encode::Error<W::Error>> {
+        e.u16(self.0)?;
+        e.encode_with(&self.1, ctx)?.ok()
+    }
 }
 
 #[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-pub enum ServerMessage<'a, D> {
-    #[n(1)]
-    AcceptVersion(#[n(0)] Version, #[n(1)] D),
-    #[n(2)]
-    Refuse(#[b(0)] RefuseReason<'a>),
-    #[n(3)]
-    QueryReply(#[n(0)] VersionTable<D>),
-}
+#[cbor(transparent)]
+pub struct Refuse<'a>(pub RefuseReason<'a>);
+
+#[derive(Debug, Encode, Decode)]
+#[cbor(transparent)]
+pub struct QueryReply<VD>(pub VersionTable<VD>);
 
 #[derive(Debug)]
 pub struct VersionTable<D> {
@@ -80,7 +118,7 @@ pub enum RefuseReason<'a> {
     #[n(0)]
     VersionMismatch(#[n(0)] Vec<Version>),
     #[n(1)]
-    HandshakeDecodeError(#[n(0)] Version, #[b(1)] &'a str),
+    HandshakeDecodeError(#[n(0)] Version, #[n(1)] Cow<'a, str>),
     #[n(2)]
-    Refused(#[n(0)] Version, #[b(1)] &'a str),
+    Refused(#[n(0)] Version, #[n(1)] Cow<'a, str>),
 }

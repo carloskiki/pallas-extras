@@ -1,6 +1,7 @@
 pub mod mux;
 pub mod protocol;
-pub(crate) mod utilities;
+pub mod traits;
+pub(crate) mod typefu;
 
 pub use mux::Mux;
 

@@ -11,5 +11,4 @@ zerocopy = { workspace = true }
 ledger = { path = "../ledger" }
 
 futures = "0.3"
-frunk = "0.4"
 tower-service = "0.3"
