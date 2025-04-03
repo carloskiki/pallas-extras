@@ -126,10 +126,8 @@ impl<C, const M: bool> Encode<C> for Address<M> {
 
 impl<'b, C, const M: bool> Decode<'b, C> for Address<M> {
     fn decode(d: &mut decode::Decoder<'b>, _: &mut C) -> Result<Self, decode::Error> {
-        // This ignores decoding errors of the inner slices, but should not matter because if the
+        // This ignores decoding errors of the inner slices, but does not matter because if the
         // inner slice errors then the value wont parse correctly anyway.
-        // This may make use vulnerable to DoS, but at this point having an application on the
-        // internet is a DoS vector.
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
         Address::<M>::from_bytes(data).map_err(decode::Error::custom)
@@ -296,10 +294,8 @@ impl<C, const M: bool> Encode<C> for StakeAddress<M> {
 
 impl<'b, C, const M: bool> Decode<'b, C> for StakeAddress<M> {
     fn decode(d: &mut minicbor::Decoder<'b>, _: &mut C) -> Result<Self, decode::Error> {
-        // This ignores decoding errors of the inner slices, but should not matter because if the
+        // This ignores decoding errors of the inner slices, but does not matter because if the
         // inner slice errors then the value wont parse correctly anyway.
-        // This may make use vulnerable to DoS, but at this point having an application on the
-        // internet is a DoS vector.
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
         StakeAddress::<M>::from_bytes(data).map_err(decode::Error::custom)

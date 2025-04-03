@@ -76,6 +76,25 @@ pub struct HCons<H, T> {
     pub tail: T,
 }
 
+impl<Head, Tail> Default for HCons<Head, Tail>
+where
+    Head: Default,
+    Tail: Default,
+{
+    fn default() -> Self {
+        HCons {
+            head: Default::default(),
+            tail: Default::default(),
+        }
+    }
+}
+
+impl Default for HNil {
+    fn default() -> Self {
+        HNil
+    }
+}
+
 /// Returns an `HList` based on the values passed in.
 ///
 /// Helps to avoid having to write nested `HCons`.

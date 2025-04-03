@@ -6,5 +6,5 @@ pub mod protocol;
 pub mod transaction;
 pub mod witness;
 pub mod address;
-pub mod plutus;
+pub mod script;
 pub mod crypto;

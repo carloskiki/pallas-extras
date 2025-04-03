@@ -1,7 +1,7 @@
 use bip32::ExtendedVerifyingKey;
 use minicbor::{Decode, Encode};
 
-use crate::{crypto::{Blake2b224Digest, Signature}, plutus, protocol};
+use crate::{crypto::Signature, protocol, script::{native, plutus}};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 #[cbor(map)]
@@ -11,7 +11,7 @@ pub struct Set {
     pub verifying_keys: Box<[VerifyingKey]>,
     #[n(1)]
     #[cbor(with = "cbor_util::boxed_slice", has_nil)]
-    pub native_scripts: Box<[Script]>,
+    pub native_scripts: Box<[native::Script]>,
     #[n(2)]
     #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub bootstraps: Box<[Bootstrap]>,
@@ -37,26 +37,6 @@ pub struct VerifyingKey {
     #[n(1)]
     #[cbor(with = "cbor_util::signature")]
     pub signature: Signature,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-#[cbor(flat)]
-pub enum Script {
-    #[n(0)]
-    Vkey(#[n(0)] Blake2b224Digest),
-    #[n(1)]
-    All(#[cbor(n(0), with = "cbor_util::boxed_slice")] Box<[Script]>),
-    #[n(2)]
-    Any(#[cbor(n(0), with = "cbor_util::boxed_slice")] Box<[Script]>),
-    #[n(3)]
-    NofK(
-        #[n(0)] u64,
-        #[cbor(n(1), with = "cbor_util::boxed_slice")] Box<[Script]>,
-    ),
-    #[n(4)]
-    InvalidBefore(#[n(0)] u64),
-    #[n(5)]
-    InvalidHereafter(#[n(0)] u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

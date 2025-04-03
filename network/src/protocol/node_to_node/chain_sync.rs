@@ -1,51 +1,21 @@
-use minicbor::{Decode, Encode};
+use state::{CanAwait, Idle, Intersect, MustReply};
 
-use crate::{Point, Tip};
+use crate::{traits::mini_protocol::MiniProtocol, typefu::coproduct::Coproduct};
 
-#[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-pub enum ClientMessage {
-    #[n(0)]
-    Next,
-    #[n(4)]
-    FindIntersect {
-        #[n(0)]
-        #[cbor(with = "cbor_util::boxed_slice")]
-        points: Box<[Point]>,
-    },
-    #[n(7)]
-    Done,
+use super::Coprod;
+
+pub mod message;
+pub mod state;
+
+pub type ChainSync = Coprod![Idle,  Intersect, CanAwait, MustReply];
+
+impl Default for ChainSync {
+    fn default() -> Self {
+        Coproduct::inject(Idle::default())
+    }
 }
 
-#[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-pub enum ServerMessage {
-    #[n(5)]
-    IntersectFound {
-        #[n(0)]
-        point: Point,
-        #[n(1)]
-        tip: Tip,
-    },
-    #[n(6)]
-    IntersectNotFound {
-        #[n(0)]
-        tip: Tip,
-    },
-    #[n(2)]
-    RollForward {
-        #[n(0)]
-        header: Box<ledger::block::Header>,
-        #[n(1)]
-        tip: Tip,
-    },
-    #[n(3)]
-    RollBackward {
-        #[n(0)]
-        point: Point,
-        #[n(1)]
-        tip: Tip,
-    },
-    #[n(1)]
-    AwaitReply,
+impl MiniProtocol for ChainSync {
+    const NUMBER: u16 = 2;
+    const READ_BUFFER_SIZE: usize = 200;
 }

@@ -9,12 +9,11 @@ use crate::{
         message::Message,
         mini_protocol::{self, MiniProtocol},
         protocol::{self, Protocol, UnknownProtocol},
-        state::{self, State},
+        state::{self, Agency, State},
     },
     typefu::{
         Func, FuncOnce, Poly, PolyOnce, ToRef,
-        constructor::Constructor,
-        coproduct::{CoproductFoldable, CoproductMappable},
+        coproduct::{CoproductFoldable, CoproductMappable, Overwrite},
         map::{CMap, HMap, Identity, TypeMap},
     },
 };
@@ -55,6 +54,12 @@ impl From<minicbor::decode::Error> for MuxError {
     }
 }
 
+impl From<minicbor::encode::Error<Infallible>> for MuxError {
+    fn from(e: minicbor::encode::Error<Infallible>) -> Self {
+        Self::Encode(e)
+    }
+}
+
 impl Display for MuxError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -75,17 +80,15 @@ async fn writer_task<P>(
 where
     P: Protocol,
     CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P>,
-    HMap<DefaultFn>: TypeMap<protocol::List<P>>,
-    protocol::List<P>: Constructor<HMap<DefaultFn>>,
+    HMap<Identity>: TypeMap<P, Output: Default>,
     // Get ref + 'static
     protocol::Message<P>: for<'a> ToRef<'a> + 'static,
     // Sent from server or client? + Encode<()> + Get protocol number from message
-    for<'a> <protocol::Message<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, bool>
+    for<'a> <protocol::Message<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, Option<bool>>
         + CoproductFoldable<
             PolyOnce<&'a mut minicbor::Encoder<Vec<u8>>>,
             Result<(), minicbor::encode::Error<Infallible>>,
-        > + CoproductMappable<ProtocolConstructor<P>, Output = P>,
+        > + CoproductMappable<Overwrite<protocol::List<P>>, Output = P>,
 {
     let mut writer = pin!(writer);
     let encode_buffer = Vec::with_capacity(64 * 1024);
@@ -101,17 +104,23 @@ where
         }
     } {
         let server_sent = message.to_ref().fold(Poly(FromAgency));
-        message.to_ref().fold(PolyOnce(&mut encoder));
+        message.to_ref().fold(PolyOnce(&mut encoder))?;
 
-        let protocol = message.to_ref().map(protocol::List::<P>::construct());
+        let protocol = message
+            .to_ref()
+            .map(Overwrite(protocol::List::<P>::default()));
 
         loop {
             if encoder.writer().len() >= u16::MAX as usize {
                 break;
             }
             if let Ok(Some(next_message)) = rx.try_next() {
-                if next_message.to_ref().map(protocol::List::<P>::construct()) == protocol {
-                    next_message.to_ref().fold(PolyOnce(&mut encoder));
+                if next_message
+                    .to_ref()
+                    .map(Overwrite(protocol::List::<P>::default()))
+                    == protocol
+                {
+                    next_message.to_ref().fold(PolyOnce(&mut encoder))?;
                 } else {
                     peeked = Some(next_message);
                     break;
@@ -126,7 +135,7 @@ where
                 timestamp: time.elapsed().as_micros() as u32,
                 protocol: ProtocolNumber {
                     protocol,
-                    server: server_sent,
+                    server: server_sent.expect("message is not sent from Done state"),
                 },
                 payload_len: chunk.len() as u16,
             };
@@ -137,13 +146,20 @@ where
         }
     }
 
-    return Err(MuxError::Io(std::io::Error::new(
+    Err(MuxError::Io(std::io::Error::new(
         std::io::ErrorKind::BrokenPipe,
         "All senders have disconnected",
-    )));
+    )))
 }
 
-async fn reader_task<P>(reader: impl AsyncRead, senders: P) {
+async fn reader_task<P>(reader: impl AsyncRead, senders: protocol::List<P>) {
+
+    // The senders: HList of MiniProtocol message, with the state of the mini protocol.
+    struct MessageSender<MP> {
+        sender: futures::channel::oneshot::Sender
+    }
+
+    
     // we recieve a Protocol Message which can be deconstructed into a mini protocol message
     // because of the protocol number associated with it.
     // This mini protocol message is a coproduct of the message of the different states.
@@ -164,16 +180,6 @@ where
     }
 }
 
-struct FromAgency;
-
-impl<T: Message> Func<T> for FromAgency {
-    type Output = bool;
-
-    fn call(_: T) -> Self::Output {
-        <T::FromState as State>::Agency::SERVER
-    }
-}
-
 impl<MP> FuncOnce<&MP> for &'_ mut minicbor::Decoder<'_>
 where
     MP: MiniProtocol,
@@ -185,16 +191,3 @@ where
         self.decode()
     }
 }
-
-pub struct DefaultFn;
-impl<Input> TypeMap<Input> for DefaultFn {
-    type Output = fn() -> Input;
-}
-
-impl<Input: Default> Constructor<Input> for DefaultFn {
-    fn construct() -> Self::Output {
-        Default::default
-    }
-}
-
-type ProtocolConstructor<P: Protocol> = <HMap<DefaultFn> as TypeMap<protocol::List<P>>>::Output;

@@ -69,8 +69,11 @@
 //! # }
 //! ```
 
-use super::{hlist::HCons, index::{Here, There}, Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef};
-
+use super::{
+    Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef,
+    hlist::HCons,
+    index::{Here, There},
+};
 
 /// Enum type representing a Coproduct. Think of this as a Result, but capable
 /// of supporting any arbitrary number of types instead of just 2.
@@ -545,7 +548,6 @@ where
     }
 }
 
-
 /// This is literally impossible; CNil is not instantiable
 impl<F, R> CoproductFoldable<F, R> for CNil {
     fn fold(self, _: F) -> R {
@@ -710,6 +712,23 @@ impl<F> CoproductMappable<F> for CNil {
     }
 }
 
+pub struct Overwrite<T>(pub T);
+
+impl<T, Tail, C, CTail> CoproductMappable<Overwrite<HCons<T, Tail>>> for Coproduct<C, CTail>
+where
+    CTail: CoproductMappable<Overwrite<Tail>>,
+{
+    type Output = Coproduct<T, CTail::Output>;
+
+    #[inline]
+    fn map(self, Overwrite(HCons { head, tail }): Overwrite<HCons<T, Tail>>) -> Self::Output {
+        match self {
+            Coproduct::Inl(_) => Coproduct::Inl(head),
+            Coproduct::Inr(ctail) => Coproduct::Inr(ctail.map(Overwrite(tail))),
+        }
+    }
+}
+
 impl<'a, CH: 'a, CTail> ToRef<'a> for Coproduct<CH, CTail>
 where
     CTail: ToRef<'a>,
@@ -806,7 +825,6 @@ where
     }
 }
 
-
 macro_rules! comatch {
     ($value:expr; _: $t:ty => $e:expr, $($tail:tt)*) => {
         match $value.uninject::<$t, _>() {
@@ -861,7 +879,6 @@ macro_rules! Coprod {
 }
 pub(crate) use Coprod;
 
-
 #[cfg(test)]
 mod tests {
 
@@ -887,7 +904,7 @@ mod tests {
             Ok(v) => assert_eq!(v, 3),
             Err(_) => panic!("Expected a value"),
         }
-        
+
         let co2 = I32StrBool::inject(false);
         assert_eq!(co2, Inr(Inr(Inl(false))));
         match co2.uninject::<i32, _>() {

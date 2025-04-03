@@ -1,4 +1,15 @@
-## Sources
+# TODOs
+
+- Full mux
+- Complete ledger implementation
+- Standardize ledger types - Should we use Box<[]> or Cow<[]>? - I think Box<[]> because we need the types to be
+    'static when sending them to the network or doing async stuff so we don't get a lot of value from Cow. Also,
+    data types coming from the network are never leaked into memory.
+- Use newtypes instead of numeric types for the ledger.
+- Implement VRF in RustCrypto
+
+# Sources
+
 - [Introduction to Elliptic Curve Cryptography](https://math.uchicago.edu/~may/REU2020/REUPapers/Shevchuk.pdf)
 - [SEC1](https://www.secg.org/sec1-v2.pdf)
 - [Elliptic Curve Wikipedia](https://en.wikipedia.org/wiki/Elliptic_curve)

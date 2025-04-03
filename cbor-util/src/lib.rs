@@ -1,3 +1,4 @@
+use decode::{ArrayIter, BytesIter, MapIter, StrIter};
 pub use minicbor::*;
 
 pub mod bool_as_u8 {
@@ -73,6 +74,15 @@ pub mod list_as_map {
     ) -> Result<Box<[(T, U)]>, de::Error> {
         d.map_iter_with(ctx)?.collect::<Result<Box<[(T, U)]>, _>>()
     }
+
+    pub fn nil<K, V>() -> Option<Box<[(K, V)]>> {
+        Some(Default::default())
+    }
+
+    #[allow(clippy::borrowed_box)]
+    pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
+        v.is_empty()
+    }
 }
 
 pub mod bounded_bytes {
@@ -121,9 +131,47 @@ pub mod signature {
 
     pub fn decode<S, Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<S, de::Error>
     where
-        S: SignatureEncoding + for<'a> TryFrom<&'a [u8], Error: core::error::Error + Send + Sync + 'static>,
+        S: SignatureEncoding
+            + for<'a> TryFrom<&'a [u8], Error: core::error::Error + Send + Sync + 'static>,
     {
         let bytes = d.bytes()?;
         S::try_from(bytes).map_err(de::Error::custom)
     }
+}
+
+pub fn bytes_iter_collect(iter: BytesIter<'_, '_>) -> Result<Box<[u8]>, minicbor::decode::Error> {
+    let mut bytes = Vec::with_capacity(iter.size_hint().0);
+    for chunk in iter {
+        bytes.extend_from_slice(chunk?);
+    }
+    Ok(bytes.into_boxed_slice())
+}
+
+pub fn str_iter_collect(iter: StrIter<'_, '_>) -> Result<Box<str>, minicbor::decode::Error> {
+    let mut string = String::with_capacity(iter.size_hint().0);
+    for chunk in iter {
+        string.push_str(chunk?);
+    }
+    Ok(string.into_boxed_str())
+}
+
+pub fn array_iter_collect<'a, T: Decode<'a, ()>>(
+    iter: ArrayIter<'_, 'a, T>,
+) -> Result<Box<[T]>, minicbor::decode::Error> {
+    let mut array = Vec::with_capacity(iter.size_hint().0);
+    for item in iter {
+        array.push(item?);
+    }
+    Ok(array.into_boxed_slice())
+}
+
+pub fn map_iter_collect<'a, K: Decode<'a, ()>, V: Decode<'a, ()>>(
+    iter: MapIter<'_, 'a, K, V>
+) -> Result<Box<[(K, V)]>, minicbor::decode::Error> {
+    let mut map = Vec::with_capacity(iter.size_hint().0);
+    for pair in iter {
+        let (key, value) = pair?;
+        map.push((key, value));
+    }
+    Ok(map.into_boxed_slice())
 }

@@ -1,10 +1,12 @@
+use minicbor::{Decode, Encode};
+
 use crate::typefu::{coproduct::CNil, map::TypeMap};
 
 pub trait State {
     const TIMEOUT: std::time::Duration;
 
     type Agency: Agency;
-    type Message;
+    type Message: Encode<()> + for<'a> Decode<'a, ()> + 'static;
 }
 
 pub trait Agency {
@@ -21,7 +23,7 @@ impl Agency for Server {
     const SERVER: Option<bool> = Some(true);
 }
 
-enum AgencyDone {}
+pub enum AgencyDone {}
 impl Agency for AgencyDone {
     const SERVER: Option<bool> = None;
 }

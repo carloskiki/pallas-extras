@@ -5,6 +5,7 @@ pub trait Constructor<C>: TypeMap<C> {
 }
 
 impl Constructor<HNil> for HMap<HNil> {
+    #[inline]
     fn construct() -> Self::Output {
         HNil
     }
@@ -15,10 +16,11 @@ where
     C: Constructor<Head>,
     HMap<C>: Constructor<Tail>,
 {
+    #[inline]
     fn construct() -> Self::Output {
         HCons {
             head: <C as Constructor<Head>>::construct(),
-            tail: Tail::construct(),
+            tail: <HMap<C> as Constructor<Tail>>::construct(),
         }
     }
 }
