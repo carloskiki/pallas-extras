@@ -7,7 +7,7 @@ use super::{address::shelley::StakeAddress, credential, pool, protocol::RealNumb
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(flat)]
-pub enum Certificate {
+pub enum Certificate<const MAINNET: bool> {
     #[n(0)]
     StakeRegistration {
         #[n(0)]
@@ -22,14 +22,14 @@ pub enum Certificate {
     StakeDelegation {
         #[n(0)]
         stake_credential: credential::Payment,
-        #[n(1)]
+        #[cbor(n(1), with = "minicbor::bytes")]
         pool_keyhash: Blake2b224Digest,
     },
     #[n(3)]
     PoolRegistration {
-        #[n(0)]
+        #[cbor(n(0), with = "minicbor::bytes")]
         operator: Blake2b224Digest,
-        #[n(1)]
+        #[cbor(n(1), with = "minicbor::bytes")]
         vrf_keyhash: Blake2b256Digest,
         #[n(2)]
         pledge: u64,
@@ -38,9 +38,9 @@ pub enum Certificate {
         #[n(4)]
         margin: RealNumber,
         #[n(5)]
-        reward_account: StakeAddress<false>,
+        reward_account: StakeAddress<MAINNET>,
         #[n(6)]
-        #[cbor(with = "cbor_util::boxed_slice")]
+        #[cbor(with = "cbor_util::boxed_slice::bytes")]
         owners: Box<[Blake2b224Digest]>,
         #[n(7)]
         #[cbor(with = "cbor_util::boxed_slice")]
@@ -50,18 +50,18 @@ pub enum Certificate {
     },
     #[n(4)]
     PoolRetirement {
-        #[n(0)]
+        #[cbor(n(0), with = "minicbor::bytes")]
         pool_keyhash: Blake2b224Digest,
         #[n(1)]
         epoch: u64,
     },
     #[n(5)]
     GenesisKeyDelegation {
-        #[n(0)]
+        #[cbor(n(0), with = "minicbor::bytes")]
         genesis_hash: Blake2b224Digest,
-        #[n(1)]
+        #[cbor(n(1), with = "minicbor::bytes")]
         genesis_delegate_hash: Blake2b224Digest,
-        #[n(2)]
+        #[cbor(n(2), with = "minicbor::bytes")]
         vrf_keyhash: Blake2b256Digest,
     },
     #[n(6)]
@@ -71,14 +71,14 @@ pub enum Certificate {
         #[cbor(with = "cbor_util::bool_as_u8")]
         from_treasury: bool,
         #[n(1)]
-        to: RewardTarget,
+        to: RewardTarget<MAINNET>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RewardTarget(Either<Box<[(StakeAddress<false>, u64)]>, u64>);
+pub struct RewardTarget<const MAINNET: bool>(Either<Box<[(StakeAddress<MAINNET>, u64)]>, u64>);
 
-impl<C> Encode<C> for RewardTarget {
+impl<const M: bool, C> Encode<C> for RewardTarget<M> {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
@@ -100,11 +100,11 @@ impl<C> Encode<C> for RewardTarget {
     }
 }
 
-impl<C> Decode<'_, C> for RewardTarget {
+impl<const M: bool, C> Decode<'_, C> for RewardTarget<M> {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         if d.probe().u64().is_err_and(|e| e.is_type_mismatch()) {
             let value: Result<Box<[(_, _)]>, minicbor::decode::Error> =
-                d.map_iter::<StakeAddress<false>, u64>()?.collect();
+                d.map_iter::<StakeAddress<M>, u64>()?.collect();
             return Ok(RewardTarget(Either::Left(value?)));
         } else {
             let value = d.u64()?;

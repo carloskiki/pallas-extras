@@ -6,9 +6,9 @@ use crate::crypto::Blake2b224Digest;
 #[cbor(flat)]
 pub enum Payment {
     #[n(0)]
-    Script(#[n(0)] Blake2b224Digest),
+    Script(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
     #[n(1)]
-    VerificationKey(#[n(0)] Blake2b224Digest),
+    VerificationKey(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
 }
 
 impl AsRef<Blake2b224Digest> for Payment {

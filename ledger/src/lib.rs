@@ -1,10 +1,11 @@
+pub mod address;
+pub mod asset;
 pub mod block;
 pub mod certificate;
 pub mod credential;
+pub mod crypto;
 pub mod pool;
 pub mod protocol;
+pub mod script;
 pub mod transaction;
 pub mod witness;
-pub mod address;
-pub mod script;
-pub mod crypto;

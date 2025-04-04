@@ -104,7 +104,7 @@ impl<C> Decode<'_, C> for Body {
         let nonce_vrf: VrfCertificate = if protocol_less_than_vasil {
             // TODO: get the nonce_vrf from the leader_vrf
             VrfCertificate {
-                hash: vec![],
+                hash: vec![].into(),
                 proof: [0; 80],
             }
         } else {
@@ -149,8 +149,8 @@ impl<C> Decode<'_, C> for Body {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct VrfCertificate {
     #[n(0)]
-    #[cbor(with = "minicbor::bytes")]
-    pub hash: Vec<u8>,
+    #[cbor(with = "cbor_util::boxed_bytes")]
+    pub hash: Box<[u8]>,
     // TODO: use the correct proof type once implemented in an upstream crate.
     #[n(1)]
     #[cbor(with = "minicbor::bytes")]

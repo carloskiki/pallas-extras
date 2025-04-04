@@ -8,6 +8,12 @@
 - Use newtypes instead of numeric types for the ledger.
 - Implement VRF in RustCrypto
 
+- [ ] Make sure to apply recommendations from https://corrode.dev/blog/pitfalls-of-safe-rust/
+    - Check arithmetic overflows
+    - Make sure Debug is only implemented on types that are not secret
+    - Use constant time where it makes sense
+    - Be mindful of Default
+
 # Sources
 
 - [Introduction to Elliptic Curve Cryptography](https://math.uchicago.edu/~may/REU2020/REUPapers/Shevchuk.pdf)

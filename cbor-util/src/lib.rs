@@ -1,3 +1,6 @@
+pub mod list_as_map;
+pub mod boxed_slice;
+
 use decode::{ArrayIter, BytesIter, MapIter, StrIter};
 pub use minicbor::*;
 
@@ -17,72 +20,42 @@ pub mod bool_as_u8 {
     }
 }
 
-pub mod boxed_slice {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en};
+pub mod boxed_bytes {
+    use std::ops::Deref;
+
+    use minicbor::{bytes::CborLenBytes, decode as de, encode as en, Decoder, Encoder};
 
     #[allow(clippy::borrowed_box)]
-    pub fn encode<C, W: en::Write, T: en::Encode<C>>(
-        value: &Box<[T]>,
+    pub fn encode<C, W: en::Write>(
+        value: &Box<[u8]>,
         e: &mut Encoder<W>,
-        ctx: &mut C,
+        _: &mut C,
     ) -> Result<(), en::Error<W::Error>> {
-        e.array(value.len() as u64)?;
-        for v in value.iter() {
-            e.encode_with(v, ctx)?;
-        }
-        Ok(())
+        e.bytes(value)?.ok()
     }
 
-    pub fn decode<'a, T: de::Decode<'a, Ctx>, Ctx>(
-        d: &mut Decoder<'a>,
+    pub fn decode<Ctx>(
+        d: &mut Decoder<'_>,
         ctx: &mut Ctx,
-    ) -> Result<Box<[T]>, de::Error> {
-        let v: Vec<T> = d.decode_with(ctx)?;
+    ) -> Result<Box<[u8]>, de::Error> {
+        let v: Vec<u8> = minicbor::bytes::decode(d, ctx)?;
         Ok(v.into_boxed_slice())
     }
 
-    pub fn nil<T>() -> Option<Box<[T]>> {
+    pub fn nil() -> Option<Box<[u8]>> {
         Some(Vec::new().into_boxed_slice())
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn is_nil<T>(v: &Box<[T]>) -> bool {
+    pub fn is_nil<>(v: &Box<[u8]>) -> bool {
         v.is_empty()
-    }
-}
-
-pub mod list_as_map {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en};
-
-    #[allow(clippy::borrowed_box)]
-    pub fn encode<C, W: en::Write, T: en::Encode<C>, U: en::Encode<C>>(
-        value: &Box<[(T, U)]>,
-        e: &mut Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), en::Error<W::Error>> {
-        e.map(value.len() as u64)?;
-        for (v, u) in value.iter() {
-            e.encode_with(v, ctx)?;
-            e.encode_with(u, ctx)?;
-        }
-        Ok(())
-    }
-
-    pub fn decode<'a, T: de::Decode<'a, Ctx>, U: de::Decode<'a, Ctx>, Ctx>(
-        d: &mut Decoder<'a>,
-        ctx: &mut Ctx,
-    ) -> Result<Box<[(T, U)]>, de::Error> {
-        d.map_iter_with(ctx)?.collect::<Result<Box<[(T, U)]>, _>>()
-    }
-
-    pub fn nil<K, V>() -> Option<Box<[(K, V)]>> {
-        Some(Default::default())
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
-        v.is_empty()
+    pub fn cbor_len<Ctx>(val: &Box<[u8]>, ctx: &mut Ctx) -> usize {
+        CborLenBytes::cbor_len(val.deref(), ctx)
     }
+   
 }
 
 pub mod bounded_bytes {
@@ -139,6 +112,57 @@ pub mod signature {
     }
 }
 
+/// Encode a type as a byte array that contains the CBOR encoding of the type with tag 24.
+pub mod cbor_encoded {
+    use minicbor::{decode as de, encode as en, CborLen, Decode, Decoder, Encode, Encoder};
+
+    use crate::bytes_iter_collect;
+
+    pub fn encode<C, W: en::Write, T: en::Encode<C> + CborLen<C>>(
+        value: &T,
+        e: &mut Encoder<W>,
+        ctx: &mut C,
+    ) -> Result<(), en::Error<W::Error>> {
+        e.tag(minicbor::data::Tag::new(24))?;
+        e.bytes_len(value.cbor_len(ctx) as u64)?;
+        e.encode_with(value, ctx)?.ok()
+    }
+
+    pub fn decode<'a, T: for<'b> de::Decode<'b, Ctx>, Ctx>(
+        d: &mut Decoder<'a>,
+        ctx: &mut Ctx,
+    ) -> Result<T, de::Error> {
+        let tag = d.tag()?;
+        if tag != minicbor::data::Tag::new(24) {
+            return Err(de::Error::tag_mismatch(tag));
+        }
+        
+        let store;
+        let bytes;
+        match d.datatype()? {
+            minicbor::data::Type::Bytes => {
+                bytes = d.bytes()?;
+            }
+            minicbor::data::Type::BytesIndef => {
+                store = bytes_iter_collect(d.bytes_iter()?)?;
+                bytes = &store;
+            }
+            t => return Err(de::Error::type_mismatch(t)),
+        }
+        
+        let mut inner_decoder = Decoder::new(bytes);
+        inner_decoder.decode_with(ctx)
+    }
+
+    pub fn nil<'a, T: Decode<'a, ()>>() -> Option<T> {
+        T::nil()
+    }
+
+    pub fn is_nil<T: Encode<()>>(v: &T) -> bool {
+        v.is_nil()
+    }
+}
+
 pub fn bytes_iter_collect(iter: BytesIter<'_, '_>) -> Result<Box<[u8]>, minicbor::decode::Error> {
     let mut bytes = Vec::with_capacity(iter.size_hint().0);
     for chunk in iter {
@@ -153,25 +177,4 @@ pub fn str_iter_collect(iter: StrIter<'_, '_>) -> Result<Box<str>, minicbor::dec
         string.push_str(chunk?);
     }
     Ok(string.into_boxed_str())
-}
-
-pub fn array_iter_collect<'a, T: Decode<'a, ()>>(
-    iter: ArrayIter<'_, 'a, T>,
-) -> Result<Box<[T]>, minicbor::decode::Error> {
-    let mut array = Vec::with_capacity(iter.size_hint().0);
-    for item in iter {
-        array.push(item?);
-    }
-    Ok(array.into_boxed_slice())
-}
-
-pub fn map_iter_collect<'a, K: Decode<'a, ()>, V: Decode<'a, ()>>(
-    iter: MapIter<'_, 'a, K, V>
-) -> Result<Box<[(K, V)]>, minicbor::decode::Error> {
-    let mut map = Vec::with_capacity(iter.size_hint().0);
-    for pair in iter {
-        let (key, value) = pair?;
-        map.push((key, value));
-    }
-    Ok(map.into_boxed_slice())
 }

@@ -6,11 +6,11 @@ use minicbor::Encode;
 use crate::{transaction, witness};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
-pub struct Block {
+pub struct Block<const MAINNET: bool> {
     #[n(0)]
     pub header: Header,
     #[n(1)]
-    pub transaction_bodies: Box<[transaction::Body]>,
+    pub transaction_bodies: Box<[transaction::Body<MAINNET>]>,
     #[n(2)]
     pub witness_sets: Box<[witness::Set]>,
     #[n(3)]

@@ -1,12 +1,12 @@
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Script {
     #[n(0)]
-    Vkey(#[n(0)] Blake2b224Digest),
+    Vkey(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
     #[n(1)]
     All(#[cbor(n(0), with = "cbor_util::boxed_slice")] Box<[Script]>),
     #[n(2)]

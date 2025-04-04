@@ -142,12 +142,14 @@ impl<C> Decode<'_, C> for ParameterUpdate {
                 22 => Ok(Parameter::MaxValueSize(d.decode()?)),
                 23 => Ok(Parameter::CollateralPercentage(d.decode()?)),
                 24 => Ok(Parameter::MaxCollateralInputs(d.decode()?)),
-                _ => Err(minicbor::decode::Error::tag_mismatch(minicbor::data::Tag::new(tag as u64))),
+                _ => Err(minicbor::decode::Error::tag_mismatch(
+                    minicbor::data::Tag::new(tag as u64),
+                )),
             }
         }
         let map_len = d.map()?;
         let mut vec;
-        
+
         if let Some(map_len) = map_len {
             vec = Vec::with_capacity(map_len as usize);
             for _ in 0..map_len {
@@ -159,7 +161,7 @@ impl<C> Decode<'_, C> for ParameterUpdate {
                 vec.push(decode_update(d)?);
             }
         };
-        
+
         Ok(ParameterUpdate(vec.into()))
     }
 }
@@ -234,8 +236,7 @@ pub enum CostModel {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct Update {
-    #[n(0)]
-    #[cbor(with = "cbor_util::list_as_map")]
+    #[cbor(n(0), with = "cbor_util::list_as_map::key_bytes")]
     pub proposed: Box<[(Blake2b224Digest, ParameterUpdate)]>,
     #[n(1)]
     pub epoch: u64,
