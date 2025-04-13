@@ -18,8 +18,6 @@ pub struct Header<T> {
 impl<P> TryFrom<[u8; 8]> for Header<P>
 where
     P: Protocol,
-    CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P>,
 {
     type Error = UnknownProtocol;
 
@@ -42,8 +40,6 @@ where
 impl<P> From<Header<P>> for [u8; 8]
 where
     P: Protocol,
-    CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P>,
 {
     fn from(value: Header<P>) -> Self {
         let protocol_value: u16 = value.protocol.into();
@@ -66,8 +62,6 @@ pub struct ProtocolNumber<T> {
 impl<P> TryFrom<u16> for ProtocolNumber<P>
 where
     P: Protocol,
-    CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P>,
 {
     type Error = UnknownProtocol;
 
@@ -85,8 +79,6 @@ where
 impl<P> From<ProtocolNumber<P>> for u16
 where
     P: Protocol,
-    CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P>,
 {
     fn from(value: ProtocolNumber<P>) -> Self {
         let responder = if value.server { 0x8000 } else { 0 };

@@ -70,9 +70,7 @@
 //! ```
 
 use super::{
-    Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef,
-    hlist::HCons,
-    index::{Here, There},
+    hlist::HCons, index::{Here, There}, map::TypeMap, Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef
 };
 
 /// Enum type representing a Coproduct. Think of this as a Result, but capable
@@ -443,6 +441,15 @@ impl<Head, Tail> Coproduct<Head, Tail> {
     }
 }
 
+impl<Head, Tail> Default for Coproduct<Head, Tail>
+where
+    Head: Default,
+{
+    fn default() -> Self {
+        Coproduct::Inl(Head::default())
+    }
+}
+
 /// Trait for instantiating a coproduct from an element
 ///
 /// This trait is part of the implementation of the inherent static method
@@ -542,7 +549,7 @@ where
 {
     fn fold(self, PolyOnce(f): PolyOnce<F>) -> F::Output {
         match self {
-            Coproduct::Inl(val) => f.call(val),
+            Coproduct::Inl(val) => f.call_once(val),
             Coproduct::Inr(tail) => tail.fold(PolyOnce(f)),
         }
     }
@@ -637,7 +644,7 @@ where
     P: Func<CH>,
     CTail: CoproductMappable<Poly<P>>,
 {
-    type Output = Coproduct<<P as Func<CH>>::Output, <CTail as CoproductMappable<Poly<P>>>::Output>;
+    type Output = Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<Poly<P>>>::Output>;
 
     #[inline]
     fn map(self, poly: Poly<P>) -> Self::Output {
@@ -655,7 +662,7 @@ where
     CTail: CoproductMappable<&'a Poly<P>>,
 {
     type Output =
-        Coproduct<<P as Func<CH>>::Output, <CTail as CoproductMappable<&'a Poly<P>>>::Output>;
+        Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<&'a Poly<P>>>::Output>;
 
     #[inline]
     fn map(self, poly: &'a Poly<P>) -> Self::Output {
@@ -673,7 +680,7 @@ where
     CTail: CoproductMappable<&'a mut Poly<P>>,
 {
     type Output =
-        Coproduct<<P as Func<CH>>::Output, <CTail as CoproductMappable<&'a mut Poly<P>>>::Output>;
+        Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<&'a mut Poly<P>>>::Output>;
 
     #[inline]
     fn map(self, poly: &'a mut Poly<P>) -> Self::Output {
@@ -931,20 +938,20 @@ mod tests {
     fn test_coproduct_poly_fold_consuming() {
         type I32F32StrBool = Coprod!(i32, f32, bool);
 
-        impl Func<i32> for P {
+        impl<T> TypeMap<T> for P {
             type Output = bool;
+        }
+        impl Func<i32> for P {
             fn call(args: i32) -> Self::Output {
                 args > 100
             }
         }
         impl Func<bool> for P {
-            type Output = bool;
             fn call(args: bool) -> Self::Output {
                 args
             }
         }
         impl Func<f32> for P {
-            type Output = bool;
             fn call(args: f32) -> Self::Output {
                 args > 9000f32
             }

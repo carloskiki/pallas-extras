@@ -3,13 +3,9 @@ use crate::typefu::{
     map::{CMap, HMap, Identity, TypeMap},
 };
 
-use super::{mini_protocol::{self, MiniProtocol}, state};
+use super::mini_protocol::{self, MiniProtocol};
 
 pub trait Protocol: Eq + Copy + Sized
-where
-    Self: Eq + Copy + Sized,
-    CMap<mini_protocol::Message>: TypeMap<Self>,
-    HMap<Identity>: TypeMap<Self>,
 {
     fn from_number(number: u16) -> Result<Self, UnknownProtocol>;
     fn number(&self) -> u16;
@@ -17,12 +13,9 @@ where
 
 impl<S, Tail> Protocol for Coproduct<S, Tail>
 where
-    CMap<state::Message>: TypeMap<S>,
-    S: MiniProtocol + Copy + Eq,
     Tail: Protocol,
-    mini_protocol::Message: TypeMap<S>,
-    CMap<mini_protocol::Message>: TypeMap<Tail>,
     HMap<Identity>: TypeMap<Tail>,
+    S: MiniProtocol + Copy + Eq,
 {
     fn from_number(number: u16) -> Result<Self, UnknownProtocol> {
         if number == S::NUMBER {
@@ -61,5 +54,5 @@ impl std::fmt::Display for UnknownProtocol {
 
 impl std::error::Error for UnknownProtocol {}
 
-pub type Message<P> = <CMap<mini_protocol::Message> as TypeMap<P>>::Output;
-pub type List<P> = <HMap<Identity> as TypeMap<P>>::Output;
+pub(crate) type Message<P> = <CMap<mini_protocol::MessageMap> as TypeMap<P>>::Output;
+pub(crate) type List<P> = <HMap<Identity> as TypeMap<P>>::Output;

@@ -95,6 +95,17 @@ impl Default for HNil {
     }
 }
 
+pub enum GetHead {}
+
+impl<Head, Tail> TypeMap<HCons<Head, Tail>> for GetHead {
+    type Output = Head;
+}
+impl<Head, Tail> Func<HCons<Head, Tail>> for GetHead {
+    fn call(i: HCons<Head, Tail>) -> Self::Output {
+        i.head
+    }
+}
+
 /// Returns an `HList` based on the values passed in.
 ///
 /// Helps to avoid having to write nested `HCons`.
@@ -132,5 +143,79 @@ macro_rules! __hlist {
         }
     };
 }
-#[allow(unused)]
 pub(crate) use __hlist as hlist;
+
+use super::{map::TypeMap, Func};
+
+
+/// Macro for pattern-matching on HLists.
+///
+/// Taken from <https://github.com/tbu-/rust-rfcs/blob/master/text/0873-type-macros.md>
+///
+/// # Examples
+///
+/// ```
+/// # use frunk_core::{hlist, hlist_pat};
+/// # fn main() {
+/// let h = hlist![13.5f32, "hello", Some(41)];
+/// let hlist_pat![a1, a2, a3] = h;
+/// assert_eq!(a1, 13.5f32);
+/// assert_eq!(a2, "hello");
+/// assert_eq!(a3, Some(41));
+///
+/// // Use "...tail" to match the rest of the list
+/// let hlist_pat![b_head, ...b_tail] = h;
+/// assert_eq!(b_head, 13.5f32);
+/// assert_eq!(b_tail, hlist!["hello", Some(41)]);
+///
+/// // You can also use "..." to just ignore the rest.
+/// let hlist_pat![c, ...] = h;
+/// assert_eq!(c, 13.5f32);
+/// # }
+/// ```
+macro_rules! __hlist_pat {
+    () => { $crate::typefu::hlist::HNil };
+    (...) => { _ };
+    (...$rest:pat) => { $rest };
+    (_) => { $crate::typefu::hlist::hlist_pat![_,] };
+    ($a:pat) => { $crate::typefu::hlist::hlist_pat![$a,] };
+    (_, $($tok:tt)*) => {
+        $crate::typefu::hlist::HCons {
+            tail: $crate::typefu::hlist::hlist_pat![$($tok)*],
+            ..
+        }
+    };
+    ($a:pat, $($tok:tt)*) => {
+        $crate::typefu::hlist::HCons {
+            head: $a,
+            tail: $crate::typefu::hlist::hlist_pat![$($tok)*],
+        }
+    };
+}
+pub(crate) use __hlist_pat as hlist_pat;
+
+/// Returns a type signature for an HList of the provided types
+///
+/// This is a type macro (introduced in Rust 1.13) that makes it easier
+/// to write nested type signatures.
+///
+/// # Examples
+///
+/// ```
+/// # use frunk_core::{hlist, HList};
+/// # fn main() {
+/// let h: HList!(f32, &str, Option<i32>) = hlist![13.5f32, "hello", Some(41)];
+///
+/// // Use "...Tail" to append another HList type at the end.
+/// let h: HList!(f32, ...HList!(&str, Option<i32>)) = hlist![13.5f32, "hello", Some(41)];
+/// # }
+/// ```
+macro_rules! __HList {
+    () => { $crate::typefu::hlist::HNil };
+    (...$Rest:ty) => { $Rest };
+    ($A:ty) => { $crate::typefu::hlist::HList![$A,] };
+    ($A:ty, $($tok:tt)*) => {
+        $crate::typefu::hlist::HCons<$A, $crate::typefu::hlist::HList![$($tok)*]>
+    };
+}
+pub(crate) use __HList as HList;

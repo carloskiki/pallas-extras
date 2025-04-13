@@ -1,32 +1,41 @@
-use std::{convert::Infallible, error::Error, fmt::Display, io, pin::pin};
+use std::{
+    convert::Infallible,
+    error::Error,
+    fmt::Display,
+    io,
+    pin::pin,
+    sync::{Arc, Mutex},
+    task::Poll,
+};
 
-use futures::{AsyncRead, AsyncWrite, AsyncWriteExt, StreamExt, channel::mpsc::Receiver};
-use header::{Header, ProtocolNumber};
-use minicbor::{Decode, Encode};
+use client::Client;
+use futures::{
+    AsyncRead, AsyncWrite,
+    channel::mpsc::{Receiver, Sender, UnboundedSender},
+    future::RemoteHandle,
+    task::Spawn,
+};
+use server::Server;
 
 use crate::{
     traits::{
-        message::Message,
         mini_protocol::{self, MiniProtocol},
         protocol::{self, Protocol, UnknownProtocol},
-        state::{self, Agency, State},
+        state,
     },
     typefu::{
-        Func, FuncOnce, Poly, PolyOnce, ToRef,
-        coproduct::{CoproductFoldable, CoproductMappable, Overwrite},
+        Func, FuncMany,
+        constructor::Constructor,
+        hlist::GetHead,
         map::{CMap, HMap, Identity, TypeMap},
+        utilities::{Unzip, UnzipLeft, UnzipRight},
     },
 };
 
+pub mod client;
 mod header;
-
-pub struct Mux<P> {
-    protocol: std::marker::PhantomData<P>,
-}
-
-pub struct Client<MP> {
-    mini_protocol: std::marker::PhantomData<MP>,
-}
+mod reader_task;
+pub mod server;
 
 #[derive(Debug)]
 pub enum MuxError {
@@ -34,6 +43,8 @@ pub enum MuxError {
     Protocol(UnknownProtocol),
     Decode(minicbor::decode::Error),
     Encode(minicbor::encode::Error<Infallible>),
+    InvalidPeerMessage,
+    AlreadyCaught,
 }
 
 impl From<io::Error> for MuxError {
@@ -67,127 +78,168 @@ impl Display for MuxError {
             Self::Protocol(e) => write!(f, "Unknown protocol: {}", e),
             Self::Decode(e) => write!(f, "Decode error: {}", e),
             Self::Encode(e) => write!(f, "Encode error: {}", e),
+            Self::AlreadyCaught => {
+                write!(f, "The MUX task error was already caught by another handle")
+            }
+            Self::InvalidPeerMessage => {
+                write!(f, "Peer sent a message invalid for the current state")
+            }
         }
     }
 }
 
 impl Error for MuxError {}
 
-async fn writer_task<P>(
-    mut writer: impl AsyncWrite,
-    mut rx: Receiver<protocol::Message<P>>,
-) -> Result<Infallible, MuxError>
+#[allow(private_bounds)]
+#[allow(private_interfaces)]
+pub fn mux<P: Protocol>(
+    bearer: impl AsyncRead + AsyncWrite,
+    spawner: impl Spawn,
+) -> <HMap<PairMaker<P>> as TypeMap<ServerReceivers<P>>>::Output
+where
+    HMap<Identity>: TypeMap<P>,
+    HMap<ChannelPairMaker>: Constructor<protocol::List<P>>,
+    UnzipLeft: TypeMap<ServerPairs<P>>,
+    UnzipRight: TypeMap<ServerPairs<P>>,
+    Unzip: Func<ServerPairs<P>, Output = (ServerSenders<P>, ServerReceivers<P>)>,
+    HMap<PairMaker<P>>: FuncMany<ServerReceivers<P>>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+{
+    let (sender, receiver) = futures::channel::mpsc::channel(0);
+    let (senders, receivers) = Unzip::call(HMap::<ChannelPairMaker>::construct());
+    let task_handle = todo!();
+
+    HMap(PairMaker {
+        task_handle,
+        sender,
+    })
+    .call_many(receivers)
+}
+
+type ServerPairs<P> = <HMap<ChannelPairMaker> as TypeMap<protocol::List<P>>>::Output;
+type ServerSenders<P> =
+    <UnzipLeft as TypeMap<<HMap<ChannelPairMaker> as TypeMap<protocol::List<P>>>::Output>>::Output;
+type ServerReceivers<P> =
+    <UnzipRight as TypeMap<<HMap<ChannelPairMaker> as TypeMap<protocol::List<P>>>::Output>>::Output;
+
+enum ChannelPairMaker {}
+impl<MP: MiniProtocol> TypeMap<MP> for ChannelPairMaker
+where
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    type Output = (Sender<mini_protocol::Message<MP>>, ReceiverWrapper<MP>);
+}
+impl<MP: MiniProtocol> Constructor<MP> for ChannelPairMaker
+where
+    CMap<crate::traits::state::Message>: TypeMap<MP::States>,
+{
+    fn construct() -> Self::Output {
+        let (sender, rx) = futures::channel::mpsc::channel(MP::READ_BUFFER_SIZE);
+        (sender, ReceiverWrapper { rx })
+    }
+}
+
+type Pair<P, MP> = (
+    Client<P, MP, <GetHead as TypeMap<<MP as MiniProtocol>::States>>::Output>,
+    Server<P, MP, <GetHead as TypeMap<<MP as MiniProtocol>::States>>::Output>,
+);
+struct PairMaker<P>
 where
     P: Protocol,
-    CMap<mini_protocol::Message>: TypeMap<P>,
-    HMap<Identity>: TypeMap<P, Output: Default>,
-    // Get ref + 'static
-    protocol::Message<P>: for<'a> ToRef<'a> + 'static,
-    // Sent from server or client? + Encode<()> + Get protocol number from message
-    for<'a> <protocol::Message<P> as ToRef<'a>>::Output: CoproductFoldable<Poly<FromAgency>, Option<bool>>
-        + CoproductFoldable<
-            PolyOnce<&'a mut minicbor::Encoder<Vec<u8>>>,
-            Result<(), minicbor::encode::Error<Infallible>>,
-        > + CoproductMappable<Overwrite<protocol::List<P>>, Output = P>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
 {
-    let mut writer = pin!(writer);
-    let encode_buffer = Vec::with_capacity(64 * 1024);
-    let mut encoder = minicbor::Encoder::new(encode_buffer);
-    let mut peeked: Option<protocol::Message<P>> = None;
-    let time = std::time::Instant::now();
-
-    while let Some(message) = {
-        if peeked.is_none() {
-            rx.next().await
-        } else {
-            peeked.take()
-        }
-    } {
-        let server_sent = message.to_ref().fold(Poly(FromAgency));
-        message.to_ref().fold(PolyOnce(&mut encoder))?;
-
-        let protocol = message
-            .to_ref()
-            .map(Overwrite(protocol::List::<P>::default()));
-
-        loop {
-            if encoder.writer().len() >= u16::MAX as usize {
-                break;
-            }
-            if let Ok(Some(next_message)) = rx.try_next() {
-                if next_message
-                    .to_ref()
-                    .map(Overwrite(protocol::List::<P>::default()))
-                    == protocol
-                {
-                    next_message.to_ref().fold(PolyOnce(&mut encoder))?;
-                } else {
-                    peeked = Some(next_message);
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        for chunk in encoder.writer().chunks(u16::MAX as usize) {
-            let header = Header {
-                timestamp: time.elapsed().as_micros() as u32,
-                protocol: ProtocolNumber {
-                    protocol,
-                    server: server_sent.expect("message is not sent from Done state"),
-                },
-                payload_len: chunk.len() as u16,
-            };
-            let header_bytes: [u8; 8] = header.into();
-
-            writer.write_all(&header_bytes).await?;
-            writer.write_all(chunk).await?;
-        }
-    }
-
-    Err(MuxError::Io(std::io::Error::new(
-        std::io::ErrorKind::BrokenPipe,
-        "All senders have disconnected",
-    )))
+    task_handle: TaskHandle,
+    sender: Sender<ProtocolSendBundle<P>>,
 }
-
-async fn reader_task<P>(reader: impl AsyncRead, senders: protocol::List<P>) {
-
-    // The senders: HList of MiniProtocol message, with the state of the mini protocol.
-    struct MessageSender<MP> {
-        sender: futures::channel::oneshot::Sender
-    }
-
-    
-    // we recieve a Protocol Message which can be deconstructed into a mini protocol message
-    // because of the protocol number associated with it.
-    // This mini protocol message is a coproduct of the message of the different states.
-    //
-    // The structure:
-    // - For every MiniProtocol, we have a receiver that receive the senders through which the
-    // messages should be sent.
-}
-
-impl<Input> FuncOnce<&Input> for &'_ mut minicbor::Encoder<Vec<u8>>
+struct ReceiverWrapper<MP: MiniProtocol>
 where
-    Input: Encode<()>,
+    CMap<state::Message>: TypeMap<MP::States>,
 {
-    type Output = Result<(), minicbor::encode::Error<Infallible>>;
-
-    fn call(self, input: &Input) -> Self::Output {
-        input.encode(self, &mut ())
+    rx: Receiver<mini_protocol::Message<MP>>,
+}
+impl<P, MP> TypeMap<ReceiverWrapper<MP>> for PairMaker<P>
+where
+    P: Protocol,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+    CMap<state::Message>: TypeMap<MP::States>,
+    GetHead: TypeMap<MP::States>,
+    MP: MiniProtocol,
+{
+    type Output = Pair<P, MP>;
+}
+impl<P, MP> FuncMany<ReceiverWrapper<MP>> for PairMaker<P>
+where
+    P: Protocol,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>,
+    GetHead: TypeMap<MP::States>,
+    <GetHead as TypeMap<MP::States>>::Output: Default,
+{
+    fn call_many(&self, ReceiverWrapper { rx }: ReceiverWrapper<MP>) -> Self::Output {
+        let (response_sender, response_receiver) = futures::channel::mpsc::unbounded();
+        (
+            Client {
+                task_handle: self.task_handle.clone(),
+                request_sender: self.sender.clone(),
+                response_sender,
+                response_receiver,
+                _state: Default::default(),
+            },
+            Server {
+                task_handle: self.task_handle.clone(),
+                response_sender: self.sender.clone(),
+                request_receiver: rx,
+                state: Default::default(),
+            },
+        )
     }
 }
 
-impl<MP> FuncOnce<&MP> for &'_ mut minicbor::Decoder<'_>
+struct SendBundle<MP>
 where
     MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP, Output: for<'a> Decode<'a, ()>>,
+    CMap<state::Message>: TypeMap<MP::States>
 {
-    type Output = Result<<mini_protocol::Message as TypeMap<MP>>::Output, minicbor::decode::Error>;
+    message: mini_protocol::Message<MP>,
+    send_back: Option<UnboundedSender<mini_protocol::Message<MP>>>,
+}
+enum MiniProtocolSendBundle {}
+impl<MP> TypeMap<MP> for MiniProtocolSendBundle
+where
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>
+{
+    type Output = SendBundle<MP>;
+}
+type ProtocolSendBundle<P> = <CMap<MiniProtocolSendBundle> as TypeMap<P>>::Output;
 
-    fn call(self, _: &MP) -> Self::Output {
-        self.decode()
+type TaskHandle = Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>;
+
+fn catch_handle_error(handle: TaskHandle) -> MuxError {
+    let Some(lock) = handle.lock().unwrap().take() else {
+        return MuxError::AlreadyCaught;
+    };
+    let pinned_lock = pin!(lock);
+    let Poll::Ready(Err(e)) =
+        pinned_lock.poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+    else {
+        unreachable!("Handler misbehaved, but it is still running...");
+    };
+    e
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{protocol::NodeToNode, typefu::hlist::hlist_pat};
+
+    use super::mux;
+
+    #[test]
+    fn create_mux() {
+        let hlist_pat![
+            (handshake_client, handshake_server),
+            (chain_sync_client, chain_sync_server)
+        ] = mux::<NodeToNode>(todo!(), todo!());
     }
 }

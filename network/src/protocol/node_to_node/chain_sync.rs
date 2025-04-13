@@ -1,21 +1,16 @@
 use state::{CanAwait, Idle, Intersect, MustReply};
 
-use crate::{traits::mini_protocol::MiniProtocol, typefu::coproduct::Coproduct};
-
-use super::Coprod;
+use crate::{traits::mini_protocol::MiniProtocol, typefu::hlist::HList};
 
 pub mod message;
 pub mod state;
 
-pub type ChainSync = Coprod![Idle,  Intersect, CanAwait, MustReply];
-
-impl Default for ChainSync {
-    fn default() -> Self {
-        Coproduct::inject(Idle::default())
-    }
-}
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ChainSync;
 
 impl MiniProtocol for ChainSync {
     const NUMBER: u16 = 2;
     const READ_BUFFER_SIZE: usize = 200;
+
+    type States = HList![Idle,  Intersect, CanAwait, MustReply];
 }

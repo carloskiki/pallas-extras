@@ -1,22 +1,24 @@
-use crate::typefu::{constructor::Constructor, map::{CMap, TypeMap}};
+use crate::typefu::{
+    constructor::Constructor,
+    map::{CMap, HMap, Identity, TypeMap},
+};
 
 use super::state;
 
-pub trait MiniProtocol: Default
-where
-    CMap<state::Message>: TypeMap<Self>,
-{
+pub trait MiniProtocol: Default {
     const NUMBER: u16;
     const READ_BUFFER_SIZE: usize;
+
+    type States:  Default;
 }
 
-pub enum Message {}
-impl<MP> TypeMap<MP> for Message
+pub enum MessageMap {}
+impl<MP> TypeMap<MP> for MessageMap
 where
     MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP>,
+    CMap<state::Message>: TypeMap<MP::States>,
 {
-    type Output = <CMap<state::Message> as TypeMap<MP>>::Output;
+    type Output = <CMap<state::Message> as TypeMap<MP::States>>::Output;
 }
 
 pub enum Number {}
@@ -37,3 +39,6 @@ where
         MP::NUMBER
     }
 }
+
+pub type StatesList<MP> = <HMap<Identity> as TypeMap<<MP as MiniProtocol>::States>>::Output;
+pub type Message<MP> = <CMap<state::Message> as TypeMap<<MP as MiniProtocol>::States>>::Output;

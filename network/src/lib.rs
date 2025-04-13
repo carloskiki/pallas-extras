@@ -3,8 +3,6 @@ pub mod protocol;
 pub mod traits;
 pub(crate) mod typefu;
 
-pub use mux::Mux;
-
 use minicbor::{Decode, Encode};
 
 #[repr(u32)]

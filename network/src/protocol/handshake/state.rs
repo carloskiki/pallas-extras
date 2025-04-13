@@ -10,17 +10,11 @@ use super::{
 };
 
 #[derive(PartialOrd, Ord, Hash)]
-pub struct Propose<VD>(pub(crate) std::marker::PhantomData<VD>);
+pub struct Propose<VD>(std::marker::PhantomData<VD>);
 
 impl<T> Debug for Propose<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Propose").field(&self.0).finish()
-    }
-}
-
-impl<VD> Default for Propose<VD> {
-    fn default() -> Self {
-        Self(Default::default())
     }
 }
 
@@ -35,6 +29,12 @@ impl<T> Copy for Propose<T> {}
 impl<T> PartialEq for Propose<T> {
     fn eq(&self, _: &Self) -> bool {
         true
+    }
+}
+
+impl<T> Default for Propose<T> {
+    fn default() -> Self {
+        Self(Default::default())
     }
 }
 

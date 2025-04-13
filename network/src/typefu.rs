@@ -22,12 +22,15 @@
 
 //! Functional programming utilities mostly coming from `frunk`.
 
+use hlist::HCons;
+use map::{HMap, TypeMap};
 
 pub mod coproduct;
 pub mod hlist;
 pub mod index;
 pub mod map;
 pub mod constructor;
+pub mod utilities;
 
 /// An alternative to AsRef that does not force the reference type to be a pointer itself.
 ///
@@ -58,12 +61,11 @@ pub trait ToMut<'a> {
     fn to_mut(&'a mut self) -> Self::Output;
 }
 
-pub trait FuncOnce<Input> {
-    type Output;
-
-    fn call(self, input: Input) -> Self::Output;
+pub trait FuncOnce<Input>: TypeMap<Input> {
+    fn call_once(self, input: Input) -> Self::Output;
 }
 
+// Same as [`Poly`], but for [`FuncOnce`].
 pub struct PolyOnce<T>(pub T);
 
 /// Wrapper type around a function for polymorphic maps and folds.
@@ -84,9 +86,7 @@ pub struct Poly<T>(pub T);
 ///
 /// Might not be necessary if/when Fn(Once, Mut) traits are implementable
 /// in stable Rust
-pub trait Func<Input> {
-    type Output;
-
+pub trait Func<Input>: TypeMap<Input> {
     /// Call the `Func`.
     ///
     /// Notice that this does not take a self argument, which in turn means `Func`
@@ -95,4 +95,21 @@ pub trait Func<Input> {
     /// small fraction of use-cases, but it also comes at great expanse to the other 95% of
     /// use cases.
     fn call(i: Input) -> Self::Output;
+}
+
+pub trait FuncMany<Input>: TypeMap<Input> {
+    fn call_many(&self, input: Input) -> Self::Output;
+}
+
+impl<H, Tail, F> FuncMany<HCons<H, Tail>> for HMap<F>
+where
+    F: FuncMany<H>,
+    HMap<F>: FuncMany<Tail>,
+{
+    fn call_many(&self, input: HCons<H, Tail>) -> Self::Output {
+        HCons {
+            head: self.0.call_many(input.head),
+            tail: self.call_many(input.tail),
+        }
+    }
 }
