@@ -1,11 +1,21 @@
 use std::marker::PhantomData;
 
-use super::{coproduct::{CNil, Coproduct}, map::TypeMap, FuncOnce};
+use super::{coproduct::{CNil, Coproduct}, map::TypeMap, Func, FuncOnce};
 
 pub struct Fold<F, O>(pub F, pub PhantomData<O>);
 
 impl<F, O> TypeMap<CNil> for Fold<F, O> {
     type Output = O;
+}
+impl<F, O> Func<CNil> for Fold<F, O> {
+    fn call(input: CNil) -> Self::Output {
+        match input {}
+    }
+}
+impl<F, O> FuncOnce<CNil> for Fold<F, O> {
+    fn call_once(self, input: CNil) -> Self::Output {
+        match input {}
+    }
 }
 
 impl<F, O, Head, Tail> TypeMap<Coproduct<Head, Tail>> for Fold<F, O>
@@ -15,13 +25,18 @@ where
 {
     type Output = O;
 }
-
-impl<F, O> FuncOnce<CNil> for Fold<F, O> {
-    fn call_once(self, input: CNil) -> Self::Output {
-        match input {}
+impl<F, O, Head, Tail> Func<Coproduct<Head, Tail>> for Fold<F, O>
+where
+    F: Func<Head, Output = O>,
+    Fold<F, O>: Func<Tail, Output = O>,
+{
+    fn call(input: Coproduct<Head, Tail>) -> Self::Output {
+        match input {
+            Coproduct::Inl(head) => F::call(head),
+            Coproduct::Inr(tail) => Fold::call(tail),
+        }
     }
 }
-
 impl<F, O, Head, Tail> FuncOnce<Coproduct<Head, Tail>> for Fold<F, O>
 where
     F: FuncOnce<Head, Output = O>,

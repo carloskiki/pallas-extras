@@ -12,7 +12,11 @@
 // state a client agency.
 
 use std::{
-    collections::VecDeque, convert::Infallible, marker::PhantomData, ops::DerefMut, pin::{pin, Pin}, task::{ready, Poll}
+    convert::Infallible,
+    marker::PhantomData,
+    ops::DerefMut,
+    pin::{Pin, pin},
+    task::{Poll, ready},
 };
 
 use futures::{
@@ -22,7 +26,7 @@ use futures::{
     select,
     sink::Feed,
 };
-use minicbor::{Decode, Encode, decode_with};
+use minicbor::{Decode, Encode};
 
 use crate::{
     traits::{
@@ -31,7 +35,10 @@ use crate::{
         state::{self, Agency, State},
     },
     typefu::{
-        coproduct::{CNil, CoproductFoldable, CoproductMappable, Overwrite}, fold::Fold, map::{CMap, HMap, Identity, TypeMap, Zip}, Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef
+        Func, FuncOnce, ToMut, ToRef,
+        coproduct::CNil,
+        fold::Fold,
+        map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip},
     },
 };
 
@@ -55,8 +62,8 @@ where
     // Get a ref to the send bundle
     ProtocolSendBundle<P>: for<'a> ToRef<'a>,
     // Get Protocol of send bundle + Get the agency of the sender
-    for<'a> BundleRef<'a, P>: CoproductMappable<Overwrite<protocol::List<P>>, Output = P>
-        + CoproductFoldable<Poly<MessageFromAgency>, bool>,
+    Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
+    Fold<MessageFromAgency, bool>: for<'a> Func<BundleRef<'a, P>, Output = bool>,
     // Get a mutable reference to the mini protocol state
     ProtocolTaskState<P>: for<'a> ToMut<'a>,
     // Zip the message and state
@@ -176,8 +183,8 @@ where
     // Get a ref to the send bundle
     ProtocolSendBundle<P>: for<'a> ToRef<'a>,
     // Get Protocol of send bundle + Get the agency of the sender
-    for<'a> BundleRef<'a, P>: CoproductMappable<Overwrite<protocol::List<P>>, Output = P>
-        + CoproductFoldable<Poly<MessageFromAgency>, bool>,
+    Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
+    Fold<MessageFromAgency, bool>: for<'a> Func<BundleRef<'a, P>, Output = bool>,
     // Get a mutable reference to the mini protocol state
     ProtocolTaskState<P>: for<'a> ToMut<'a>,
     // Zip the message and state
@@ -199,29 +206,30 @@ where
 
     let mut encoder = minicbor::Encoder::new(encode_buffer);
 
-    let protocol = message
-        .to_ref()
-        .map(Overwrite(protocol::List::<P>::default()));
-    let server_sent = message.to_ref().fold(Poly(MessageFromAgency));
+    let protocol = Overwrite(protocol::List::<P>::default()).call_once(message.to_ref());
+    let server_sent = Fold::call(message.to_ref());
 
-    Fold(ProcessBundle {
-        encoder: &mut encoder,
-    }, PhantomData)
+    Fold(
+        ProcessBundle {
+            encoder: &mut encoder,
+        },
+        PhantomData,
+    )
     .call_once(Zip(task_state.to_mut()).call_once(message))?;
     loop {
         if encoder.writer().len() >= u16::MAX as usize {
             break;
         }
         if let Ok(Some(send_bundle)) = rx.try_next() {
-            if send_bundle
-                .to_ref()
-                .map(Overwrite(protocol::List::<P>::default()))
-                == protocol
-                && send_bundle.to_ref().fold(Poly(MessageFromAgency)) == server_sent
+            if Overwrite(protocol::List::<P>::default()).call_once(send_bundle.to_ref()) == protocol
+                && Fold::call(send_bundle.to_ref()) == server_sent
             {
-                Fold(ProcessBundle {
-                    encoder: &mut encoder,
-                }, PhantomData)
+                Fold(
+                    ProcessBundle {
+                        encoder: &mut encoder,
+                    },
+                    PhantomData,
+                )
                 .call_once(Zip(task_state.to_mut()).call_once(send_bundle))?;
             } else {
                 *peeked = Some(send_bundle);
@@ -268,13 +276,16 @@ impl<MP> Func<&SendBundle<MP>> for MessageFromAgency
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States>,
-    for<'a> &'a mini_protocol::Message<MP>: CoproductMappable<Overwrite<MP::States>, Output: CoproductFoldable<Poly<StateAgency>, bool>>,
+    for<'a> Overwrite<MP::States>: FuncOnce<&'a mini_protocol::Message<MP>>,
+    Fold<StateAgency, bool>: for<'a> FuncOnce<
+            <Overwrite<MP::States> as TypeMap<&'a mini_protocol::Message<MP>>>::Output,
+            Output = bool,
+        >,
 {
     #[inline]
     fn call(SendBundle { message, .. }: &SendBundle<MP>) -> Self::Output {
-        message
-            .map(Overwrite(MP::States::default()))
-            .fold(Poly(StateAgency))
+        Fold(StateAgency, PhantomData)
+            .call_once(Overwrite(MP::States::default()).call_once(message))
     }
 }
 struct StateAgency;
@@ -369,7 +380,6 @@ where
     for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<P>,
     for<'a, 'b> CMap<ProcessMessage<'a, 'b>>:
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>>>,
-    for<'a, 'b> ProcessResult<'a, 'b, P>: Send,
 {
     if previous_state.is_some_and(|(p, _)| p != protocol) {
         return Err(MuxError::InvalidPeerMessage);
@@ -409,10 +419,8 @@ where
     }
     Ok(())
 }
-pub(super) type ReaderZipped<'a, P> = <Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output> as TypeMap<P>>::Output;
-pub(super) type ProcessResult<'a, 'b, P> =
-    <CMap<ProcessMessage<'a, 'b>> as TypeMap<ReaderZipped<'a, P>>>::Output;
-
+pub(super) type ReaderZipped<'a, P> =
+    <Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output> as TypeMap<P>>::Output;
 pub(super) enum FeedResult<'a, MP>
 where
     MP: MiniProtocol,
@@ -511,6 +519,7 @@ where
     }
 }
 
+// TODO: Check this doubius
 pub struct MessageToAgency<MP>(MP);
 
 impl<MP> TypeMap<&mini_protocol::Message<MP>> for MessageToAgency<MP>
@@ -524,10 +533,13 @@ impl<'a, MP> Func<&'a mini_protocol::Message<MP>> for MessageToAgency<MP>
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States>,
-    &'a mini_protocol::Message<MP>: CoproductMappable<Overwrite<MP::States>, Output: CoproductFoldable<Poly<StateAgency>, bool>>,
+    Overwrite<MP::States>: FuncOnce<&'a mini_protocol::Message<MP>>,
+    Fold<StateAgency, bool>: FuncOnce<
+            <Overwrite<MP::States> as TypeMap<&'a mini_protocol::Message<MP>>>::Output,
+            Output = bool,
+        >,
 {
     fn call(i: &'a mini_protocol::Message<MP>) -> Self::Output {
-        i.map(Overwrite(MP::States::default()))
-            .fold(Poly(StateAgency))
+        Fold(StateAgency, PhantomData).call_once(Overwrite(MP::States::default()).call_once(i))
     }
 }

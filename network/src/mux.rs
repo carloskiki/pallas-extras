@@ -17,7 +17,9 @@ use futures::{
     task::{Spawn, SpawnError, SpawnExt},
 };
 use server::Server;
-use task::{BundleRef, MessageFromAgency, ProcessBundle, ProcessMessage, ReaderZipped, WriterZipped};
+use task::{
+    BundleRef, MessageFromAgency, ProcessBundle, ProcessMessage, ReaderZipped, WriterZipped,
+};
 
 use crate::{
     traits::{
@@ -26,7 +28,12 @@ use crate::{
         state,
     },
     typefu::{
-        constructor::Constructor, coproduct::{CoproductFoldable, CoproductMappable, Overwrite}, fold::Fold, hlist::GetHead, map::{CMap, HMap, Identity, TypeMap, Zip}, utilities::{Unzip, UnzipLeft, UnzipRight}, Func, FuncMany, FuncOnce, Poly, ToMut, ToRef
+        Func, FuncMany, FuncOnce, Poly, ToMut, ToRef,
+        constructor::Constructor,
+        fold::Fold,
+        hlist::GetHead,
+        map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip},
+        utilities::{Unzip, UnzipLeft, UnzipRight},
     },
 };
 
@@ -121,8 +128,8 @@ where
     // Get a ref to the send bundle
     ProtocolSendBundle<P>: for<'a> ToRef<'a>,
     // Get Protocol of send bundle + Get the agency of the sender
-    for<'a> BundleRef<'a, P>: CoproductMappable<Overwrite<protocol::List<P>>, Output = P>
-        + CoproductFoldable<Poly<MessageFromAgency>, bool>,
+    Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
+    Fold<MessageFromAgency, bool>: for<'a> Func<BundleRef<'a, P>, Output = bool>,
     // Get a mutable reference to the mini protocol state
     ProtocolTaskState<P>: for<'a> ToMut<'a>,
     // Zip the message and state
