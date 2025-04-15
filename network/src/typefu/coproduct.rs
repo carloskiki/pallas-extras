@@ -69,7 +69,7 @@
 //! # }
 //! ```
 
-use std::{ops::DerefMut, pin::{pin, Pin}};
+use std::{ops::DerefMut, pin::Pin};
 
 use super::{
     Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef,
@@ -750,6 +750,15 @@ impl<F> CoproductMappable<F> for CNil {
 }
 
 pub struct Overwrite<T>(pub T);
+
+impl<T, Tail, C, CTail> TypeMap<Coproduct<C, CTail>> for Overwrite<HCons<T, Tail>>
+where
+    Overwrite<Tail>: TypeMap<CTail>,
+{
+    type Output = Coproduct<T, <Overwrite::<Tail> as TypeMap<CTail>>::Output>;
+}
+
+
 
 impl<T, Tail, C, CTail> CoproductMappable<Overwrite<HCons<T, Tail>>> for Coproduct<C, CTail>
 where

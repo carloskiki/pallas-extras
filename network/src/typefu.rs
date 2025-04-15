@@ -31,6 +31,7 @@ pub mod index;
 pub mod map;
 pub mod constructor;
 pub mod utilities;
+pub mod fold;
 
 /// An alternative to AsRef that does not force the reference type to be a pointer itself.
 ///

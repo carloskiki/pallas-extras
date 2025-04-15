@@ -95,6 +95,56 @@ impl Default for HNil {
     }
 }
 
+impl<'a> ToRef<'a> for HNil {
+    type Output = HNil;
+
+    #[inline(always)]
+    fn to_ref(&'a self) -> Self::Output {
+        HNil
+    }
+}
+
+impl<'a, H, Tail> ToRef<'a> for HCons<H, Tail>
+where
+    H: 'a,
+    Tail: ToRef<'a>,
+{
+    type Output = HCons<&'a H, <Tail as ToRef<'a>>::Output>;
+
+    #[inline(always)]
+    fn to_ref(&'a self) -> Self::Output {
+        HCons {
+            head: &self.head,
+            tail: self.tail.to_ref(),
+        }
+    }
+}
+
+impl<'a> ToMut<'a> for HNil {
+    type Output = HNil;
+
+    #[inline(always)]
+    fn to_mut(&'a mut self) -> Self::Output {
+        HNil
+    }
+}
+
+impl<'a, H, Tail> ToMut<'a> for HCons<H, Tail>
+where
+    H: 'a,
+    Tail: ToMut<'a>,
+{
+    type Output = HCons<&'a mut H, <Tail as ToMut<'a>>::Output>;
+
+    #[inline(always)]
+    fn to_mut(&'a mut self) -> Self::Output {
+        HCons {
+            head: &mut self.head,
+            tail: self.tail.to_mut(),
+        }
+    }
+}
+
 pub enum GetHead {}
 
 impl<Head, Tail> TypeMap<HCons<Head, Tail>> for GetHead {
@@ -145,7 +195,7 @@ macro_rules! __hlist {
 }
 pub(crate) use __hlist as hlist;
 
-use super::{map::TypeMap, Func};
+use super::{map::TypeMap, Func, ToMut, ToRef};
 
 
 /// Macro for pattern-matching on HLists.

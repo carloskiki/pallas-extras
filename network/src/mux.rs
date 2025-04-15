@@ -17,6 +17,7 @@ use futures::{
     task::{Spawn, SpawnError, SpawnExt},
 };
 use server::Server;
+use task::{BundleRef, MessageFromAgency, ProcessBundle, ProcessMessage, ReaderZipped, WriterZipped};
 
 use crate::{
     traits::{
@@ -25,11 +26,7 @@ use crate::{
         state,
     },
     typefu::{
-        Func, FuncMany,
-        constructor::Constructor,
-        hlist::GetHead,
-        map::{CMap, HMap, Identity, TypeMap},
-        utilities::{Unzip, UnzipLeft, UnzipRight},
+        constructor::Constructor, coproduct::{CoproductFoldable, CoproductMappable, Overwrite}, fold::Fold, hlist::GetHead, map::{CMap, HMap, Identity, TypeMap, Zip}, utilities::{Unzip, UnzipLeft, UnzipRight}, Func, FuncMany, FuncOnce, Poly, ToMut, ToRef
     },
 };
 
@@ -121,6 +118,25 @@ where
     HMap<PairMaker<P>>: FuncMany<ServerReceivers<P>>,
     HMap<TaskStateMaker>: Func<ServerSenders<P>, Output = ProtocolTaskState<P>>,
     CMap<MiniProtocolSendBundle>: TypeMap<P, Output: Send>,
+    // Get a ref to the send bundle
+    ProtocolSendBundle<P>: for<'a> ToRef<'a>,
+    // Get Protocol of send bundle + Get the agency of the sender
+    for<'a> BundleRef<'a, P>: CoproductMappable<Overwrite<protocol::List<P>>, Output = P>
+        + CoproductFoldable<Poly<MessageFromAgency>, bool>,
+    // Get a mutable reference to the mini protocol state
+    ProtocolTaskState<P>: for<'a> ToMut<'a>,
+    // Zip the message and state
+    for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<ProtocolSendBundle<P>>,
+    // Process the bundle:
+    // - Encode the message in the buffer
+    // - Add the send_back in the queue if sent from client
+    for<'a, 'b, 'c> Fold<ProcessBundle<'a, 'b>, Result<(), minicbor::encode::Error<Infallible>>>:
+        FuncOnce<WriterZipped<'c, P>, Output = Result<(), minicbor::encode::Error<Infallible>>>,
+    // Get the task state for the protocol of the message received
+    for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<P>,
+    // Decode and send the message to the correct handle.
+    for<'a, 'b, 'c> CMap<ProcessMessage<'a, 'b>>:
+        FuncOnce<ReaderZipped<'c, P>, Output: Future<Output = Result<(), MuxError>> + Send>,
 {
     let (sender, receiver) = futures::channel::mpsc::channel(0);
     let (senders, receivers) = Unzip::call(HMap::<ChannelPairMaker>::construct());

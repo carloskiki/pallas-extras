@@ -5,7 +5,7 @@ use crate::typefu::{
 
 use super::mini_protocol::{self, MiniProtocol};
 
-pub trait Protocol: Eq + Copy + Sized + 'static
+pub trait Protocol: Eq + Copy + Sized + Send + 'static
 {
     fn from_number(number: u16) -> Result<Self, UnknownProtocol>;
     fn number(&self) -> u16;
@@ -15,7 +15,7 @@ impl<S, Tail> Protocol for Coproduct<S, Tail>
 where
     Tail: Protocol,
     HMap<Identity>: TypeMap<Tail>,
-    S: MiniProtocol + Copy + Eq,
+    S: MiniProtocol + Copy + Eq + Send,
 {
     fn from_number(number: u16) -> Result<Self, UnknownProtocol> {
         if number == S::NUMBER {

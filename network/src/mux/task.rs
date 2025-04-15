@@ -12,16 +12,14 @@
 // state a client agency.
 
 use std::{
-    collections::VecDeque,
-    convert::Infallible,
-    ops::DerefMut,
-    pin::pin,
-    task::{Poll, ready},
+    collections::VecDeque, convert::Infallible, marker::PhantomData, ops::DerefMut, pin::{pin, Pin}, task::{ready, Poll}
 };
 
 use futures::{
     AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, FutureExt, SinkExt, StreamExt,
     channel::mpsc::{Receiver, Sender, UnboundedSender},
+    future::FusedFuture,
+    select,
     sink::Feed,
 };
 use minicbor::{Decode, Encode, decode_with};
@@ -33,9 +31,7 @@ use crate::{
         state::{self, Agency, State},
     },
     typefu::{
-        Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef,
-        coproduct::{CoproductFoldable, CoproductMappable, Overwrite},
-        map::{CMap, HMap, Identity, TypeMap, Zip},
+        coproduct::{CNil, CoproductFoldable, CoproductMappable, Overwrite}, fold::Fold, map::{CMap, HMap, Identity, TypeMap, Zip}, Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef
     },
 };
 
@@ -45,24 +41,11 @@ use super::{
     header::{Header, ProtocolNumber},
 };
 
+#[allow(private_bounds)]
 pub(super) async fn task<P>(
     mut bearer: impl AsyncRead + AsyncWrite,
-    mut rx: Receiver<ProtocolSendBundle<P>>,
+    mut receiver: Receiver<ProtocolSendBundle<P>>,
     mut task_state: ProtocolTaskState<P>,
-) -> Result<Infallible, MuxError>
-where
-    P: Protocol,
-    HMap<Identity>: TypeMap<P, Output: Default>,
-    CMap<MiniProtocolSendBundle>: TypeMap<P>,
-    HMap<MiniProtocolTaskState>: TypeMap<P>,
-{
-    todo!()
-}
-
-async fn writer_task<P>(
-    mut writer: impl AsyncWrite,
-    mut rx: Receiver<ProtocolSendBundle<P>>,
-    task_state: &mut ProtocolTaskState<P>,
 ) -> Result<Infallible, MuxError>
 where
     P: Protocol,
@@ -81,8 +64,129 @@ where
     // Process the bundle:
     // - Encode the message in the buffer
     // - Add the send_back in the queue if sent from client
-    for<'a, 'b> CMap<ProcessBundle<'a>>:
-        FuncOnce<Zipped<'b, P>, Output = Result<(), minicbor::encode::Error<Infallible>>>,
+    for<'a, 'b, 'c> Fold<ProcessBundle<'a, 'b>, Result<(), minicbor::encode::Error<Infallible>>>:
+        FuncOnce<WriterZipped<'c, P>, Output = Result<(), minicbor::encode::Error<Infallible>>>,
+    // Get the task state for the protocol of the message received
+    for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<P>,
+    // Decode and send the message to the correct handle.
+    for<'a, 'b> CMap<ProcessMessage<'a, 'b>>:
+        FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>> + Send>,
+{
+    let mut bearer = pin!(bearer);
+    let mut encode_buffer = Vec::with_capacity(64 * 1024);
+    let mut decode_buffer = Vec::with_capacity(64 * 1024);
+    let mut peeked = None;
+    let mut previous_state: Option<(P, usize)> = None;
+    let time = std::time::Instant::now();
+    let mut header_buffer = [0; 8];
+
+    select! {
+        next_message = NextMessage { receiver: &mut receiver, peeked: &mut peeked } => {
+            writer_task(
+                bearer,
+                &mut receiver,
+                &mut task_state,
+                &mut peeked,
+                &time,
+                &mut encode_buffer,
+                next_message?,
+            ).await?;
+        },
+        result = bearer.read_exact(&mut header_buffer).fuse() => {
+            result?;
+            let header = Header::<P>::try_from(header_buffer)?;
+            reader_task(
+                bearer,
+                &mut task_state,
+                &mut previous_state,
+                &mut decode_buffer,
+                header,
+            ).await?;
+        }
+    }
+
+    todo!()
+}
+
+struct NextMessage<'a, P>
+where
+    P: Protocol,
+    HMap<Identity>: TypeMap<P, Output: Default>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+{
+    receiver: &'a mut Receiver<ProtocolSendBundle<P>>,
+    peeked: &'a mut Option<ProtocolSendBundle<P>>,
+}
+
+impl<P> Unpin for NextMessage<'_, P>
+where
+    P: Protocol,
+    HMap<Identity>: TypeMap<P, Output: Default>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+{
+}
+
+impl<P> Future for NextMessage<'_, P>
+where
+    P: Protocol,
+    HMap<Identity>: TypeMap<P, Output: Default>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+{
+    type Output = Result<ProtocolSendBundle<P>, MuxError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        if let Some(peeked) = this.peeked.take() {
+            Poll::Ready(Ok(peeked))
+        } else {
+            match this.receiver.poll_next_unpin(cx) {
+                Poll::Ready(Some(item)) => Poll::Ready(Ok(item)),
+                Poll::Ready(None) => Poll::Ready(Err(MuxError::HandleDropped)),
+                Poll::Pending => Poll::Pending,
+            }
+        }
+    }
+}
+
+impl<P> FusedFuture for NextMessage<'_, P>
+where
+    P: Protocol,
+    HMap<Identity>: TypeMap<P, Output: Default>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+{
+    fn is_terminated(&self) -> bool {
+        self.peeked.is_none() && futures::stream::FusedStream::is_terminated(&self.receiver)
+    }
+}
+
+async fn writer_task<'b, P>(
+    mut writer: Pin<&mut impl AsyncWrite>,
+    rx: &mut Receiver<ProtocolSendBundle<P>>,
+    task_state: &mut ProtocolTaskState<P>,
+    peeked: &mut Option<ProtocolSendBundle<P>>,
+    time: &std::time::Instant,
+    encode_buffer: &'b mut Vec<u8>,
+    message: ProtocolSendBundle<P>,
+) -> Result<(), MuxError>
+where
+    P: Protocol,
+    HMap<Identity>: TypeMap<P, Output: Default>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+    HMap<MiniProtocolTaskState>: TypeMap<P>,
+    // Get a ref to the send bundle
+    ProtocolSendBundle<P>: for<'a> ToRef<'a>,
+    // Get Protocol of send bundle + Get the agency of the sender
+    for<'a> BundleRef<'a, P>: CoproductMappable<Overwrite<protocol::List<P>>, Output = P>
+        + CoproductFoldable<Poly<MessageFromAgency>, bool>,
+    // Get a mutable reference to the mini protocol state
+    ProtocolTaskState<P>: for<'a> ToMut<'a>,
+    // Zip the message and state
+    for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<ProtocolSendBundle<P>>,
+    // Process the bundle:
+    // - Encode the message in the buffer
+    // - Add the send_back in the queue if sent from client
+    for<'a, 'c> Fold<ProcessBundle<'a, 'b>, Result<(), minicbor::encode::Error<Infallible>>>:
+        FuncOnce<WriterZipped<'c, P>, Output = Result<(), minicbor::encode::Error<Infallible>>>,
 {
     // Plan with one bundle
     // - Get the protocol for the message
@@ -93,77 +197,66 @@ where
     //      - Encode the the message.
     //      - Check if the message is sent from server & add the send_back in the queue
 
-    let mut writer = pin!(writer);
-    let encode_buffer = Vec::with_capacity(64 * 1024);
     let mut encoder = minicbor::Encoder::new(encode_buffer);
-    let mut peeked = None;
-    let time = std::time::Instant::now();
 
-    while let Some(send_bundle) = {
-        if peeked.is_none() {
-            rx.next().await
-        } else {
-            peeked.take()
+    let protocol = message
+        .to_ref()
+        .map(Overwrite(protocol::List::<P>::default()));
+    let server_sent = message.to_ref().fold(Poly(MessageFromAgency));
+
+    Fold(ProcessBundle {
+        encoder: &mut encoder,
+    }, PhantomData)
+    .call_once(Zip(task_state.to_mut()).call_once(message))?;
+    loop {
+        if encoder.writer().len() >= u16::MAX as usize {
+            break;
         }
-    } {
-        let protocol = send_bundle
-            .to_ref()
-            .map(Overwrite(protocol::List::<P>::default()));
-        let server_sent = send_bundle.to_ref().fold(Poly(MessageFromAgency));
-
-        CMap(ProcessBundle {
-            encoder: &mut encoder,
-        })
-        .call_once(Zip(task_state.to_mut()).call_once(send_bundle))?;
-        loop {
-            if encoder.writer().len() >= u16::MAX as usize {
-                break;
-            }
-            if let Ok(Some(send_bundle)) = rx.try_next() {
-                if send_bundle
-                    .to_ref()
-                    .map(Overwrite(protocol::List::<P>::default()))
-                    == protocol
-                    && send_bundle.to_ref().fold(Poly(MessageFromAgency)) == server_sent
-                {
-                    CMap(ProcessBundle {
-                        encoder: &mut encoder,
-                    })
-                    .call_once(Zip(task_state.to_mut()).call_once(send_bundle))?;
-                } else {
-                    peeked = Some(send_bundle);
-                    break;
-                }
+        if let Ok(Some(send_bundle)) = rx.try_next() {
+            if send_bundle
+                .to_ref()
+                .map(Overwrite(protocol::List::<P>::default()))
+                == protocol
+                && send_bundle.to_ref().fold(Poly(MessageFromAgency)) == server_sent
+            {
+                Fold(ProcessBundle {
+                    encoder: &mut encoder,
+                }, PhantomData)
+                .call_once(Zip(task_state.to_mut()).call_once(send_bundle))?;
             } else {
+                *peeked = Some(send_bundle);
                 break;
             }
-        }
-
-        for chunk in encoder.writer().chunks(u16::MAX as usize) {
-            let header = Header {
-                timestamp: time.elapsed().as_micros() as u32,
-                protocol: ProtocolNumber {
-                    protocol,
-                    server_sent,
-                },
-                payload_len: chunk.len() as u16,
-            };
-            let header_bytes: [u8; 8] = header.into();
-
-            writer.write_all(&header_bytes).await?;
-            writer.write_all(chunk).await?;
+        } else {
+            break;
         }
     }
 
-    Err(MuxError::HandleDropped)
+    for chunk in encoder.writer().chunks(u16::MAX as usize) {
+        let header = Header {
+            timestamp: time.elapsed().as_micros() as u32,
+            protocol: ProtocolNumber {
+                protocol,
+                server_sent,
+            },
+            payload_len: chunk.len() as u16,
+        };
+        let header_bytes: [u8; 8] = header.into();
+
+        writer.write_all(&header_bytes).await?;
+        writer.write_all(chunk).await?;
+    }
+    encoder.writer_mut().clear();
+
+    Ok(())
 }
 
-type BundleRef<'a, P> = <ProtocolSendBundle<P> as ToRef<'a>>::Output;
-type Zipped<'a, P> =
+pub(super) type BundleRef<'a, P> = <ProtocolSendBundle<P> as ToRef<'a>>::Output;
+pub(super) type WriterZipped<'a, P> =
     <Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output> as TypeMap<ProtocolSendBundle<P>>>::Output;
 
 /// Getting the agency of the sender
-struct MessageFromAgency;
+pub(super) struct MessageFromAgency;
 impl<MP> TypeMap<&SendBundle<MP>> for MessageFromAgency
 where
     MP: MiniProtocol,
@@ -201,14 +294,14 @@ where
     }
 }
 
-impl<Input> TypeMap<&Input> for &'_ mut minicbor::Encoder<Vec<u8>>
+impl<Input> TypeMap<&Input> for &'_ mut minicbor::Encoder<&'_ mut Vec<u8>>
 where
     Input: Encode<EncodeContext>,
 {
     type Output = Result<(), minicbor::encode::Error<Infallible>>;
 }
 
-impl<Input> FuncOnce<&Input> for &'_ mut minicbor::Encoder<Vec<u8>>
+impl<Input> FuncOnce<&Input> for &'_ mut minicbor::Encoder<&'_ mut Vec<u8>>
 where
     Input: Encode<EncodeContext>,
 {
@@ -219,25 +312,25 @@ where
 }
 
 /// Process the bundle and return whether the bundle was sent by a server.
-type Bundle<'a, MP> = (&'a mut TaskState<MP>, SendBundle<MP>);
-struct ProcessBundle<'a> {
-    encoder: &'a mut minicbor::Encoder<Vec<u8>>,
+type Bundle<'a, MP> = (SendBundle<MP>, &'a mut TaskState<MP>);
+pub(super) struct ProcessBundle<'a, 'b> {
+    encoder: &'a mut minicbor::Encoder<&'b mut Vec<u8>>,
 }
-impl<MP> TypeMap<Bundle<'_, MP>> for ProcessBundle<'_>
+impl<MP> TypeMap<Bundle<'_, MP>> for ProcessBundle<'_, '_>
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States>,
 {
     type Output = Result<(), minicbor::encode::Error<Infallible>>;
 }
-impl<MP> FuncOnce<Bundle<'_, MP>> for ProcessBundle<'_>
+impl<MP> FuncOnce<Bundle<'_, MP>> for ProcessBundle<'_, '_>
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States>,
     mini_protocol::Message<MP>: Encode<EncodeContext>,
 {
     #[inline]
-    fn call_once(self, (task_state, mut send_bundle): Bundle<'_, MP>) -> Self::Output {
+    fn call_once(self, (mut send_bundle, task_state): Bundle<'_, MP>) -> Self::Output {
         self.encoder.call_once(&send_bundle.message)?;
         if let Some(send_back) = send_bundle.send_back.take() {
             task_state.client_send_backs.push_back(send_back);
@@ -245,11 +338,30 @@ where
         Ok(())
     }
 }
+impl TypeMap<CNil> for ProcessBundle<'_, '_> {
+    type Output = Result<(), minicbor::encode::Error<Infallible>>;
+}
+impl FuncOnce<CNil> for ProcessBundle<'_, '_> {
+    #[inline]
+    fn call_once(self, x: CNil) -> Self::Output {
+        match x {}
+    }
+}
 
 async fn reader_task<P>(
-    reader: impl AsyncRead,
+    mut reader: Pin<&mut impl AsyncRead>,
     task_state: &mut ProtocolTaskState<P>,
-) -> Result<Infallible, MuxError>
+    previous_state: &mut Option<(P, usize)>,
+    buffer: &mut Vec<u8>,
+    Header {
+        protocol: ProtocolNumber {
+            protocol,
+            server_sent,
+        },
+        payload_len,
+        ..
+    }: Header<P>,
+) -> Result<(), MuxError>
 where
     P: Protocol,
     HMap<MiniProtocolTaskState>: TypeMap<P>,
@@ -257,65 +369,51 @@ where
     for<'a> Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output>: FuncOnce<P>,
     for<'a, 'b> CMap<ProcessMessage<'a, 'b>>:
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>>>,
+    for<'a, 'b> ProcessResult<'a, 'b, P>: Send,
 {
-    let mut reader = pin!(reader);
-    let mut buffer: Vec<u8> = Vec::with_capacity(64 * 1024);
-    let mut previous_state: Option<(P, usize)> = None;
-    loop {
-        let mut header_buffer = [0; 8];
-        reader.read_exact(&mut header_buffer).await?;
-        let Header {
-            protocol:
-                ProtocolNumber {
-                    protocol,
-                    server_sent,
-                },
-            payload_len,
-            ..
-        } = Header::<P>::try_from(header_buffer)?;
-        if previous_state.is_some_and(|(p, _)| p != protocol) {
-            return Err(MuxError::InvalidPeerMessage);
-        }
+    if previous_state.is_some_and(|(p, _)| p != protocol) {
+        return Err(MuxError::InvalidPeerMessage);
+    }
 
-        let read_len = reader
-            .as_mut()
-            .take(payload_len as u64)
-            .read_to_end(&mut buffer)
-            .await?;
-        if read_len != payload_len as usize {
-            return Err(MuxError::InvalidPeerMessage);
-        }
-        let mut decoder = minicbor::decode::Decoder::new(&buffer);
-        if let Some((_, start_pos)) = previous_state.take() {
-            decoder.set_position(start_pos);
-        }
-        while decoder.position() != decoder.input().len() {
-            let result = CMap(ProcessMessage {
-                decoder: &mut decoder,
-                server_sent,
-            })
-            .call_once(Zip(task_state.to_mut()).call_once(protocol))
-            .await;
-            match result {
-                Ok(()) => {}
-                Err(MuxError::Decode(e)) if e.is_end_of_input() => {
-                    previous_state = Some((protocol, decoder.position()));
-                    break;
-                }
-                Err(e) => return Err(e),
+    let read_len = reader
+        .as_mut()
+        .take(payload_len as u64)
+        .read_to_end(buffer)
+        .await?;
+    if read_len != payload_len as usize {
+        return Err(MuxError::InvalidPeerMessage);
+    }
+    let mut decoder = minicbor::decode::Decoder::new(buffer);
+    if let Some((_, start_pos)) = previous_state.take() {
+        decoder.set_position(start_pos);
+    }
+    while decoder.position() != decoder.input().len() {
+        let result = CMap(ProcessMessage {
+            decoder: &mut decoder,
+            server_sent,
+        })
+        .call_once(Zip(task_state.to_mut()).call_once(protocol))
+        .await;
+        match result {
+            Ok(()) => {}
+            Err(MuxError::Decode(e)) if e.is_end_of_input() => {
+                *previous_state = Some((protocol, decoder.position()));
+                break;
             }
-        }
-        // No bytes left over.
-        if previous_state.is_none() {
-            buffer.clear();
+            Err(e) => return Err(e),
         }
     }
+    // No bytes left over.
+    if previous_state.is_none() {
+        buffer.clear();
+    }
+    Ok(())
 }
-type ReaderZipped<'a, P> = <Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output> as TypeMap<P>>::Output;
-type ProcessResult<'a, 'b, P> =
+pub(super) type ReaderZipped<'a, P> = <Zip<<ProtocolTaskState<P> as ToMut<'a>>::Output> as TypeMap<P>>::Output;
+pub(super) type ProcessResult<'a, 'b, P> =
     <CMap<ProcessMessage<'a, 'b>> as TypeMap<ReaderZipped<'a, P>>>::Output;
 
-enum FeedResult<'a, MP>
+pub(super) enum FeedResult<'a, MP>
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States>,
@@ -370,8 +468,8 @@ where
     }
 }
 
-type ReceiverState<'a, MP> = (&'a mut TaskState<MP>, MP);
-struct ProcessMessage<'a, 'b> {
+type ReceiverState<'a, MP> = (MP, &'a mut TaskState<MP>);
+pub(super) struct ProcessMessage<'a, 'b> {
     decoder: &'a mut minicbor::Decoder<'b>,
     server_sent: bool,
 }
@@ -389,7 +487,7 @@ where
     MessageToAgency<MP>: for<'b> Func<&'b mini_protocol::Message<MP>, Output = bool>,
 {
     #[inline]
-    fn call_once(self, (task_state, _): ReceiverState<'a, MP>) -> Self::Output {
+    fn call_once(self, (_, task_state): ReceiverState<'a, MP>) -> Self::Output {
         let message = match self.decoder.decode_with(&mut DecodeContext(None)) {
             Ok(m) => m,
             Err(e) => return FeedResult::Error(MuxError::Decode(e)),
