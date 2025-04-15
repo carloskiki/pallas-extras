@@ -12,63 +12,48 @@ pub trait Message: Encode<()> + for<'a> Decode<'a, ()> + 'static {
     type ToState: State;
 }
 
-impl<C, M, Tail> Encode<C> for Coproduct<M, Tail>
+impl<M, Tail> Encode<()> for Coproduct<M, Tail>
 where
     M: Message,
-    Tail: Encode<C>,
+    Tail: Encode<()>,
 {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
+        c: &mut (),
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         match self {
             Coproduct::Inl(m) => e.array(M::ELEMENT_COUNT + 1)?.u8(M::TAG)?.encode(m)?.ok(),
-            Coproduct::Inr(tail) => tail.encode(e, ctx),
+            Coproduct::Inr(tail) => tail.encode(e, c),
         }
     }
 }
 
-impl<C> Encode<C> for CNil {
+impl Encode<()> for CNil {
     fn encode<W: minicbor::encode::Write>(
         &self,
         _: &mut minicbor::Encoder<W>,
-        _: &mut C,
+        _: &mut (),
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        unreachable!()
+        match *self {}
     }
 }
 
-impl<'a, C, M, Tail> Decode<'a, C> for Coproduct<M, Tail>
+pub(crate) struct TagContext(pub u8);
+impl<'a, M, Tail> Decode<'a, TagContext> for Coproduct<M, Tail>
 where
     M: Message,
-    Tail: Decode<'a, C>,
+    Tail: Decode<'a, TagContext>,
 {
-    fn decode(d: &mut minicbor::Decoder<'a>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        // TODO: this should be done once instead of for every type in the coproduct
-        let mut probe = d.probe();
-        probe.array()?;
-        
-        if probe.u8()? == M::TAG {
-            let array_len = M::ELEMENT_COUNT + 1;
-            let message: M;
-            
-            match d.array()? {
-                Some(l) if l == array_len => message = d.decode()?,
-                None => {
-                    message = d.decode()?;
-                    if d.datatype()? != minicbor::data::Type::Break {
-                        return Err(minicbor::decode::Error::message("expected break"));
-                    }
-                    d.skip()?;
-                },
-                Some(_) => return Err(minicbor::decode::Error::message("unexpected array length")),
-            }
-            
-            Ok(Coproduct::Inl(message))
+    fn decode(
+        d: &mut minicbor::Decoder<'a>,
+        TagContext(tag): &mut TagContext,
+    ) -> Result<Self, minicbor::decode::Error> {
+        Ok(if *tag == M::TAG {
+            Coproduct::Inl(d.decode::<M>()?)
         } else {
-            Ok(Coproduct::Inr(Tail::decode(d, ctx)?))
-        }
+            Coproduct::Inr(Tail::decode(d, &mut TagContext(*tag))?)
+        })
     }
 }
 

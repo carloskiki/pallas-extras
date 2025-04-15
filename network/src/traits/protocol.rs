@@ -5,7 +5,7 @@ use crate::typefu::{
 
 use super::mini_protocol::{self, MiniProtocol};
 
-pub trait Protocol: Eq + Copy + Sized
+pub trait Protocol: Eq + Copy + Sized + 'static
 {
     fn from_number(number: u16) -> Result<Self, UnknownProtocol>;
     fn number(&self) -> u16;

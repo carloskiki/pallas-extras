@@ -22,6 +22,7 @@ use super::{
     catch_handle_error,
 };
 
+#[allow(private_bounds)]
 pub struct Server<P, MP, S>
 where
     P: Protocol,
@@ -32,9 +33,10 @@ where
     pub(super) task_handle: TaskHandle,
     pub(super) response_sender: Sender<ProtocolSendBundle<P>>,
     pub(super) request_receiver: Receiver<mini_protocol::Message<MP>>,
-    pub(super) state: S,
+    pub(super) _state: S,
 }
 
+#[allow(private_bounds)]
 impl<P, MP, S> Server<P, MP, S>
 where
     P: Protocol,
@@ -44,6 +46,7 @@ where
     CMap<MiniProtocolSendBundle>: TypeMap<P>,
     CMap<MessageServerPair<P, MP, S>>: FuncOnce<S::Message>,
 {
+    #[allow(private_interfaces)]
     pub async fn receive<IM>(mut self) -> Result<NextServer<P, MP, S>, MuxError>
     where
         mini_protocol::Message<MP>: CoprodUninjector<S::Message, IM>,
@@ -56,6 +59,7 @@ where
     }
 }
 
+#[allow(private_bounds)]
 impl<P, MP, S> Server<P, MP, S>
 where
     P: Protocol,
@@ -90,7 +94,7 @@ where
             task_handle: self.task_handle,
             response_sender: self.response_sender,
             request_receiver: self.request_receiver,
-            state: M::ToState::default(),
+            _state: M::ToState::default(),
         })
     }
 }
@@ -144,7 +148,7 @@ where
                 task_handle,
                 response_sender,
                 request_receiver,
-                state: M::ToState::default(),
+                _state: M::ToState::default(),
             },
         )
     }

@@ -113,3 +113,16 @@ where
         }
     }
 }
+
+impl<H, Tail, F> Func<HCons<H, Tail>> for HMap<F>
+where
+    F: Func<H>,
+    HMap<F>: Func<Tail>,
+{
+    fn call(input: HCons<H, Tail>) -> Self::Output {
+        HCons {
+            head: F::call(input.head),
+            tail: Self::call(input.tail),
+        }
+    }
+}

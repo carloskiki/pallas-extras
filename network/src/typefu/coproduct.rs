@@ -69,8 +69,13 @@
 //! # }
 //! ```
 
+use std::{ops::DerefMut, pin::{pin, Pin}};
+
 use super::{
-    hlist::HCons, index::{Here, There}, map::TypeMap, Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef
+    Func, FuncOnce, Poly, PolyOnce, ToMut, ToRef,
+    hlist::HCons,
+    index::{Here, There},
+    map::TypeMap,
 };
 
 /// Enum type representing a Coproduct. Think of this as a Result, but capable
@@ -450,6 +455,28 @@ where
     }
 }
 
+impl<Head, Tail> Future for Coproduct<Head, Tail>
+where
+    Head: Future + Unpin,
+    Tail: Future<Output = Head::Output> + Unpin,
+{
+    type Output = Head::Output;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        match self.deref_mut() {
+            Coproduct::Inl(l) => {
+                Pin::new(l).poll(cx)
+            },
+            Coproduct::Inr(r) => {
+                Pin::new(r).poll(cx)
+            },
+        }
+    }
+}
+
 /// Trait for instantiating a coproduct from an element
 ///
 /// This trait is part of the implementation of the inherent static method
@@ -644,7 +671,8 @@ where
     P: Func<CH>,
     CTail: CoproductMappable<Poly<P>>,
 {
-    type Output = Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<Poly<P>>>::Output>;
+    type Output =
+        Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<Poly<P>>>::Output>;
 
     #[inline]
     fn map(self, poly: Poly<P>) -> Self::Output {
@@ -679,8 +707,10 @@ where
     P: Func<CH>,
     CTail: CoproductMappable<&'a mut Poly<P>>,
 {
-    type Output =
-        Coproduct<<P as TypeMap<CH>>::Output, <CTail as CoproductMappable<&'a mut Poly<P>>>::Output>;
+    type Output = Coproduct<
+        <P as TypeMap<CH>>::Output,
+        <CTail as CoproductMappable<&'a mut Poly<P>>>::Output,
+    >;
 
     #[inline]
     fn map(self, poly: &'a mut Poly<P>) -> Self::Output {

@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     convert::Infallible,
     error::Error,
     fmt::Display,
@@ -13,7 +14,7 @@ use futures::{
     AsyncRead, AsyncWrite,
     channel::mpsc::{Receiver, Sender, UnboundedSender},
     future::RemoteHandle,
-    task::Spawn,
+    task::{Spawn, SpawnError, SpawnExt},
 };
 use server::Server;
 
@@ -34,17 +35,25 @@ use crate::{
 
 pub mod client;
 mod header;
-mod reader_task;
 pub mod server;
+mod task;
 
 #[derive(Debug)]
 pub enum MuxError {
+    /// An IO error occurred.
     Io(io::Error),
+    /// The message received contained an unknown protocol.
     Protocol(UnknownProtocol),
+    /// An error occurred while decoding a message.
     Decode(minicbor::decode::Error),
+    /// An error occurred while encoding a message.
     Encode(minicbor::encode::Error<Infallible>),
+    /// The peer sent a message that is invalid for the current state.
     InvalidPeerMessage,
+    /// The error was already caught by another handle.
     AlreadyCaught,
+    /// The sender or receiver from a `Server` or `Client` handle was dropped.
+    HandleDropped,
 }
 
 impl From<io::Error> for MuxError {
@@ -84,6 +93,12 @@ impl Display for MuxError {
             Self::InvalidPeerMessage => {
                 write!(f, "Peer sent a message invalid for the current state")
             }
+            Self::HandleDropped => {
+                write!(
+                    f,
+                    "A `Server` or `Client` handle was dropped while it was still awaiting messages."
+                )
+            }
         }
     }
 }
@@ -93,27 +108,32 @@ impl Error for MuxError {}
 #[allow(private_bounds)]
 #[allow(private_interfaces)]
 pub fn mux<P: Protocol>(
-    bearer: impl AsyncRead + AsyncWrite,
-    spawner: impl Spawn,
-) -> <HMap<PairMaker<P>> as TypeMap<ServerReceivers<P>>>::Output
+    bearer: impl AsyncRead + AsyncWrite + Send + 'static,
+    spawner: &impl Spawn,
+) -> Result<<HMap<PairMaker<P>> as TypeMap<ServerReceivers<P>>>::Output, SpawnError>
 where
-    HMap<Identity>: TypeMap<P>,
+    HMap<Identity>: TypeMap<P, Output: Default>,
     HMap<ChannelPairMaker>: Constructor<protocol::List<P>>,
+    HMap<MiniProtocolTaskState>: TypeMap<P, Output: Send>,
     UnzipLeft: TypeMap<ServerPairs<P>>,
     UnzipRight: TypeMap<ServerPairs<P>>,
     Unzip: Func<ServerPairs<P>, Output = (ServerSenders<P>, ServerReceivers<P>)>,
     HMap<PairMaker<P>>: FuncMany<ServerReceivers<P>>,
-    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+    HMap<TaskStateMaker>: Func<ServerSenders<P>, Output = ProtocolTaskState<P>>,
+    CMap<MiniProtocolSendBundle>: TypeMap<P, Output: Send>,
 {
     let (sender, receiver) = futures::channel::mpsc::channel(0);
     let (senders, receivers) = Unzip::call(HMap::<ChannelPairMaker>::construct());
-    let task_handle = todo!();
+    let task_state = HMap::<TaskStateMaker>::call(senders);
+    let task_handle = Arc::new(Mutex::new(Some(
+        spawner.spawn_with_handle(task::task(bearer, receiver, task_state))?,
+    )));
 
-    HMap(PairMaker {
+    Ok(HMap(PairMaker {
         task_handle,
         sender,
     })
-    .call_many(receivers)
+    .call_many(receivers))
 }
 
 type ServerPairs<P> = <HMap<ChannelPairMaker> as TypeMap<protocol::List<P>>>::Output;
@@ -127,15 +147,15 @@ impl<MP: MiniProtocol> TypeMap<MP> for ChannelPairMaker
 where
     CMap<state::Message>: TypeMap<MP::States>,
 {
-    type Output = (Sender<mini_protocol::Message<MP>>, ReceiverWrapper<MP>);
+    type Output = (SenderWrapper<MP>, ReceiverWrapper<MP>);
 }
 impl<MP: MiniProtocol> Constructor<MP> for ChannelPairMaker
 where
     CMap<crate::traits::state::Message>: TypeMap<MP::States>,
 {
     fn construct() -> Self::Output {
-        let (sender, rx) = futures::channel::mpsc::channel(MP::READ_BUFFER_SIZE);
-        (sender, ReceiverWrapper { rx })
+        let (sender, receiver) = futures::channel::mpsc::channel(MP::READ_BUFFER_SIZE);
+        (SenderWrapper { sender }, ReceiverWrapper { receiver })
     }
 }
 
@@ -155,7 +175,7 @@ struct ReceiverWrapper<MP: MiniProtocol>
 where
     CMap<state::Message>: TypeMap<MP::States>,
 {
-    rx: Receiver<mini_protocol::Message<MP>>,
+    receiver: Receiver<mini_protocol::Message<MP>>,
 }
 impl<P, MP> TypeMap<ReceiverWrapper<MP>> for PairMaker<P>
 where
@@ -176,7 +196,7 @@ where
     GetHead: TypeMap<MP::States>,
     <GetHead as TypeMap<MP::States>>::Output: Default,
 {
-    fn call_many(&self, ReceiverWrapper { rx }: ReceiverWrapper<MP>) -> Self::Output {
+    fn call_many(&self, ReceiverWrapper { receiver: rx }: ReceiverWrapper<MP>) -> Self::Output {
         let (response_sender, response_receiver) = futures::channel::mpsc::unbounded();
         (
             Client {
@@ -190,7 +210,7 @@ where
                 task_handle: self.task_handle.clone(),
                 response_sender: self.sender.clone(),
                 request_receiver: rx,
-                state: Default::default(),
+                _state: Default::default(),
             },
         )
     }
@@ -199,7 +219,7 @@ where
 struct SendBundle<MP>
 where
     MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>
+    CMap<state::Message>: TypeMap<MP::States>,
 {
     message: mini_protocol::Message<MP>,
     send_back: Option<UnboundedSender<mini_protocol::Message<MP>>>,
@@ -208,14 +228,58 @@ enum MiniProtocolSendBundle {}
 impl<MP> TypeMap<MP> for MiniProtocolSendBundle
 where
     MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>
+    CMap<state::Message>: TypeMap<MP::States>,
 {
     type Output = SendBundle<MP>;
 }
 type ProtocolSendBundle<P> = <CMap<MiniProtocolSendBundle> as TypeMap<P>>::Output;
 
-type TaskHandle = Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>;
+enum TaskStateMaker {}
+struct SenderWrapper<MP: MiniProtocol>
+where
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    sender: Sender<mini_protocol::Message<MP>>,
+}
+impl<MP> TypeMap<SenderWrapper<MP>> for TaskStateMaker
+where
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    type Output = TaskState<MP>;
+}
+impl<MP> Func<SenderWrapper<MP>> for TaskStateMaker
+where
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    fn call(SenderWrapper { sender }: SenderWrapper<MP>) -> Self::Output {
+        TaskState {
+            server_send_back: sender,
+            client_send_backs: VecDeque::new(),
+        }
+    }
+}
 
+struct TaskState<MP>
+where
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    server_send_back: Sender<mini_protocol::Message<MP>>,
+    client_send_backs: VecDeque<UnboundedSender<mini_protocol::Message<MP>>>,
+}
+enum MiniProtocolTaskState {}
+impl<MP> TypeMap<MP> for MiniProtocolTaskState
+where
+    MP: MiniProtocol,
+    CMap<state::Message>: TypeMap<MP::States>,
+{
+    type Output = TaskState<MP>;
+}
+type ProtocolTaskState<P> = <HMap<MiniProtocolTaskState> as TypeMap<P>>::Output;
+
+type TaskHandle = Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>;
 fn catch_handle_error(handle: TaskHandle) -> MuxError {
     let Some(lock) = handle.lock().unwrap().take() else {
         return MuxError::AlreadyCaught;

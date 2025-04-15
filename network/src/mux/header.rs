@@ -56,7 +56,7 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct ProtocolNumber<T> {
     pub protocol: T,
-    pub server: bool,
+    pub server_sent: bool,
 }
 
 impl<P> TryFrom<u16> for ProtocolNumber<P>
@@ -70,7 +70,7 @@ where
         let protocol = P::from_number(value & 0x7FFF)?;
 
         Ok(Self {
-            server: responder,
+            server_sent: responder,
             protocol,
         })
     }
@@ -81,7 +81,7 @@ where
     P: Protocol,
 {
     fn from(value: ProtocolNumber<P>) -> Self {
-        let responder = if value.server { 0x8000 } else { 0 };
+        let responder = if value.server_sent { 0x8000 } else { 0 };
         let protocol: u16 = value.protocol.number();
 
         responder | protocol

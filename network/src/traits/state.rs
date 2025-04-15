@@ -1,12 +1,18 @@
 use minicbor::{Decode, Encode};
 
-use crate::typefu::{coproduct::CNil, map::TypeMap};
+use crate::typefu::{
+    coproduct::CNil,
+    map::TypeMap,
+};
+
+use super::message::TagContext;
 
 pub trait State: Default {
     const TIMEOUT: std::time::Duration;
 
     type Agency: Agency;
-    type Message: Encode<()> + for<'a> Decode<'a, ()> + 'static;
+    #[allow(private_bounds)]
+    type Message: Encode<()> + for<'a> Decode<'a, TagContext> + 'static;
 }
 
 pub trait Agency {

@@ -37,6 +37,7 @@ where
     pub(super) _state: S,
 }
 
+#[allow(private_bounds)]
 impl<P, MP, S> Client<P, MP, S>
 where
     P: Protocol,
@@ -68,7 +69,7 @@ where
 
         let protocol_bundle = ProtocolSendBundle::<P>::inject(bundle);
 
-        if let Err(_) = self.request_sender.feed(protocol_bundle).await {
+        if (self.request_sender.feed(protocol_bundle).await).is_err() {
             return Err(catch_handle_error(self.task_handle));
         }
 
@@ -82,6 +83,7 @@ where
     }
 }
 
+#[allow(private_bounds)]
 impl<P, MP, S> Client<P, MP, S>
 where
     P: Protocol,
@@ -91,6 +93,7 @@ where
     CMap<MiniProtocolSendBundle>: TypeMap<P>,
     CMap<MessageClientPair<P, MP, S>>: FuncOnce<S::Message>,
 {
+    #[allow(private_interfaces)]
     pub async fn receive<IS>(mut self) -> Result<NextClient<P, MP, S>, MuxError>
     where
         mini_protocol::Message<MP>: CoprodUninjector<S::Message, IS>,
