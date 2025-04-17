@@ -28,7 +28,7 @@ use crate::{
         state,
     },
     typefu::{
-        Func, FuncMany, FuncOnce, Poly, ToMut, ToRef,
+        Func, FuncMany, FuncOnce, ToMut, ToRef,
         constructor::Constructor,
         fold::Fold,
         hlist::GetHead,
@@ -36,6 +36,8 @@ use crate::{
         utilities::{Unzip, UnzipLeft, UnzipRight},
     },
 };
+
+// TODO: In client and server, ensure that the timeouts are checked.
 
 pub mod client;
 mod header;

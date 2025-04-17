@@ -12,11 +12,6 @@ use crate::crypto::Blake2b224Digest;
 
 const HASH_SIZE: usize = 28;
 
-// TODO: We don't want to have Addresses have a MAINNET const, because that would impact all of the
-// struct chain.
-// - Use a program wide constant for which network we are on (mainnet, preview, preprod), and
-// choose at build time with a feature flag.
-// - Add the network const everywhere.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address<const MAINNET: bool> {
     pub payment: credential::Payment,

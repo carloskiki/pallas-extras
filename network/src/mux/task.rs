@@ -30,15 +30,10 @@ use minicbor::{Decode, Encode};
 
 use crate::{
     traits::{
-        mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol},
-        protocol::{self, Protocol},
-        state::{self, Agency, State},
+        message::Message, mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol}, protocol::{self, Protocol}, state::{self, Agency, State}
     },
     typefu::{
-        Func, FuncOnce, ToMut, ToRef,
-        coproduct::CNil,
-        fold::Fold,
-        map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip},
+        coproduct::CNil, fold::Fold, map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip}, Func, FuncOnce, ToMut, ToRef
     },
 };
 
@@ -492,7 +487,7 @@ impl<'a, MP> FuncOnce<ReceiverState<'a, MP>> for ProcessMessage<'_, '_>
 where
     MP: MiniProtocol,
     CMap<state::Message>: TypeMap<MP::States, Output: for<'b> Decode<'b, DecodeContext>>,
-    MessageToAgency<MP>: for<'b> Func<&'b mini_protocol::Message<MP>, Output = bool>,
+    MiniProtocolMessageToAgency: for<'b> Func<&'b mini_protocol::Message<MP>, Output = bool>,
 {
     #[inline]
     fn call_once(self, (_, task_state): ReceiverState<'a, MP>) -> Self::Output {
@@ -500,7 +495,7 @@ where
             Ok(m) => m,
             Err(e) => return FeedResult::Error(MuxError::Decode(e)),
         };
-        let server_has_agency_next = MessageToAgency::<MP>::call(&message);
+        let server_has_agency_next = MiniProtocolMessageToAgency::call(&message);
         if self.server_sent {
             if server_has_agency_next {
                 let Some(sender) = task_state.client_send_backs.front_mut() else {
@@ -519,27 +514,46 @@ where
     }
 }
 
-// TODO: Check this doubius
-pub struct MessageToAgency<MP>(MP);
+enum MessageToAgency {}
+impl<M: Message> TypeMap<M> for MessageToAgency {
+    type Output = bool;
+}
+impl<M: Message> Func<M> for MessageToAgency {
+    fn call(_: M) -> Self::Output {
+        <M::ToState as State>::Agency::SERVER
+    }
+}
 
-impl<MP> TypeMap<&mini_protocol::Message<MP>> for MessageToAgency<MP>
+enum StateMessageToAgency {}
+impl<SM> TypeMap<SM> for StateMessageToAgency
 where
-    MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>,
+    Fold<MessageToAgency, bool>: Func<SM, Output = bool>,
 {
     type Output = bool;
 }
-impl<'a, MP> Func<&'a mini_protocol::Message<MP>> for MessageToAgency<MP>
+impl<SM> Func<SM> for StateMessageToAgency
 where
-    MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>,
-    Overwrite<MP::States>: FuncOnce<&'a mini_protocol::Message<MP>>,
-    Fold<StateAgency, bool>: FuncOnce<
-            <Overwrite<MP::States> as TypeMap<&'a mini_protocol::Message<MP>>>::Output,
-            Output = bool,
-        >,
+    Fold<MessageToAgency, bool>: Func<SM, Output = bool>,
 {
-    fn call(i: &'a mini_protocol::Message<MP>) -> Self::Output {
-        Fold(StateAgency, PhantomData).call_once(Overwrite(MP::States::default()).call_once(i))
+    fn call(i: SM) -> Self::Output {
+        Fold::call(i)
+    }
+}
+
+enum MiniProtocolMessageToAgency {}
+impl<MPM> TypeMap<MPM> for MiniProtocolMessageToAgency
+where
+    Fold<StateMessageToAgency, bool>:
+        Func<MPM, Output = bool>,
+{
+    type Output = bool;
+}
+impl<MPM> Func<MPM> for MiniProtocolMessageToAgency
+where
+    Fold<StateMessageToAgency, bool>:
+        Func<MPM, Output = bool>,
+{
+    fn call(i: MPM) -> Self::Output {
+        Fold::call(i)
     }
 }
