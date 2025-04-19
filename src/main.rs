@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001")
         .await?
         .compat();
-    let hlist_pat![(handshake_client, _), _] =
-        mux::<NodeToNode::<false>>(stream, &TokioSpawner::current())?;
+    let hlist_pat![(handshake_client, _), _, _] =
+        mux::<NodeToNode>(stream, &TokioSpawner::current())?;
 
     let handshake_client = handshake_client
         .send(handshake::message::ProposeVersions(

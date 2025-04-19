@@ -12,9 +12,9 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
-pub struct Transaction<const MAINNET: bool> {
+pub struct Transaction {
     #[n(0)]
-    pub body: Body<MAINNET>,
+    pub body: Body,
     #[n(1)]
     pub witness_set: witness::Set,
     #[n(2)]
@@ -23,7 +23,7 @@ pub struct Transaction<const MAINNET: bool> {
     pub data: Data,
 }
 
-impl<const M: bool, C> Decode<'_, C> for Transaction<M> {
+impl<C> Decode<'_, C> for Transaction {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         let len = d.array()?;
         match len {
@@ -189,19 +189,19 @@ impl<C> Decode<'_, C> for Metadatum {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(map)]
-pub struct Body<const MAINNET: bool> {
+pub struct Body {
     #[cbor(n(0), with = "cbor_util::boxed_slice")]
     pub inputs: Box<[Input]>,
     #[cbor(n(1), with = "cbor_util::boxed_slice")]
-    pub outputs: Box<[Output<MAINNET>]>,
+    pub outputs: Box<[Output]>,
     #[n(2)]
     pub fee: u64,
     #[n(3)]
     pub ttl: Option<u64>,
     #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
-    pub certificates: Box<[certificate::Certificate<MAINNET>]>,
+    pub certificates: Box<[certificate::Certificate]>,
     #[cbor(n(5), with = "cbor_util::boxed_slice", has_nil)]
-    pub withdrawals: Box<[(StakeAddress<MAINNET>, u64)]>,
+    pub withdrawals: Box<[(StakeAddress, u64)]>,
     #[n(6)]
     pub update: Option<protocol::Update>,
     #[cbor(n(7), with = "minicbor::bytes")]
@@ -217,7 +217,7 @@ pub struct Body<const MAINNET: bool> {
     #[cbor(n(14), with = "cbor_util::boxed_slice::bytes", has_nil)]
     pub required_signers: Box<[Blake2b224Digest]>,
     #[n(16)]
-    pub collateral_return: Option<Output<MAINNET>>,
+    pub collateral_return: Option<Output>,
     #[n(17)]
     pub total_collateral: Option<u64>,
     #[cbor(n(18), with = "cbor_util::boxed_slice", has_nil)]
@@ -234,9 +234,9 @@ pub struct Input {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode)]
 #[cbor(map)]
-pub struct Output<const MAINNET: bool> {
+pub struct Output {
     #[n(0)]
-    pub address: Address<MAINNET>,
+    pub address: Address,
     #[n(1)]
     pub amount: u64,
     #[n(2)]
@@ -245,7 +245,7 @@ pub struct Output<const MAINNET: bool> {
     pub script_ref: Option<Script>,
 }
 
-impl<const M: bool, C> Decode<'_, C> for Output<M> {
+impl<C> Decode<'_, C> for Output {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         use minicbor::data::Type;
         match d.datatype()? {
@@ -281,9 +281,9 @@ impl<const M: bool, C> Decode<'_, C> for Output<M> {
             Type::Map | Type::MapIndef => {
                 #[derive(Decode)]
                 #[cbor(map)]
-                struct BabbageOutput<const MAINNET: bool> {
+                struct BabbageOutput {
                     #[n(0)]
-                    pub address: Address<MAINNET>,
+                    pub address: Address,
                     #[n(1)]
                     pub amount: u64,
                     #[n(2)]

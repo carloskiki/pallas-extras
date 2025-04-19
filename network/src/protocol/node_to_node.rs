@@ -8,4 +8,4 @@ use crate::typefu::coproduct::Coprod;
 
 use super::handshake::{message::NodeToNodeVersionData, Handshake};
 
-pub type NodeToNode<const MAINNET: bool> = Coprod![Handshake<NodeToNodeVersionData>, ChainSync, BlockFetch<MAINNET>];
+pub type NodeToNode = Coprod![Handshake<NodeToNodeVersionData>, ChainSync, BlockFetch];

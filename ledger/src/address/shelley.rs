@@ -13,22 +13,25 @@ use crate::crypto::Blake2b224Digest;
 const HASH_SIZE: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Address<const MAINNET: bool> {
+pub struct Address {
     pub payment: credential::Payment,
     pub stake: Option<credential::Delegation>,
     pub mainnet: bool,
 }
 
-impl<const M: bool> Address<M> {
+impl Address {
     fn from_bytes(bytes: impl IntoIterator<Item = u8>) -> Result<Self, AddressFromBytesError> {
         let mut data = bytes.into_iter();
 
         let first_byte = data.next().ok_or(AddressFromBytesError::TooShort)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        if network_magic != M as u8 {
-            return Err(AddressFromBytesError::NetworkMagic);
-        }
+        let mainnet = match network_magic {
+            0 => false,
+            1 => true,
+            _ => return Err(AddressFromBytesError::NetworkMagic),
+        };
+
         let mut first_hash: Blake2b224Digest = Default::default();
         let mut len = 0;
         data.by_ref().zip(first_hash.iter_mut()).for_each(|(b, h)| {
@@ -74,6 +77,7 @@ impl<const M: bool> Address<M> {
             Ok(Address {
                 payment,
                 stake: Some(stake),
+                mainnet,
             })
         } else if header < 0b0110 {
             let pointer = credential::ChainPointer::from_bytes(data.by_ref())
@@ -87,6 +91,7 @@ impl<const M: bool> Address<M> {
             Ok(Address {
                 payment,
                 stake: Some(credential::Delegation::Pointer(pointer)),
+                mainnet,
             })
         } else if header < 0b1000 {
             if data.next().is_some() {
@@ -102,6 +107,7 @@ impl<const M: bool> Address<M> {
             Ok(Address {
                 payment,
                 stake: None,
+                mainnet,
             })
         } else {
             Err(AddressFromBytesError::AddressType)
@@ -109,7 +115,7 @@ impl<const M: bool> Address<M> {
     }
 }
 
-impl<C, const M: bool> Encode<C> for Address<M> {
+impl<C> Encode<C> for Address {
     fn encode<W: encode::Write>(
         &self,
         e: &mut encode::Encoder<W>,
@@ -120,19 +126,19 @@ impl<C, const M: bool> Encode<C> for Address<M> {
     }
 }
 
-impl<'b, C, const M: bool> Decode<'b, C> for Address<M> {
+impl<'b, C> Decode<'b, C> for Address {
     fn decode(d: &mut decode::Decoder<'b>, _: &mut C) -> Result<Self, decode::Error> {
         // This ignores decoding errors of the inner slices, but does not matter because if the
         // inner slice errors then the value wont parse correctly anyway.
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
-        Address::<M>::from_bytes(data).map_err(decode::Error::custom)
+        Address::from_bytes(data).map_err(decode::Error::custom)
     }
 }
 
-impl<const M: bool> Display for Address<M> {
+impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if M { "addr" } else { "addr_test" });
+        let hrp = Hrp::parse_unchecked(if self.mainnet { "addr" } else { "addr_test" });
         self.into_iter()
             .bytes_to_fes()
             .with_checksum::<Bech32>(&hrp)
@@ -141,7 +147,7 @@ impl<const M: bool> Display for Address<M> {
     }
 }
 
-impl<'a, const M: bool> IntoIterator for &'a Address<M> {
+impl<'a> IntoIterator for &'a Address {
     type Item = u8;
 
     type IntoIter = iter::Chain<
@@ -170,7 +176,7 @@ impl<'a, const M: bool> IntoIterator for &'a Address<M> {
             (credential::Payment::VerificationKey(_), None) => 0b0110,
             (credential::Payment::Script(_), None) => 0b0111,
         };
-        let network_magic = M as u8;
+        let network_magic = self.mainnet as u8;
         let first_byte = (header << 4) | network_magic;
 
         iter::once(first_byte)
@@ -188,30 +194,33 @@ impl<'a, const M: bool> IntoIterator for &'a Address<M> {
     }
 }
 
-impl<const M: bool> FromStr for Address<M> {
+impl FromStr for Address {
     type Err = AddressFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (_, data) = bech32::decode(s).map_err(AddressFromStrError::Bech32)?;
 
-        Address::<M>::from_bytes(data).map_err(AddressFromStrError::from)
+        Address::from_bytes(data).map_err(AddressFromStrError::from)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StakeAddress<const MAINNET: bool> {
+pub struct StakeAddress {
     pub credential: credential::Payment,
+    pub mainnet: bool,
 }
 
-impl<const M: bool> StakeAddress<M> {
+impl StakeAddress {
     pub fn from_bytes(bytes: impl IntoIterator<Item = u8>) -> Result<Self, AddressFromBytesError> {
         let mut data = bytes.into_iter();
         let first_byte = data.next().ok_or(AddressFromBytesError::TooShort)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        if network_magic != M as u8 {
-            return Err(AddressFromBytesError::NetworkMagic);
-        }
+        let mainnet = match network_magic {
+            0 => false,
+            1 => true,
+            _ => return Err(AddressFromBytesError::NetworkMagic),
+        };
 
         let mut hash: Blake2b224Digest = Default::default();
         let mut len = 0;
@@ -233,13 +242,16 @@ impl<const M: bool> StakeAddress<M> {
             return Err(AddressFromBytesError::AddressType);
         };
 
-        Ok(StakeAddress { credential })
+        Ok(StakeAddress {
+            credential,
+            mainnet,
+        })
     }
 }
 
-impl<const M: bool> Display for StakeAddress<M> {
+impl Display for StakeAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if M { "stake" } else { "stake_test" });
+        let hrp = Hrp::parse_unchecked(if self.mainnet { "stake" } else { "stake_test" });
 
         self.into_iter()
             .bytes_to_fes()
@@ -249,7 +261,7 @@ impl<const M: bool> Display for StakeAddress<M> {
     }
 }
 
-impl<'a, const M: bool> IntoIterator for &'a StakeAddress<M> {
+impl<'a> IntoIterator for &'a StakeAddress {
     type Item = u8;
 
     type IntoIter =
@@ -260,24 +272,24 @@ impl<'a, const M: bool> IntoIterator for &'a StakeAddress<M> {
             credential::Payment::VerificationKey(_) => 0b1110,
             credential::Payment::Script(_) => 0b1111,
         };
-        let network_magic = M as u8;
+        let network_magic = self.mainnet as u8;
         let first_byte = (header << 4) | network_magic;
 
         core::iter::once(first_byte).chain(self.credential.as_ref().iter().copied())
     }
 }
 
-impl<const M: bool> FromStr for StakeAddress<M> {
+impl FromStr for StakeAddress {
     type Err = AddressFromStrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (_, data) = bech32::decode(s).map_err(AddressFromStrError::Bech32)?;
 
-        StakeAddress::<M>::from_bytes(data).map_err(AddressFromStrError::from)
+        StakeAddress::from_bytes(data).map_err(AddressFromStrError::from)
     }
 }
 
-impl<C, const M: bool> Encode<C> for StakeAddress<M> {
+impl<C> Encode<C> for StakeAddress {
     fn encode<W: encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
@@ -288,13 +300,13 @@ impl<C, const M: bool> Encode<C> for StakeAddress<M> {
     }
 }
 
-impl<'b, C, const M: bool> Decode<'b, C> for StakeAddress<M> {
+impl<'b, C> Decode<'b, C> for StakeAddress {
     fn decode(d: &mut minicbor::Decoder<'b>, _: &mut C) -> Result<Self, decode::Error> {
         // This ignores decoding errors of the inner slices, but does not matter because if the
         // inner slice errors then the value wont parse correctly anyway.
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
-        StakeAddress::<M>::from_bytes(data).map_err(decode::Error::custom)
+        StakeAddress::from_bytes(data).map_err(decode::Error::custom)
     }
 }
 
@@ -387,23 +399,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
         const ADDR_TEST: &str = "addr_test1qz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs68faae";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::StakeKey(STAKE_VK))
+                stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::StakeKey(STAKE_VK))
+                stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -415,23 +429,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1z8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs9yc0hh";
         const ADDR_TEST: &str = "addr_test1zrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgsxj90mg";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::StakeKey(STAKE_VK))
+                stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::StakeKey(STAKE_VK))
+                stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -443,23 +459,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1yx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs2z78ve";
         const ADDR_TEST: &str = "addr_test1yz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shsf5r8qx";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::Script(SCRIPT_HASH),)
+                stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
-            main,
+            test,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::Script(SCRIPT_HASH),)
+                stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -471,23 +489,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1x8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shskhj42g";
         const ADDR_TEST: &str = "addr_test1xrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs4p04xh";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::Script(SCRIPT_HASH),)
+                stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::Script(SCRIPT_HASH),)
+                stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -501,23 +521,25 @@ mod tests {
         const ADDR_TEST: &str =
             "addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrdw5vky";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::Pointer(POINTER),)
+                stake: Some(credential::Delegation::Pointer(POINTER),),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: Some(credential::Delegation::Pointer(POINTER),)
+                stake: Some(credential::Delegation::Pointer(POINTER),),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -531,23 +553,25 @@ mod tests {
         const ADDR_TEST: &str =
             "addr_test12rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtupnz75xxcryqrvmw";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::Pointer(POINTER))
+                stake: Some(credential::Delegation::Pointer(POINTER)),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: Some(credential::Delegation::Pointer(POINTER))
+                stake: Some(credential::Delegation::Pointer(POINTER)),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -559,23 +583,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1vx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzers66hrl8";
         const ADDR_TEST: &str = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
-                stake: None
+                stake: None,
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::VerificationKey(VK),
                 stake: None,
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -587,23 +613,25 @@ mod tests {
         const ADDR_MAIN: &str = "addr1w8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcyjy7wx";
         const ADDR_TEST: &str = "addr_test1wrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcl6szpr";
 
-        let main = Address::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = Address::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: None
+                stake: None,
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = Address::<false>::from_str(ADDR_TEST).unwrap();
+        let test = Address::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             Address {
                 payment: credential::Payment::Script(SCRIPT_HASH),
-                stake: None
+                stake: None,
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -615,21 +643,23 @@ mod tests {
         const ADDR_MAIN: &str = "stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw";
         const ADDR_TEST: &str = "stake_test1uqehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gssrtvn";
 
-        let main = StakeAddress::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = StakeAddress::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             StakeAddress {
-                credential: credential::Payment::VerificationKey(STAKE_VK)
+                credential: credential::Payment::VerificationKey(STAKE_VK),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = StakeAddress::<false>::from_str(ADDR_TEST).unwrap();
+        let test = StakeAddress::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             StakeAddress {
-                credential: credential::Payment::VerificationKey(STAKE_VK)
+                credential: credential::Payment::VerificationKey(STAKE_VK),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();
@@ -641,21 +671,23 @@ mod tests {
         const ADDR_MAIN: &str = "stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5";
         const ADDR_TEST: &str = "stake_test17rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcljw6kf";
 
-        let main = StakeAddress::<true>::from_str(ADDR_MAIN).unwrap();
+        let main = StakeAddress::from_str(ADDR_MAIN).unwrap();
         assert!(matches!(
             main,
             StakeAddress {
-                credential: credential::Payment::Script(SCRIPT_HASH)
+                credential: credential::Payment::Script(SCRIPT_HASH),
+                mainnet: true
             }
         ));
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = StakeAddress::<false>::from_str(ADDR_TEST).unwrap();
+        let test = StakeAddress::from_str(ADDR_TEST).unwrap();
         assert!(matches!(
             test,
             StakeAddress {
-                credential: credential::Payment::Script(SCRIPT_HASH)
+                credential: credential::Payment::Script(SCRIPT_HASH),
+                mainnet: false
             }
         ));
         let serialized = test.to_string();

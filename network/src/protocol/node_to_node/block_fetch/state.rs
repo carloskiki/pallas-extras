@@ -5,31 +5,31 @@ use crate::{traits::state::{Client, Server, State}, typefu::coproduct::Coprod};
 use super::message::{NoBlocks, RequestRange, StartBatch};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Idle<const MAINNET: bool>;
+pub struct Idle;
 
-impl<const M: bool> State for Idle<M> {
+impl State for Idle {
     const TIMEOUT: Duration = Duration::MAX;
 
     type Agency = Client;
-    type Message = Coprod![RequestRange<M>, super::message::Done];
+    type Message = Coprod![RequestRange, super::message::Done];
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Busy<const MAINNET: bool>;
+pub struct Busy;
 
-impl<const M: bool> State for Busy<M> {
+impl State for Busy {
     const TIMEOUT: Duration = Duration::from_secs(60);
 
     type Agency = Server;
-    type Message = Coprod![NoBlocks<M>, StartBatch<M>];
+    type Message = Coprod![NoBlocks, StartBatch];
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Streaming<const MAINNET: bool>;
+pub struct Streaming;
 
-impl<const M: bool> State for Streaming<M> {
+impl State for Streaming {
     const TIMEOUT: Duration = Duration::from_secs(60);
     
     type Agency = Server;
-    type Message = Coprod![super::message::Block<M>, super::message::Done];
+    type Message = Coprod![super::message::Block, super::message::Done];
 }

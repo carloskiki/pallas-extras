@@ -6,11 +6,11 @@ pub mod message;
 pub mod state;
 
 #[derive(Debug, Default, PartialEq, Eq, Copy, Clone)]
-pub struct BlockFetch<const MAINNET: bool>;
+pub struct BlockFetch;
 
-impl<const M: bool> MiniProtocol for BlockFetch<M> {
+impl MiniProtocol for BlockFetch {
     const NUMBER: u16 = 3;
     const READ_BUFFER_SIZE: usize = 100;
 
-    type States = HList![Idle<M>, Busy<M>, Streaming<M>];
+    type States = HList![Idle, Busy, Streaming];
 }

@@ -6,11 +6,11 @@ use minicbor::{Decode, Encode};
 use crate::{transaction, witness};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct Block<const MAINNET: bool> {
+pub struct Block {
     #[n(0)]
     pub header: Header,
     #[cbor(n(1), with = "cbor_util::boxed_slice")]
-    pub transaction_bodies: Box<[transaction::Body<MAINNET>]>,
+    pub transaction_bodies: Box<[transaction::Body]>,
     #[cbor(n(2), with = "cbor_util::boxed_slice")]
     pub witness_sets: Box<[witness::Set]>,
     #[cbor(n(3), with = "cbor_util::list_as_map")]
