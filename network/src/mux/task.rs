@@ -96,7 +96,6 @@ where
                 ).await?;
             },
             result = bearer.read_exact(&mut header_buffer).fuse() => {
-                println!("Header: {:?}", header_buffer);
                 result?;
                 let header = Header::<P>::try_from(header_buffer)?;
                 reader_task(
@@ -380,7 +379,7 @@ where
     if previous_state.is_some_and(|(p, _)| p != protocol) {
         return Err(MuxError::InvalidPeerMessage);
     }
-
+    
     let read_len = reader
         .as_mut()
         .take(payload_len as u64)
@@ -409,10 +408,12 @@ where
             Err(e) => return Err(e),
         }
     }
+    
     // No bytes left over.
     if previous_state.is_none() {
         buffer.clear();
     }
+    
     Ok(())
 }
 pub(super) type ReaderZipped<'a, P> =

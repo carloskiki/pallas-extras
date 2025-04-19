@@ -338,6 +338,6 @@ mod tests {
                 HMap<Identity>: TypeMap<P>,
                 Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
         {}
-        test::<NodeToNode>();
+        test::<NodeToNode::<false>>();
     }
 }

@@ -2,7 +2,7 @@ use minicbor::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, CborLen)]
 #[cbor(transparent)]
-pub struct Script(#[cbor(with = "cbor_util::boxed_bytes")] Box<[u8]>);
+pub struct Script(#[cbor(with = "minicbor::bytes")] Box<[u8]>);
 
 // TODO: Implement Encode and Decode. This looks complicated, should try to understand how it works
 // to properly represent the different data types.

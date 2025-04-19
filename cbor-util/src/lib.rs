@@ -1,7 +1,7 @@
 pub mod list_as_map;
 pub mod boxed_slice;
 
-use decode::{ArrayIter, BytesIter, MapIter, StrIter};
+use decode::{BytesIter, StrIter};
 pub use minicbor::*;
 
 pub mod bool_as_u8 {
@@ -18,44 +18,6 @@ pub mod bool_as_u8 {
     pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<bool, de::Error> {
         d.u8().map(|v| v != 0)
     }
-}
-
-pub mod boxed_bytes {
-    use std::ops::Deref;
-
-    use minicbor::{bytes::CborLenBytes, decode as de, encode as en, Decoder, Encoder};
-
-    #[allow(clippy::borrowed_box)]
-    pub fn encode<C, W: en::Write>(
-        value: &Box<[u8]>,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), en::Error<W::Error>> {
-        e.bytes(value)?.ok()
-    }
-
-    pub fn decode<Ctx>(
-        d: &mut Decoder<'_>,
-        ctx: &mut Ctx,
-    ) -> Result<Box<[u8]>, de::Error> {
-        let v: Vec<u8> = minicbor::bytes::decode(d, ctx)?;
-        Ok(v.into_boxed_slice())
-    }
-
-    pub fn nil() -> Option<Box<[u8]>> {
-        Some(Vec::new().into_boxed_slice())
-    }
-
-    #[allow(clippy::borrowed_box)]
-    pub fn is_nil<>(v: &Box<[u8]>) -> bool {
-        v.is_empty()
-    }
-
-    #[allow(clippy::borrowed_box)]
-    pub fn cbor_len<Ctx>(val: &Box<[u8]>, ctx: &mut Ctx) -> usize {
-        CborLenBytes::cbor_len(val.deref(), ctx)
-    }
-   
 }
 
 pub mod bounded_bytes {

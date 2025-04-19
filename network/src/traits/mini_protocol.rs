@@ -110,7 +110,7 @@ where
             },
             Err(e)
                 if e.source().is_some_and(|s| {
-                    core::any::Any::type_id(s) == core::any::Any::type_id(&UnknownMessage)
+                    s.is::<UnknownMessage>()
                 }) => {
                     Tail::decode(d, ctx).map(Coproduct::Inr)
                 }

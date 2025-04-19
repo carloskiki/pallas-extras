@@ -32,3 +32,4 @@
 - [The UC modeling system](https://eprint.iacr.org/2000/067.pdf)
 - [The UC model with Responsive Environments](https://eprint.iacr.org/2016/034.pdf)
 - [KES Keys under UC](https://eprint.iacr.org/2007/011.pdf)
+- [Tokio wrapper for Spawn](https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=c63e153f8a0eae7af6f84e7a7f76fb73)

@@ -8,12 +8,12 @@ use crate::{
 use super::state::{Busy, Idle, Streaming};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RequestRange {
+pub struct RequestRange<const MAINNET: bool> {
     pub start: Point,
     pub end: Point,
 }
 
-impl<C> Encode<C> for RequestRange {
+impl<C, const M: bool> Encode<C> for RequestRange<M> {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
@@ -23,7 +23,7 @@ impl<C> Encode<C> for RequestRange {
     }
 }
 
-impl<C> Decode<'_, C> for RequestRange {
+impl<C, const M: bool> Decode<'_, C> for RequestRange<M> {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         Ok(Self {
             start: d.decode()?,
@@ -32,74 +32,117 @@ impl<C> Decode<'_, C> for RequestRange {
     }
 }
 
-impl Message for RequestRange {
+impl<const M: bool> Message for RequestRange<M> {
     const SIZE_LIMIT: usize = 65535;
     const TAG: u8 = 0;
     const ELEMENT_COUNT: u64 = 2;
 
-    type ToState = Busy;
+    type ToState = Busy<M>;
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NoBlocks;
+pub struct NoBlocks<const MAINNET: bool>;
 
-impl Message for NoBlocks {
+impl<const M: bool> Message for NoBlocks<M> {
     const SIZE_LIMIT: usize = 65535;
     const TAG: u8 = 2;
     const ELEMENT_COUNT: u64 = 0;
 
-    type ToState = Idle;
+    type ToState = Idle<M>;
+}
+
+impl<C, const M: bool> Encode<C> for NoBlocks<M> {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        _: &mut minicbor::Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        Ok(())
+    }
+}
+
+impl<C, const M: bool> Decode<'_, C> for NoBlocks<M> {
+    fn decode(
+        _: &mut minicbor::Decoder<'_>,
+        _: &mut C,
+    ) -> Result<Self, minicbor::decode::Error> {
+        Ok(Self)
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StartBatch;
+pub struct StartBatch<const MAINNET: bool>;
 
-impl Message for StartBatch {
+impl<const M: bool> Message for StartBatch<M> {
     const SIZE_LIMIT: usize = 65535;
     const TAG: u8 = 3;
     const ELEMENT_COUNT: u64 = 0;
 
-    type ToState = Streaming;
+    type ToState = Streaming<M>;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Block();
-
-impl Encode<()> for Block {
+impl<C, const M: bool> Encode<C> for StartBatch<M> {
     fn encode<W: minicbor::encode::Write>(
         &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut (),
+        _: &mut minicbor::Encoder<W>,
+        _: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        todo!()
+        Ok(())
     }
 }
 
-impl Decode<'_, ()> for Block {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut ()) -> Result<Self, minicbor::decode::Error> {
-        todo!()
+impl<C, const M: bool> Decode<'_, C> for StartBatch<M> {
+    fn decode(
+        _: &mut minicbor::Decoder<'_>,
+        _: &mut C,
+    ) -> Result<Self, minicbor::decode::Error> {
+        Ok(Self)
     }
 }
 
-impl Message for Block {
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[cbor(transparent)]
+pub struct Block<const MAINNET: bool>(pub ledger::block::Block<MAINNET>);
+
+impl<const M: bool> Message for Block<M> {
     const SIZE_LIMIT: usize = 2_500_000;
     const TAG: u8 = 4;
-    const ELEMENT_COUNT: u64 = 0;
+    const ELEMENT_COUNT: u64 = 1;
 
-    type ToState = Streaming;
+    type ToState = Streaming<M>;
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BatchDone;
+pub struct BatchDone<const MAINNET: bool>;
 
-impl Message for BatchDone {
+impl<const M: bool> Message for BatchDone<M> {
     // In the spec, this is 2_500_000, but that's absurdly large for nothing
     const SIZE_LIMIT: usize = 65535;
     const TAG: u8 = 5;
     const ELEMENT_COUNT: u64 = 0;
 
-    type ToState = Idle;
+    type ToState = Idle<M>;
 }
+
+impl<C, const M: bool> Encode<C> for BatchDone<M> {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        _: &mut minicbor::Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        Ok(())
+    }
+}
+
+impl<C, const M: bool> Decode<'_, C> for BatchDone<M> {
+    fn decode(
+        _: &mut minicbor::Decoder<'_>,
+        _: &mut C,
+    ) -> Result<Self, minicbor::decode::Error> {
+        Ok(Self)
+    }
+}
+
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Done;
@@ -112,4 +155,4 @@ impl Message for Done {
     type ToState = state::Done;
 }
 
-nop_codec!(NoBlocks, StartBatch, BatchDone, Done);
+nop_codec!(Done);

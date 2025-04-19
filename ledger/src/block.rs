@@ -1,20 +1,20 @@
 pub mod header;
 
 pub use header::Header;
-use minicbor::Encode;
+use minicbor::{Decode, Encode};
 
 use crate::{transaction, witness};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Block<const MAINNET: bool> {
     #[n(0)]
     pub header: Header,
-    #[n(1)]
+    #[cbor(n(1), with = "cbor_util::boxed_slice")]
     pub transaction_bodies: Box<[transaction::Body<MAINNET>]>,
-    #[n(2)]
+    #[cbor(n(2), with = "cbor_util::boxed_slice")]
     pub witness_sets: Box<[witness::Set]>,
-    #[n(3)]
-    pub auxiliary_data: Box<(u16, transaction::Data)>,
-    #[n(4)]
+    #[cbor(n(3), with = "cbor_util::list_as_map")]
+    pub auxiliary_data: Box<[(u16, transaction::Data)]>,
+    #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
     pub invalid_transactions: Box<[u16]>,
 }

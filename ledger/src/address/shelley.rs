@@ -16,6 +16,7 @@ const HASH_SIZE: usize = 28;
 pub struct Address<const MAINNET: bool> {
     pub payment: credential::Payment,
     pub stake: Option<credential::Delegation>,
+    pub mainnet: bool,
 }
 
 impl<const M: bool> Address<M> {
