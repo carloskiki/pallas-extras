@@ -29,6 +29,13 @@ where
     type Output = Coproduct<F::Output, <CMap<F> as TypeMap<Tail>>::Output>;
 }
 
+impl<F> FuncOnce<CNil> for CMap<F> {
+    #[inline]
+    fn call_once(self, i: CNil) -> Self::Output {
+        match i {}
+    }
+}
+
 impl<Head, Tail, F> FuncOnce<Coproduct<Head, Tail>> for CMap<F>
 where
     F: FuncOnce<Head>,

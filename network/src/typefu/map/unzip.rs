@@ -1,24 +1,9 @@
-use super::{
+use crate::typefu::{
     hlist::{HCons, HNil},
     map::TypeMap, Func,
 };
 
-/// Unzip a [`hlist`](super::hlist) of tuples into two separate `hlist`s.
-///
-/// ## Example
-/// ```
-/// use crate::typefu::{hlist::{hlist, hlist_pat}, Func, utilities::Unzip};
-/// 
-/// let list = hlist![(32, "test"), ("hello", 0.5) , ((2..5), vec![1, 2, 3])];
-/// let (hlist_pat![num, string, range], right_list) = Unzip::call(list);
-/// 
-/// assert_eq!(num, 32);
-/// assert_eq!(string, "hello");
-/// assert_eq!(range, 2..5);
-/// assert_eq!(right_list, hlist!["test", 0.5, vec![1, 2, 3]]);
-/// ````
 pub enum Unzip {}
-
 pub enum UnzipLeft {}
 pub enum UnzipRight {}
 

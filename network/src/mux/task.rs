@@ -33,7 +33,7 @@ use crate::{
         message::Message, mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol}, protocol::{self, Protocol}, state::{self, Agency, State}
     },
     typefu::{
-        coproduct::CNil, fold::Fold, map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip}, Func, FuncOnce, ToMut, ToRef
+        coproduct::CNil, map::{CMap, Fold, HMap, Identity, Overwrite, TypeMap, Zip}, Func, FuncOnce, ToMut, ToRef
     },
 };
 
@@ -82,32 +82,33 @@ where
     let time = std::time::Instant::now();
     let mut header_buffer = [0; 8];
 
-    select! {
-        next_message = NextMessage { receiver: &mut receiver, peeked: &mut peeked } => {
-            writer_task(
-                bearer,
-                &mut receiver,
-                &mut task_state,
-                &mut peeked,
-                &time,
-                &mut encode_buffer,
-                next_message?,
-            ).await?;
-        },
-        result = bearer.read_exact(&mut header_buffer).fuse() => {
-            result?;
-            let header = Header::<P>::try_from(header_buffer)?;
-            reader_task(
-                bearer,
-                &mut task_state,
-                &mut previous_state,
-                &mut decode_buffer,
-                header,
-            ).await?;
+    loop {
+        select! {
+            next_message = NextMessage { receiver: &mut receiver, peeked: &mut peeked } => {
+                writer_task(
+                    &mut bearer,
+                    &mut receiver,
+                    &mut task_state,
+                    &mut peeked,
+                    &time,
+                    &mut encode_buffer,
+                    next_message?,
+                ).await?;
+            },
+            result = bearer.read_exact(&mut header_buffer).fuse() => {
+                println!("Header: {:?}", header_buffer);
+                result?;
+                let header = Header::<P>::try_from(header_buffer)?;
+                reader_task(
+                    &mut bearer,
+                    &mut task_state,
+                    &mut previous_state,
+                    &mut decode_buffer,
+                    header,
+                ).await?;
+            }
         }
     }
-
-    todo!()
 }
 
 struct NextMessage<'a, P>
@@ -162,7 +163,7 @@ where
 }
 
 async fn writer_task<'b, P>(
-    mut writer: Pin<&mut impl AsyncWrite>,
+    writer: &mut Pin<&mut impl AsyncWrite>,
     rx: &mut Receiver<ProtocolSendBundle<P>>,
     task_state: &mut ProtocolTaskState<P>,
     peeked: &mut Option<ProtocolSendBundle<P>>,
@@ -290,12 +291,12 @@ where
 {
     type Output = bool;
 }
-impl<S> Func<S> for StateAgency
+impl<S> FuncOnce<S> for StateAgency
 where
     S: State,
 {
     #[inline]
-    fn call(_: S) -> Self::Output {
+    fn call_once(self, _: S) -> Self::Output {
         S::Agency::SERVER
     }
 }
@@ -355,7 +356,7 @@ impl FuncOnce<CNil> for ProcessBundle<'_, '_> {
 }
 
 async fn reader_task<P>(
-    mut reader: Pin<&mut impl AsyncRead>,
+    reader: &mut Pin<&mut impl AsyncRead>,
     task_state: &mut ProtocolTaskState<P>,
     previous_state: &mut Option<(P, usize)>,
     buffer: &mut Vec<u8>,
@@ -471,6 +472,16 @@ where
     }
 }
 
+// Hack, we should find a way to not have this.
+impl Future for CNil {
+    type Output = Result<(), crate::mux::MuxError>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+        match *self {}
+    }
+}
+
+
 type ReceiverState<'a, MP> = (MP, &'a mut TaskState<MP>);
 pub(super) struct ProcessMessage<'a, 'b> {
     decoder: &'a mut minicbor::Decoder<'b>,
@@ -515,45 +526,49 @@ where
 }
 
 enum MessageToAgency {}
-impl<M: Message> TypeMap<M> for MessageToAgency {
+impl<M: Message> TypeMap<&M> for MessageToAgency {
     type Output = bool;
 }
-impl<M: Message> Func<M> for MessageToAgency {
-    fn call(_: M) -> Self::Output {
+impl<M: Message> Func<&M> for MessageToAgency {
+    fn call(_: &M) -> Self::Output {
         <M::ToState as State>::Agency::SERVER
     }
 }
 
 enum StateMessageToAgency {}
-impl<SM> TypeMap<SM> for StateMessageToAgency
+impl<'a, SM> TypeMap<&'a SM> for StateMessageToAgency
 where
-    Fold<MessageToAgency, bool>: Func<SM, Output = bool>,
+    SM: ToRef<'a>,
+    Fold<MessageToAgency, bool>: Func<SM::Output, Output = bool>,
 {
     type Output = bool;
 }
-impl<SM> Func<SM> for StateMessageToAgency
+impl<'a, SM> Func<&'a SM> for StateMessageToAgency
 where
-    Fold<MessageToAgency, bool>: Func<SM, Output = bool>,
+    SM: ToRef<'a>,
+    Fold<MessageToAgency, bool>: Func<SM::Output, Output = bool>,
 {
-    fn call(i: SM) -> Self::Output {
-        Fold::call(i)
+    fn call(i: &'a SM) -> Self::Output {
+        Fold::call(i.to_ref())
     }
 }
 
 enum MiniProtocolMessageToAgency {}
-impl<MPM> TypeMap<MPM> for MiniProtocolMessageToAgency
+impl<'a, MPM> TypeMap<&'a MPM> for MiniProtocolMessageToAgency
 where
+    MPM: ToRef<'a>,
     Fold<StateMessageToAgency, bool>:
-        Func<MPM, Output = bool>,
+        Func<<MPM as ToRef<'a>>::Output, Output = bool>,
 {
     type Output = bool;
 }
-impl<MPM> Func<MPM> for MiniProtocolMessageToAgency
+impl<'a, MPM> Func<&'a MPM> for MiniProtocolMessageToAgency
 where
+    MPM: ToRef<'a>,
     Fold<StateMessageToAgency, bool>:
-        Func<MPM, Output = bool>,
+        Func<<MPM as ToRef<'a>>::Output, Output = bool>,
 {
-    fn call(i: MPM) -> Self::Output {
-        Fold::call(i)
+    fn call(i: &'a MPM) -> Self::Output {
+        Fold::call(i.to_ref())
     }
 }

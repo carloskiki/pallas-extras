@@ -102,7 +102,9 @@ where
 type NextServer<P, MP, S> =
     <CMap<MessageServerPair<P, MP, S>> as TypeMap<<S as State>::Message>>::Output;
 
-struct MessageServerPair<P, MP, S>
+#[doc(hidden)]
+#[allow(private_bounds)]
+pub struct MessageServerPair<P, MP, S>
 where
     P: Protocol,
     MP: MiniProtocol,

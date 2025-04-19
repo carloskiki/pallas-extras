@@ -1,8 +1,6 @@
 use state::{Busy, Idle, Streaming};
 
-use crate::{traits::mini_protocol::MiniProtocol, typefu::hlist::HList};
-
-use super::Coprod;
+use crate::{traits::mini_protocol::MiniProtocol, HList};
 
 pub mod message;
 pub mod state;

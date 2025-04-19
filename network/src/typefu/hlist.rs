@@ -2,69 +2,6 @@
 //!
 //! Typically, you would want to use the `hlist!` macro to make it easier
 //! for you to use HList.
-//!
-//! # Examples
-//!
-//! ```
-//! # fn main() {
-//! use crate::typefu::hlist::{hlist, HList, poly_fn};
-//!
-//! let h = hlist![1, "hi"];
-//! assert_eq!(h.len(), 2);
-//! let (a, b) = h.into_tuple2();
-//! assert_eq!(a, 1);
-//! assert_eq!(b, "hi");
-//!
-//! // Reverse
-//! let h1 = hlist![true, "hi"];
-//! assert_eq!(h1.into_reverse(), hlist!["hi", true]);
-//!
-//! // foldr (foldl also available)
-//! let h2 = hlist![1, false, 42f32];
-//! let folded = h2.foldr(
-//!             hlist![|acc, i| i + acc,
-//!                    |acc, _| if acc > 42f32 { 9000 } else { 0 },
-//!                    |acc, f| f + acc],
-//!             1f32
-//!     );
-//! assert_eq!(folded, 9001);
-//!
-//! let h3 = hlist![9000, "joe", 41f32];
-//! // Mapping over an HList with a polymorphic function,
-//! // declared using the poly_fn! macro (you can choose to impl
-//! // it manually)
-//! let mapped = h3.map(
-//!   poly_fn![
-//!     |f: f32|   -> f32 { f + 1f32 },
-//!     |i: isize| -> isize { i + 1 },
-//!     ['a] |s: &'a str| -> &'a str { s }
-//!   ]);
-//! assert_eq!(mapped, hlist![9001, "joe", 42f32]);
-//!
-//! // Plucking a value out by type
-//! let h4 = hlist![1, "hello", true, 42f32];
-//! let (t, remainder): (bool, _) = h4.pluck();
-//! assert!(t);
-//! assert_eq!(remainder, hlist![1, "hello", 42f32]);
-//!
-//! // Resculpting an HList
-//! let h5 = hlist![9000, "joe", 41f32, true];
-//! let (reshaped, remainder2): (HList![f32, i32, &str], _) = h5.sculpt();
-//! assert_eq!(reshaped, hlist![41f32, 9000, "joe"]);
-//! assert_eq!(remainder2, hlist![true]);
-//! # }
-//! ```
-
-/// Represents the right-most end of a heterogeneous list
-///
-/// # Examples
-///
-/// ```
-/// # use frunk_core::hlist::{h_cons, HNil};
-/// let h = h_cons(1, HNil);
-/// let h = h.head;
-/// assert_eq!(h, 1);
-/// ```
 #[derive(PartialEq, Debug, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
 pub struct HNil;
 
@@ -159,41 +96,18 @@ impl<Head, Tail> Func<HCons<Head, Tail>> for GetHead {
 /// Returns an `HList` based on the values passed in.
 ///
 /// Helps to avoid having to write nested `HCons`.
-///
-/// # Examples
-///
-/// ```
-/// # use frunk_core::hlist;
-/// # fn main() {
-/// let h = hlist![13.5f32, "hello", Some(41)];
-/// let (h1, (h2, h3)) = h.into_tuple2();
-/// assert_eq!(h1, 13.5f32);
-/// assert_eq!(h2, "hello");
-/// assert_eq!(h3, Some(41));
-///
-/// // Also works when you have trailing commas
-/// let h4 = hlist!["yo",];
-/// let h5 = hlist![13.5f32, "hello", Some(41),];
-/// assert_eq!(h4, hlist!["yo"]);
-/// assert_eq!(h5, hlist![13.5f32, "hello", Some(41)]);
-///
-/// // Use "...tail" to append an existing list at the end
-/// let h6 = hlist![12, ...h5];
-/// assert_eq!(h6, hlist![12, 13.5f32, "hello", Some(41)]);
-/// # }
-/// ```
-macro_rules! __hlist {
+#[macro_export]
+macro_rules! hlist {
     () => { $crate::typefu::hlist::HNil };
     (...$rest:expr) => { $rest };
-    ($a:expr) => { $crate::typefu::hlist::hlist![$a,] };
+    ($a:expr) => { $crate::hlist![$a,] };
     ($a:expr, $($tok:tt)*) => {
         $crate::typefu::hlist::HCons {
             head: $a,
-            tail: $crate::typefu::hlist::hlist![$($tok)*],
+            tail: $crate::hlist![$($tok)*],
         }
     };
 }
-pub(crate) use __hlist as hlist;
 
 use super::{map::TypeMap, Func, ToMut, ToRef};
 
@@ -201,71 +115,37 @@ use super::{map::TypeMap, Func, ToMut, ToRef};
 /// Macro for pattern-matching on HLists.
 ///
 /// Taken from <https://github.com/tbu-/rust-rfcs/blob/master/text/0873-type-macros.md>
-///
-/// # Examples
-///
-/// ```
-/// # use frunk_core::{hlist, hlist_pat};
-/// # fn main() {
-/// let h = hlist![13.5f32, "hello", Some(41)];
-/// let hlist_pat![a1, a2, a3] = h;
-/// assert_eq!(a1, 13.5f32);
-/// assert_eq!(a2, "hello");
-/// assert_eq!(a3, Some(41));
-///
-/// // Use "...tail" to match the rest of the list
-/// let hlist_pat![b_head, ...b_tail] = h;
-/// assert_eq!(b_head, 13.5f32);
-/// assert_eq!(b_tail, hlist!["hello", Some(41)]);
-///
-/// // You can also use "..." to just ignore the rest.
-/// let hlist_pat![c, ...] = h;
-/// assert_eq!(c, 13.5f32);
-/// # }
-/// ```
-macro_rules! __hlist_pat {
+#[macro_export]
+macro_rules! hlist_pat {
     () => { $crate::typefu::hlist::HNil };
     (...) => { _ };
     (...$rest:pat) => { $rest };
-    (_) => { $crate::typefu::hlist::hlist_pat![_,] };
+    (_) => { $crate::hlist_pat![_,] };
     ($a:pat) => { $crate::typefu::hlist::hlist_pat![$a,] };
     (_, $($tok:tt)*) => {
         $crate::typefu::hlist::HCons {
-            tail: $crate::typefu::hlist::hlist_pat![$($tok)*],
+            tail: $crate::hlist_pat![$($tok)*],
             ..
         }
     };
     ($a:pat, $($tok:tt)*) => {
         $crate::typefu::hlist::HCons {
             head: $a,
-            tail: $crate::typefu::hlist::hlist_pat![$($tok)*],
+            tail: $crate::hlist_pat![$($tok)*],
         }
     };
 }
-pub(crate) use __hlist_pat as hlist_pat;
 
 /// Returns a type signature for an HList of the provided types
 ///
 /// This is a type macro (introduced in Rust 1.13) that makes it easier
 /// to write nested type signatures.
-///
-/// # Examples
-///
-/// ```
-/// # use frunk_core::{hlist, HList};
-/// # fn main() {
-/// let h: HList!(f32, &str, Option<i32>) = hlist![13.5f32, "hello", Some(41)];
-///
-/// // Use "...Tail" to append another HList type at the end.
-/// let h: HList!(f32, ...HList!(&str, Option<i32>)) = hlist![13.5f32, "hello", Some(41)];
-/// # }
-/// ```
-macro_rules! __HList {
+#[macro_export]
+macro_rules! HList {
     () => { $crate::typefu::hlist::HNil };
     (...$Rest:ty) => { $Rest };
-    ($A:ty) => { $crate::typefu::hlist::HList![$A,] };
+    ($A:ty) => { $crate::HList![$A,] };
     ($A:ty, $($tok:tt)*) => {
-        $crate::typefu::hlist::HCons<$A, $crate::typefu::hlist::HList![$($tok)*]>
+        $crate::typefu::hlist::HCons<$A, $crate::HList![$($tok)*]>
     };
 }
-pub(crate) use __HList as HList;

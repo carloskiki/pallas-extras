@@ -1,6 +1,6 @@
 use state::{CanAwait, Idle, Intersect, MustReply};
 
-use crate::{traits::mini_protocol::MiniProtocol, typefu::hlist::HList};
+use crate::{traits::mini_protocol::MiniProtocol, HList};
 
 pub mod message;
 pub mod state;

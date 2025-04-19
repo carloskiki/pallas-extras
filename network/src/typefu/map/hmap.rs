@@ -1,4 +1,4 @@
-use crate::typefu::{coproduct::{CNil, Coproduct}, hlist::{HCons, HNil}};
+use crate::typefu::{coproduct::{CNil, Coproduct}, hlist::{HCons, HNil}, Func, FuncMany};
 
 use super::TypeMap;
 
@@ -27,4 +27,42 @@ where
     HMap<F>: TypeMap<Tail>,
 {
     type Output = HCons<F::Output, <HMap<F> as TypeMap<Tail>>::Output>;
+}
+
+impl<F> FuncMany<HNil> for HMap<F> {
+    fn call_many(&self, _: HNil) -> Self::Output {
+        HNil
+    }
+}
+
+impl<H, Tail, F> FuncMany<HCons<H, Tail>> for HMap<F>
+where
+    F: FuncMany<H>,
+    HMap<F>: FuncMany<Tail>,
+{
+    fn call_many(&self, input: HCons<H, Tail>) -> Self::Output {
+        HCons {
+            head: self.0.call_many(input.head),
+            tail: self.call_many(input.tail),
+        }
+    }
+}
+
+impl<F> Func<HNil> for HMap<F> {
+    fn call(i: HNil) -> Self::Output {
+        i
+    }
+}
+
+impl<H, Tail, F> Func<HCons<H, Tail>> for HMap<F>
+where
+    F: Func<H>,
+    HMap<F>: Func<Tail>,
+{
+    fn call(input: HCons<H, Tail>) -> Self::Output {
+        HCons {
+            head: F::call(input.head),
+            tail: Self::call(input.tail),
+        }
+    }
 }

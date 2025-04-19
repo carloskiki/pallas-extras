@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{coproduct::{CNil, Coproduct}, map::TypeMap, Func, FuncOnce};
+use crate::typefu::{coproduct::{CNil, Coproduct}, map::TypeMap, Func, FuncOnce};
 
 pub struct Fold<F, O>(pub F, pub PhantomData<O>);
 

@@ -1,9 +1,12 @@
 pub mod mux;
 pub mod protocol;
 pub mod traits;
-pub(crate) mod typefu;
+pub mod typefu;
 
 use minicbor::{Decode, Encode};
+
+#[doc(inline)]
+pub use mux::mux;
 
 #[repr(u32)]
 #[derive(Debug, Encode, Decode)]

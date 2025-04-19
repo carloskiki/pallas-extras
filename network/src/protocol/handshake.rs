@@ -3,7 +3,8 @@ use state::{Confirm, Propose};
 
 use crate::{
     traits::mini_protocol::MiniProtocol,
-    typefu::{coproduct::Coprod, hlist::HList},
+    typefu::coproduct::Coprod,
+    HList,
 };
 
 pub mod message;

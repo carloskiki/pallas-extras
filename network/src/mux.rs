@@ -30,10 +30,8 @@ use crate::{
     typefu::{
         Func, FuncMany, FuncOnce, ToMut, ToRef,
         constructor::Constructor,
-        fold::Fold,
         hlist::GetHead,
-        map::{CMap, HMap, Identity, Overwrite, TypeMap, Zip},
-        utilities::{Unzip, UnzipLeft, UnzipRight},
+        map::{CMap, Fold, HMap, Identity, Overwrite, TypeMap, Unzip, UnzipLeft, UnzipRight, Zip},
     },
 };
 
@@ -167,7 +165,8 @@ type ServerSenders<P> =
 type ServerReceivers<P> =
     <UnzipRight as TypeMap<<HMap<ChannelPairMaker> as TypeMap<protocol::List<P>>>::Output>>::Output;
 
-enum ChannelPairMaker {}
+#[doc(hidden)]
+pub enum ChannelPairMaker {}
 impl<MP: MiniProtocol> TypeMap<MP> for ChannelPairMaker
 where
     CMap<state::Message>: TypeMap<MP::States>,
@@ -188,7 +187,9 @@ type Pair<P, MP> = (
     Client<P, MP, <GetHead as TypeMap<<MP as MiniProtocol>::States>>::Output>,
     Server<P, MP, <GetHead as TypeMap<<MP as MiniProtocol>::States>>::Output>,
 );
-struct PairMaker<P>
+#[doc(hidden)]
+#[allow(private_bounds)]
+pub struct PairMaker<P>
 where
     P: Protocol,
     CMap<MiniProtocolSendBundle>: TypeMap<P>,
@@ -196,7 +197,8 @@ where
     task_handle: TaskHandle,
     sender: Sender<ProtocolSendBundle<P>>,
 }
-struct ReceiverWrapper<MP: MiniProtocol>
+#[doc(hidden)]
+pub struct ReceiverWrapper<MP: MiniProtocol>
 where
     CMap<state::Message>: TypeMap<MP::States>,
 {
@@ -260,7 +262,8 @@ where
 type ProtocolSendBundle<P> = <CMap<MiniProtocolSendBundle> as TypeMap<P>>::Output;
 
 enum TaskStateMaker {}
-struct SenderWrapper<MP: MiniProtocol>
+#[doc(hidden)]
+pub struct SenderWrapper<MP: MiniProtocol>
 where
     CMap<state::Message>: TypeMap<MP::States>,
 {
@@ -320,15 +323,21 @@ fn catch_handle_error(handle: TaskHandle) -> MuxError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{protocol::NodeToNode, typefu::hlist::hlist_pat};
+    use futures::{executor::LocalPool, io::Cursor, task::Spawn};
+
+    use crate::{hlist_pat, mux::{task::BundleRef, FuncOnce, MiniProtocolSendBundle, ProtocolSendBundle, ToRef}, protocol::NodeToNode, traits::protocol::{self, Protocol}, typefu::map::{CMap, HMap, Identity, Overwrite, TypeMap}};
 
     use super::mux;
 
     #[test]
     fn create_mux() {
-        let hlist_pat![
-            (handshake_client, handshake_server),
-            (chain_sync_client, chain_sync_server)
-        ] = mux::<NodeToNode>(todo!(), todo!());
+        fn test<P>()
+            where
+                CMap<MiniProtocolSendBundle>: TypeMap<P>,
+                ProtocolSendBundle<P>: for<'a> ToRef<'a>,
+                HMap<Identity>: TypeMap<P>,
+                Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
+        {}
+        test::<NodeToNode>();
     }
 }

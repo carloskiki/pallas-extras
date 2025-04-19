@@ -54,5 +54,4 @@ impl std::fmt::Display for UnknownProtocol {
 
 impl std::error::Error for UnknownProtocol {}
 
-pub(crate) type Message<P> = <CMap<mini_protocol::MessageMap> as TypeMap<P>>::Output;
 pub(crate) type List<P> = <HMap<Identity> as TypeMap<P>>::Output;

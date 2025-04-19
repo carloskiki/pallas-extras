@@ -2,7 +2,7 @@ use std::{fmt::Debug, time::Duration};
 
 use minicbor::Encode;
 
-use crate::traits::state::{Client, State};
+use crate::traits::state::{Client, Server, State};
 
 use super::{
     Coprod,
@@ -86,7 +86,7 @@ where
     VD: Encode<()> + for<'a> minicbor::Decode<'a, ()> + 'static,
 {
     const TIMEOUT: std::time::Duration = Duration::from_secs(10);
-    type Agency = Client;
+    type Agency = Server;
 
     type Message = Coprod![AcceptVersion<VD>, Refuse<'static>, QueryReply<VD>];
 }

@@ -109,7 +109,9 @@ where
 type NextClient<P, MP, S> =
     <CMap<MessageClientPair<P, MP, S>> as TypeMap<<S as State>::Message>>::Output;
 
-struct MessageClientPair<P, MP, S>
+#[doc(hidden)]
+#[allow(private_bounds)]
+pub struct MessageClientPair<P, MP, S>
 where
     P: Protocol,
     MP: MiniProtocol,

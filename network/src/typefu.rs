@@ -22,16 +22,13 @@
 
 //! Functional programming utilities mostly coming from `frunk`.
 
-use hlist::HCons;
-use map::{HMap, TypeMap};
+use map::TypeMap;
 
-pub mod coproduct;
+pub(crate) mod coproduct;
 pub mod hlist;
 pub mod index;
-pub mod map;
-pub mod constructor;
-pub mod utilities;
-pub mod fold;
+pub(crate) mod map;
+pub(crate) mod constructor;
 
 /// An alternative to AsRef that does not force the reference type to be a pointer itself.
 ///
@@ -45,7 +42,7 @@ pub mod fold;
 /// However, you may find this trait useful in generic contexts.
 ///
 /// [on HLists]: ../hlist/struct.HCons.html#method.to_ref
-pub trait ToRef<'a> {
+pub(crate) trait ToRef<'a> {
     type Output;
 
     fn to_ref(&'a self) -> Self::Output;
@@ -56,38 +53,21 @@ pub trait ToRef<'a> {
 /// This parallels [`ToRef`]; see it for more information.
 ///
 /// [`ToRef`]: trait.ToRef.html
-pub trait ToMut<'a> {
+pub(crate) trait ToMut<'a> {
     type Output;
 
     fn to_mut(&'a mut self) -> Self::Output;
 }
 
-pub trait FuncOnce<Input>: TypeMap<Input> {
+pub(crate) trait FuncOnce<Input>: TypeMap<Input> {
     fn call_once(self, input: Input) -> Self::Output;
 }
-
-// Same as [`Poly`], but for [`FuncOnce`].
-pub struct PolyOnce<T>(pub T);
-
-/// Wrapper type around a function for polymorphic maps and folds.
-///
-/// This is a thin generic wrapper type that is used to differentiate
-/// between single-typed generic closures `F` that implements, say, `Fn(i8) -> bool`,
-/// and a Poly-typed `F` that implements multiple Function types
-/// via the [`Func`] trait. (say, `Func<i8, Output=bool>` and `Func<bool, Output=f32>`)
-///
-/// This is needed because there are completely generic impls for many of the
-/// HList traits that take a simple unwrapped closure.
-///
-/// [`Func`]: trait.Func.html
-#[derive(Debug, Copy, Clone, Default)]
-pub struct Poly<T>(pub T);
 
 /// This is a simple, user-implementable alternative to `Fn`.
 ///
 /// Might not be necessary if/when Fn(Once, Mut) traits are implementable
 /// in stable Rust
-pub trait Func<Input>: TypeMap<Input> {
+pub(crate) trait Func<Input>: TypeMap<Input> {
     /// Call the `Func`.
     ///
     /// Notice that this does not take a self argument, which in turn means `Func`
@@ -98,32 +78,6 @@ pub trait Func<Input>: TypeMap<Input> {
     fn call(i: Input) -> Self::Output;
 }
 
-pub trait FuncMany<Input>: TypeMap<Input> {
+pub(crate) trait FuncMany<Input>: TypeMap<Input> {
     fn call_many(&self, input: Input) -> Self::Output;
-}
-
-impl<H, Tail, F> FuncMany<HCons<H, Tail>> for HMap<F>
-where
-    F: FuncMany<H>,
-    HMap<F>: FuncMany<Tail>,
-{
-    fn call_many(&self, input: HCons<H, Tail>) -> Self::Output {
-        HCons {
-            head: self.0.call_many(input.head),
-            tail: self.call_many(input.tail),
-        }
-    }
-}
-
-impl<H, Tail, F> Func<HCons<H, Tail>> for HMap<F>
-where
-    F: Func<H>,
-    HMap<F>: Func<Tail>,
-{
-    fn call(input: HCons<H, Tail>) -> Self::Output {
-        HCons {
-            head: F::call(input.head),
-            tail: Self::call(input.tail),
-        }
-    }
 }
