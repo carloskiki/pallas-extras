@@ -50,7 +50,10 @@ where
         TagContext(tag): &mut TagContext,
     ) -> Result<Self, minicbor::decode::Error> {
         Ok(if *tag == M::TAG {
-            // TODO: Check if the size limit is exceeded.
+            let input = d.input();
+            let bounded_input = &input[..input.len().min(M::SIZE_LIMIT)];
+            let mut d = minicbor::Decoder::new(bounded_input);
+            
             Coproduct::Inl(d.decode::<M>()?)
         } else {
             Coproduct::Inr(Tail::decode(d, &mut TagContext(*tag))?)

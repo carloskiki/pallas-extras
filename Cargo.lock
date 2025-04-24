@@ -885,10 +885,12 @@ name = "ponk"
 version = "0.1.0"
 dependencies = [
  "const-hex",
+ "curve25519-dalek 4.1.3",
  "futures",
  "ledger",
  "minicbor",
  "network",
+ "sha2",
  "tokio",
  "tokio-util",
 ]

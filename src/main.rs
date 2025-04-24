@@ -1,4 +1,5 @@
 use const_hex::FromHex;
+use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
 use network::{
     NetworkMagic, Point, comatch, hlist_pat, mux,
     protocol::{
@@ -10,6 +11,7 @@ use network::{
         node_to_node::chain_sync,
     },
 };
+use sha2::Digest;
 use std::error::Error;
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -95,12 +97,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let chain_sync_client = chain_sync_client.send(chain_sync::message::Next).await?;
 
-    let (roll_forward @ chain_sync::message::RollForward { header, .. }, _next) = chain_sync_client
+    let (chain_sync::message::RollForward { header, .. }, _next) = chain_sync_client
         .receive()
         .await?
         .uninject()
         .map_err(|_| "did not send roll forward")?;
-    dbg!("roll forward: ", roll_forward);
+    dbg!("roll forward: ", header);
 
     Ok(())
 }
