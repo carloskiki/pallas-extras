@@ -1,10 +1,15 @@
+//! Implementation of the Multiplexer.
+//!
+//! The type requirements for the [`mux`] function may seem daunting, but the function's
+//! documentation is quite clear.
+
+
 use std::{
     collections::VecDeque,
     convert::Infallible,
     error::Error,
     fmt::Display,
     io,
-    pin::pin,
     sync::{Arc, Mutex},
     task::{ready, Poll},
 };
@@ -14,7 +19,6 @@ use futures::{
     AsyncRead, AsyncWrite, FutureExt,
     channel::mpsc::{Receiver, Sender, UnboundedSender},
     future::RemoteHandle,
-    poll,
     task::{Spawn, SpawnError, SpawnExt},
 };
 use server::Server;
@@ -110,6 +114,45 @@ impl Display for MuxError {
 
 impl Error for MuxError {}
 
+/// Create a multiplexer for the given protocol.
+///
+/// __Don't pay attention to the type requirements!__ (unless you want to waste your time :)).
+///
+/// To use this function, one must provide a `bearer` (a connection to the peer), and a
+/// `spawner` (something that can spawn tasks). The function will return a [`Result`] containing
+/// all of the client-server pairs for each [`MiniProtocol`] in the [`Protocol`] provided. The type
+/// parameter `P` (the protocol) must be provided as the type argument.
+///
+/// If `P` is not provided, one will cause a scary error message, something like "overflow
+/// evaluating the requirement ...". This happens because the compiler is stuck in an infinite loop
+/// trying to evaluate some requirements for an inferred type. The correct error should be: "type
+/// annotations needed".
+///
+/// This crate provides two types that implement [`Protocol`]:
+/// - [`NodeToNode`](crate::protocol::NodeToNode): the protocol used for communication between
+///   nodes.
+/// - [`NodeToClient`](crate::protocol::NodeToClient): the protocol used for communication between
+///   nodes and clients.
+///
+/// What this function returns in an [`HList`][HList]
+/// of `(Client, Server)` pairs. Each [`Client`] and [`Server`] to the spawned mux task.
+///
+/// ## Example
+/// 
+/// Using the `NodeToNode` protocol:
+/// ```
+/// use network::{hlist_pat, mux, protocol::NodeToNode};
+/// use futures::{io::AllowStdIo, executor::LocalPool};
+/// use std::net::TcpStream;
+///
+/// let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001").unwrap();
+/// let pool = LocalPool::new();
+/// 
+/// let hlist_pat![(handshake_client, _), (chain_sync_client, _), ...] =
+///     mux::<NodeToNode>(AllowStdIo::new(stream), &pool.spawner()).unwrap();
+/// ```
+///
+/// [HList]: https://beachape.com/blog/2016/10/23/rust-hlists-heterogenously-typed-list/
 #[allow(private_bounds)]
 #[allow(private_interfaces)]
 pub fn mux<P: Protocol>(
@@ -308,6 +351,7 @@ where
 }
 type ProtocolTaskState<P> = <HMap<MiniProtocolTaskState> as TypeMap<P>>::Output;
 
+#[allow(clippy::type_complexity)]
 #[derive(Debug, Clone)]
 struct TaskHandle(pub Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>);
 

@@ -1,3 +1,7 @@
+//! Implementation of the [network specification][net-spec] for the Cardano protocol.
+//!
+//! [net-spec]: https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf
+
 pub mod mux;
 pub mod protocol;
 pub mod traits;
