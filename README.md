@@ -2,13 +2,7 @@
 
 ## MUX
 
-- [ ] check for Overflow & Timeouts.
-- [ ] select between receiving msg and erroring in Client Receiver & check for the same logic in Server.
-
 - Complete ledger implementation
-- Standardize ledger types - Should we use Box<[]> or Cow<[]>? - I think Box<[]> because we need the types to be
-    'static when sending them to the network or doing async stuff so we don't get a lot of value from Cow. Also,
-    data types coming from the network are never leaked into memory.
 - Use type alias instead of numeric types for the ledger.
 - Implement VRF in RustCrypto
 
