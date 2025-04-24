@@ -6,14 +6,15 @@ use std::{
     io,
     pin::pin,
     sync::{Arc, Mutex},
-    task::Poll,
+    task::{ready, Poll},
 };
 
 use client::Client;
 use futures::{
-    AsyncRead, AsyncWrite,
+    AsyncRead, AsyncWrite, FutureExt,
     channel::mpsc::{Receiver, Sender, UnboundedSender},
     future::RemoteHandle,
+    poll,
     task::{Spawn, SpawnError, SpawnExt},
 };
 use server::Server;
@@ -148,9 +149,9 @@ where
     let (sender, receiver) = futures::channel::mpsc::channel(0);
     let (senders, receivers) = Unzip::call(HMap::<ChannelPairMaker>::construct());
     let task_state = HMap::<TaskStateMaker>::call(senders);
-    let task_handle = Arc::new(Mutex::new(Some(
+    let task_handle = TaskHandle(Arc::new(Mutex::new(Some(
         spawner.spawn_with_handle(task::task(bearer, receiver, task_state))?,
-    )));
+    ))));
 
     Ok(HMap(PairMaker {
         task_handle,
@@ -307,37 +308,69 @@ where
 }
 type ProtocolTaskState<P> = <HMap<MiniProtocolTaskState> as TypeMap<P>>::Output;
 
-type TaskHandle = Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>;
-fn catch_handle_error(handle: TaskHandle) -> MuxError {
-    let Some(lock) = handle.lock().unwrap().take() else {
-        return MuxError::AlreadyCaught;
-    };
-    let pinned_lock = pin!(lock);
-    let Poll::Ready(Err(e)) =
-        pinned_lock.poll(&mut std::task::Context::from_waker(std::task::Waker::noop()))
-    else {
-        unreachable!("Handler misbehaved, but it is still running...");
-    };
-    e
+#[derive(Debug, Clone)]
+struct TaskHandle(pub Arc<Mutex<Option<RemoteHandle<Result<Infallible, MuxError>>>>>);
+
+impl TaskHandle {
+    pub fn expect_err(&self) -> MuxError {
+        let mut opt = self
+            .0
+            .lock()
+            .expect("TaskHandle lock should not be poisoned");
+
+        let Some(ref mut handle) = *opt else {
+            return MuxError::AlreadyCaught;
+        };
+        let Poll::Ready(Err(e)) = handle.poll_unpin(&mut std::task::Context::from_waker(std::task::Waker::noop())) else {
+            panic!("Expected the task to error but it did not");
+        };
+        e
+    }
+}
+
+impl Future for &TaskHandle {
+    type Output = MuxError;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut opt = self
+            .0
+            .lock()
+            .expect("TaskHandle lock should not be poisoned");
+
+        let Some(ref mut handle) = *opt else {
+            return Poll::Ready(MuxError::AlreadyCaught);
+        };
+
+        let Err(result) = ready!(handle.poll_unpin(cx));
+        *opt = None;
+        Poll::Ready(result)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use futures::{executor::LocalPool, io::Cursor, task::Spawn};
 
-    use crate::{hlist_pat, mux::{task::BundleRef, FuncOnce, MiniProtocolSendBundle, ProtocolSendBundle, ToRef}, protocol::NodeToNode, traits::protocol::{self, Protocol}, typefu::map::{CMap, HMap, Identity, Overwrite, TypeMap}};
+    use crate::{
+        hlist_pat,
+        mux::{FuncOnce, MiniProtocolSendBundle, ProtocolSendBundle, ToRef, task::BundleRef},
+        protocol::NodeToNode,
+        traits::protocol::{self, Protocol},
+        typefu::map::{CMap, HMap, Identity, Overwrite, TypeMap},
+    };
 
     use super::mux;
 
     #[test]
     fn create_mux() {
         fn test<P>()
-            where
-                CMap<MiniProtocolSendBundle>: TypeMap<P>,
-                ProtocolSendBundle<P>: for<'a> ToRef<'a>,
-                HMap<Identity>: TypeMap<P>,
-                Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
-        {}
+        where
+            CMap<MiniProtocolSendBundle>: TypeMap<P>,
+            ProtocolSendBundle<P>: for<'a> ToRef<'a>,
+            HMap<Identity>: TypeMap<P>,
+            Overwrite<protocol::List<P>>: for<'a> FuncOnce<BundleRef<'a, P>, Output = P>,
+        {
+        }
         test::<NodeToNode>();
     }
 }

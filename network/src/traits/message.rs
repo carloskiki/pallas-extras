@@ -1,4 +1,4 @@
-use minicbor::{Decode, Encode};
+use minicbor::{Decode, Decoder, Encode};
 
 use crate::typefu::coproduct::{CNil, Coproduct};
 
@@ -51,10 +51,11 @@ where
     ) -> Result<Self, minicbor::decode::Error> {
         Ok(if *tag == M::TAG {
             let input = d.input();
-            let bounded_input = &input[..input.len().min(M::SIZE_LIMIT)];
-            let mut d = minicbor::Decoder::new(bounded_input);
+            let mut inner_d = Decoder::new(&input[d.position()..input.len().min(M::SIZE_LIMIT)]);
             
-            Coproduct::Inl(d.decode::<M>()?)
+            let result = Coproduct::Inl(inner_d.decode::<M>()?);
+            *d = Decoder::new(&inner_d.input()[inner_d.position()..]);
+            result
         } else {
             Coproduct::Inr(Tail::decode(d, &mut TagContext(*tag))?)
         })

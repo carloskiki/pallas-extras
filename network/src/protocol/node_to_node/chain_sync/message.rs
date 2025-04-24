@@ -119,11 +119,10 @@ impl<C> Decode<'_, C> for RollForward {
                 "expected array of length 2",
             ));
         }
-        let _era = d.decode::<ledger::protocol::Era>()?;
-        dbg!(_era);
+        // We don't use the era to decode currently
+        let _ = d.decode::<ledger::protocol::Era>()?;
         let result: Result<Box<ledger::block::Header>, _> = cbor_util::cbor_encoded::decode(d, &mut ());
 
-        dbg!(&result);
         let header = result?;
         let tip: Tip = d.decode()?;
         

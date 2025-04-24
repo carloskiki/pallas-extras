@@ -1,25 +1,20 @@
 use futures::{
-    SinkExt, StreamExt,
-    channel::mpsc::{Receiver, Sender},
+    channel::mpsc::{Receiver, Sender}, select, FutureExt, SinkExt, StreamExt
 };
 
 use crate::{
-    traits::{
+     traits::{
         message::Message,
         mini_protocol::{self, MiniProtocol},
         protocol::Protocol,
         state::{self, Client, State},
-    },
-    typefu::{
-        FuncOnce,
-        coproduct::{CoprodInjector, CoprodUninjector},
-        map::{CMap, TypeMap},
-    },
+    }, typefu::{
+        coproduct::{CoprodInjector, CoprodUninjector}, map::{CMap, TypeMap}, FuncOnce
+    }
 };
 
 use super::{
     MiniProtocolSendBundle, MuxError, ProtocolSendBundle, SendBundle, TaskHandle,
-    catch_handle_error,
 };
 
 #[allow(private_bounds)]
@@ -28,7 +23,7 @@ where
     P: Protocol,
     MP: MiniProtocol,
     CMap<MiniProtocolSendBundle>: TypeMap<P>,
-    CMap<state::Message>: TypeMap<MP::States>
+    CMap<state::Message>: TypeMap<MP::States>,
 {
     pub(super) task_handle: TaskHandle,
     pub(super) response_sender: Sender<ProtocolSendBundle<P>>,
@@ -51,11 +46,18 @@ where
     where
         mini_protocol::Message<MP>: CoprodUninjector<S::Message, IM>,
     {
-        let Some(received) = self.request_receiver.next().await else {
-            return Err(catch_handle_error(self.task_handle));
-        };
-        let message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
-        Ok(CMap(MessageServerPair { server: self }).call_once(message))
+        select! {
+            received = self.request_receiver.next() => {
+                let Some(received) = received else {
+                    return Err(self.task_handle.expect_err());
+                };
+                let state_message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
+                Ok(CMap(MessageServerPair { server: self }).call_once(state_message))
+            },
+            err = (&self.task_handle).fuse() => {
+                Err(err)
+            }
+        }
     }
 }
 
@@ -87,7 +89,7 @@ where
         };
         let protocol_bundle = ProtocolSendBundle::<P>::inject(bundle);
         let Ok(()) = self.response_sender.feed(protocol_bundle).await else {
-            return Err(catch_handle_error(self.task_handle));
+            return Err(self.task_handle.expect_err());
         };
 
         Ok(Server {

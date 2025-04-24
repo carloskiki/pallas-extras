@@ -126,7 +126,6 @@ impl<C> Decode<'_, C> for Body {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         let array_size = d.array()?;
         if array_size.is_some_and(|size| size != BABBAGE_ARRAY_SIZE  && size != LEGACY_ARRAY_SIZE) {
-            dbg!("wrong array size", d.probe().tokens().collect::<Vec<_>>());
             return Err(minicbor::decode::Error::message("invalid array size"));
         }
         let block_number = d.u64()?;

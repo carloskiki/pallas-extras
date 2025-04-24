@@ -1,6 +1,7 @@
 use futures::{
-    SinkExt, StreamExt,
+    FutureExt, SinkExt, StreamExt,
     channel::mpsc::{Sender, UnboundedReceiver, UnboundedSender},
+    select,
 };
 
 use crate::{
@@ -19,7 +20,6 @@ use crate::{
 
 use super::{
     MiniProtocolSendBundle, MuxError, ProtocolSendBundle, SendBundle, TaskHandle,
-    catch_handle_error,
 };
 
 #[allow(private_bounds)]
@@ -70,7 +70,7 @@ where
         let protocol_bundle = ProtocolSendBundle::<P>::inject(bundle);
 
         if (self.request_sender.feed(protocol_bundle).await).is_err() {
-            return Err(catch_handle_error(self.task_handle));
+            return Err(self.task_handle.expect_err());
         }
 
         Ok(Client {
@@ -98,11 +98,18 @@ where
     where
         mini_protocol::Message<MP>: CoprodUninjector<S::Message, IS>,
     {
-        let Some(received) = self.response_receiver.next().await else {
-            return Err(catch_handle_error(self.task_handle));
-        };
-        let state_message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
-        Ok(CMap(MessageClientPair { client: self }).call_once(state_message))
+        select! {
+            received = self.response_receiver.next() => {
+                let Some(received) = received else {
+                    return Err(self.task_handle.expect_err());
+                };
+                let state_message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
+                Ok(CMap(MessageClientPair { client: self }).call_once(state_message))
+            },
+            err = (&self.task_handle).fuse() => {
+                Err(err)
+            }
+        }
     }
 }
 

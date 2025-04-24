@@ -382,7 +382,6 @@ where
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>>>,
 {
     if previous_state.is_some_and(|(p, _)| p != protocol) {
-        dbg!("there is a previous state");
         return Err(MuxError::InvalidPeerMessage);
     }
 
