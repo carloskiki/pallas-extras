@@ -30,10 +30,15 @@ use minicbor::{Decode, Encode};
 
 use crate::{
     traits::{
-        message::Message, mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol}, protocol::{self, Protocol}, state::{self, Agency, State}
+        message::Message,
+        mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol},
+        protocol::{self, Protocol},
+        state::{self, Agency, State},
     },
     typefu::{
-        coproduct::CNil, map::{CMap, Fold, HMap, Identity, Overwrite, TypeMap, Zip}, Func, FuncOnce, ToMut, ToRef
+        Func, FuncOnce, ToMut, ToRef,
+        coproduct::CNil,
+        map::{CMap, Fold, HMap, Identity, Overwrite, TypeMap, Zip},
     },
 };
 
@@ -377,9 +382,10 @@ where
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>>>,
 {
     if previous_state.is_some_and(|(p, _)| p != protocol) {
+        dbg!("there is a previous state");
         return Err(MuxError::InvalidPeerMessage);
     }
-    
+
     let read_len = reader
         .as_mut()
         .take(payload_len as u64)
@@ -408,12 +414,12 @@ where
             Err(e) => return Err(e),
         }
     }
-    
+
     // No bytes left over.
     if previous_state.is_none() {
         buffer.clear();
     }
-    
+
     Ok(())
 }
 pub(super) type ReaderZipped<'a, P> =
@@ -482,7 +488,6 @@ impl Future for CNil {
     }
 }
 
-
 type ReceiverState<'a, MP> = (MP, &'a mut TaskState<MP>);
 pub(super) struct ProcessMessage<'a, 'b> {
     decoder: &'a mut minicbor::Decoder<'b>,
@@ -507,6 +512,7 @@ where
             Ok(m) => m,
             Err(e) => return FeedResult::Error(MuxError::Decode(e)),
         };
+
         let server_has_agency_next = MiniProtocolMessageToAgency::call(&message);
         if self.server_sent {
             if server_has_agency_next {
@@ -558,16 +564,14 @@ enum MiniProtocolMessageToAgency {}
 impl<'a, MPM> TypeMap<&'a MPM> for MiniProtocolMessageToAgency
 where
     MPM: ToRef<'a>,
-    Fold<StateMessageToAgency, bool>:
-        Func<<MPM as ToRef<'a>>::Output, Output = bool>,
+    Fold<StateMessageToAgency, bool>: Func<<MPM as ToRef<'a>>::Output, Output = bool>,
 {
     type Output = bool;
 }
 impl<'a, MPM> Func<&'a MPM> for MiniProtocolMessageToAgency
 where
     MPM: ToRef<'a>,
-    Fold<StateMessageToAgency, bool>:
-        Func<<MPM as ToRef<'a>>::Output, Output = bool>,
+    Fold<StateMessageToAgency, bool>: Func<<MPM as ToRef<'a>>::Output, Output = bool>,
 {
     fn call(i: &'a MPM) -> Self::Output {
         Fold::call(i.to_ref())

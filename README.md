@@ -1,11 +1,15 @@
 # TODOs
 
-- Full mux
+## MUX
+
+- [ ] check for Overflow & Timeouts.
+- [ ] select between receiving msg and erroring in Client Receiver & check for the same logic in Server.
+
 - Complete ledger implementation
 - Standardize ledger types - Should we use Box<[]> or Cow<[]>? - I think Box<[]> because we need the types to be
     'static when sending them to the network or doing async stuff so we don't get a lot of value from Cow. Also,
     data types coming from the network are never leaked into memory.
-- Use newtypes instead of numeric types for the ledger.
+- Use type alias instead of numeric types for the ledger.
 - Implement VRF in RustCrypto
 
 - [ ] Make sure to apply recommendations from https://corrode.dev/blog/pitfalls-of-safe-rust/
@@ -27,6 +31,7 @@
 - [Ledger Specification](https://github.com/IntersectMBO/cardano-ledger)
 - [Network Specification](https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf)
 - [Consensus & Storage Layers](https://ouroboros-consensus.cardano.intersectmbo.org/assets/files/report-25a3c881ef92a4cbb93db7038b7eacf2.pdf)
+- [Hard fork versions](https://cardano.org/hardforks/)
 
 ## Other
 - [The UC modeling system](https://eprint.iacr.org/2000/067.pdf)

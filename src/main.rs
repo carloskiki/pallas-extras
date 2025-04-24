@@ -1,12 +1,13 @@
-use futures::executor::LocalPool;
+use const_hex::FromHex;
 use network::{
-    NetworkMagic, comatch, hlist_pat, mux,
+    NetworkMagic, Point, comatch, hlist_pat, mux,
     protocol::{
         NodeToNode,
         handshake::{
             self,
             message::{NodeToNodeVersionData, VersionTable},
         },
+        node_to_node::chain_sync,
     },
 };
 use std::error::Error;
@@ -40,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001")
         .await?
         .compat();
-    let hlist_pat![(handshake_client, _), _, _] =
+    let hlist_pat![(handshake_client, _), (chain_sync_client, _), ...] =
         mux::<NodeToNode>(stream, &TokioSpawner::current())?;
 
     let handshake_client = handshake_client
@@ -64,6 +65,42 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .uninject()
         .map_err(|_| "version refused")?;
     dbg!("accepted", data);
+
+    let chain_sync_client = chain_sync_client
+        .send(chain_sync::message::FindIntersect {
+            points: Box::new([Point::Block {
+                slot: 399318,
+                hash: FromHex::from_hex(
+                    "a3c670af07840288101109e6c173781bd516f645016afcabc47a274ac61adf1c",
+                )?,
+            }]),
+        })
+        .await?;
+
+    let (chain_sync::message::IntersectFound { .. }, chain_sync_client) = chain_sync_client
+        .receive()
+        .await?
+        .uninject()
+        .map_err(|_| "did not find intersect")?;
+
+    let chain_sync_client = chain_sync_client.send(chain_sync::message::Next).await?;
+
+    let (roll_backward @ chain_sync::message::RollBackward { .. }, chain_sync_client) =
+        chain_sync_client
+            .receive()
+            .await?
+            .uninject()
+            .map_err(|_| "did not roll backward")?;
+    dbg!("roll backward: ", roll_backward);
+
+    let chain_sync_client = chain_sync_client.send(chain_sync::message::Next).await?;
+
+    let (roll_forward @ chain_sync::message::RollForward { header, .. }, _next) = chain_sync_client
+        .receive()
+        .await?
+        .uninject()
+        .map_err(|_| "did not send roll forward")?;
+    dbg!("roll forward: ", roll_forward);
 
     Ok(())
 }

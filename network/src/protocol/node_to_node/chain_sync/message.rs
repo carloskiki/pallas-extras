@@ -21,7 +21,7 @@ impl Message for Next {
 #[cbor(transparent)]
 pub struct FindIntersect {
     #[cbor(with = "cbor_util::boxed_slice")]
-    points: Box<[Point]>,
+    pub points: Box<[Point]>,
 }
 
 impl Message for FindIntersect {
@@ -45,8 +45,8 @@ impl Message for Done {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntersectFound {
-    point: Point,
-    tip: Tip,
+    pub point: Point,
+    pub tip: Tip,
 }
 
 impl<C> Encode<C> for IntersectFound {
@@ -79,7 +79,7 @@ impl Message for IntersectFound {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(transparent)]
 pub struct IntersectNotFound {
-    tip: Tip,
+    pub tip: Tip,
 }
 
 impl Message for IntersectNotFound {
@@ -93,8 +93,8 @@ impl Message for IntersectNotFound {
 // 2
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RollForward {
-    header: Box<ledger::block::Header>,
-    tip: Tip,
+    pub header: Box<ledger::block::Header>,
+    pub tip: Tip,
 }
 
 impl<C> Encode<C> for RollForward {
@@ -103,13 +103,28 @@ impl<C> Encode<C> for RollForward {
         e: &mut minicbor::Encoder<W>,
         _: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.encode(&self.header)?.encode(self.tip)?.ok()
+        let ledger_era = self.header.body.protocol_version.major.era();
+        e.array(2)?.encode(ledger_era)?;
+        cbor_util::cbor_encoded::encode(&*self.header, e, &mut ())?;
+        
+        e.encode(self.tip)?.ok()
     }
 }
 
 impl<C> Decode<'_, C> for RollForward {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let header: Box<ledger::block::Header> = d.decode()?;
+        let len = d.array()?;
+        if len.is_some_and(|l| l != 2) {
+            return Err(minicbor::decode::Error::message(
+                "expected array of length 2",
+            ));
+        }
+        let _era = d.decode::<ledger::protocol::Era>()?;
+        dbg!(_era);
+        let result: Result<Box<ledger::block::Header>, _> = cbor_util::cbor_encoded::decode(d, &mut ());
+
+        dbg!(&result);
+        let header = result?;
         let tip: Tip = d.decode()?;
         
         Ok(RollForward { header, tip })
@@ -126,8 +141,8 @@ impl Message for RollForward {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RollBackward {
-    point: Point,
-    tip: Tip,
+    pub point: Point,
+    pub tip: Tip,
 }
 
 impl<C> Encode<C> for RollBackward {

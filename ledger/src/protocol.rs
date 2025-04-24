@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Version {
     #[n(0)]
     pub major: MajorVersion,
@@ -12,7 +12,7 @@ pub struct Version {
     pub minor: u8,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(index_only)]
 pub enum MajorVersion {
     // The Byron Era
@@ -36,6 +36,38 @@ pub enum MajorVersion {
     /// Part of the Babbage Era
     #[n(8)]
     Valentine,
+}
+
+impl MajorVersion {
+    pub fn era(self) -> Era {
+        match self {
+            MajorVersion::Byron => Era::Byron,
+            MajorVersion::Shelley => Era::Shelley,
+            MajorVersion::Allegra => Era::Allegra,
+            MajorVersion::Mary => Era::Mary,
+            MajorVersion::Alonzo => Era::Alonzo,
+            MajorVersion::Lobster => Era::Alonzo,
+            MajorVersion::Vasil => Era::Babbage,
+            MajorVersion::Valentine => Era::Babbage,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[cbor(index_only)]
+pub enum Era {
+    #[n(0)]
+    Byron,
+    #[n(1)]
+    Shelley,
+    #[n(2)]
+    Allegra,
+    #[n(3)]
+    Mary,
+    #[n(4)]
+    Alonzo,
+    #[n(5)]
+    Babbage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

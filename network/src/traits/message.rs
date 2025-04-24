@@ -78,7 +78,7 @@ impl std::error::Error for UnknownMessage {}
 macro_rules! nop_codec {
     ($($name:ty),* $(,)?) => {
         $(
-            impl<C> Encode<C> for $name {
+            impl<C> minicbor::Encode<C> for $name {
                 fn encode<W: minicbor::encode::Write>(
                     &self,
                     _: &mut minicbor::Encoder<W>,
@@ -88,7 +88,7 @@ macro_rules! nop_codec {
                 }
             }
 
-            impl<C> Decode<'_, C> for $name {
+            impl<C> minicbor::Decode<'_, C> for $name {
                 fn decode(
                     _: &mut minicbor::Decoder<'_>,
                     _: &mut C,

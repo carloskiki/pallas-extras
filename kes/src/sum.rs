@@ -252,7 +252,7 @@ where
         let signature_end = value.len().saturating_sub(left_size + right_size);
         let left_vkey_end = value.len().saturating_sub(right_size);
 
-        let signature = S::try_from(value).map_err(SignatureFromBytesError::Signature)?;
+        let signature = S::try_from(&value[..signature_end]).map_err(SignatureFromBytesError::Signature)?;
         let left_vkey = L::VerifyingKey::try_from(&value[signature_end..left_vkey_end])
             .map_err(SignatureFromBytesError::Left)?;
         let right_vkey = R::VerifyingKey::try_from(&value[left_vkey_end..])

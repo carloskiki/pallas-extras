@@ -11,6 +11,8 @@ use crate::{
     script::{Script, native, plutus},
 };
 
+pub type TransactionId = Blake2b256Digest;
+
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
 pub struct Transaction {
     #[n(0)]
@@ -227,7 +229,7 @@ pub struct Body {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 pub struct Input {
     #[cbor(n(0), with = "minicbor::bytes")]
-    pub id: Blake2b256Digest,
+    pub id: TransactionId,
     #[n(1)]
     pub index: u16,
 }

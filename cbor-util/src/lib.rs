@@ -49,7 +49,7 @@ pub mod bounded_bytes {
 
 /// For anything that implements `SignatureEncoding`.
 pub mod signature {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en};
+    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
     use signature::SignatureEncoding;
 
     pub fn encode<C, S, W: en::Write>(
@@ -71,6 +71,14 @@ pub mod signature {
     {
         let bytes = d.bytes()?;
         S::try_from(bytes).map_err(de::Error::custom)
+    }
+
+    pub fn cbor_len<S, Ctx>(value: &S, ctx: &mut Ctx) -> usize
+    where
+        S: SignatureEncoding,
+    {
+        let len = value.encoded_len();
+        len.cbor_len(ctx) + len
     }
 }
 
