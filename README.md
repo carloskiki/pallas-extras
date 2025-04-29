@@ -1,7 +1,15 @@
 # TODOs
 
+## VRF
+
+- Document the VRF crate.
+- implement elliptic-curve traits for ed25519-dalek.
+- Implement Elligator2 for ed25519-dalek.
+- Implement VRF in ed25519-dalek.
+
 ## MUX
 
+- use async-io instead of futures in mux
 - Complete ledger implementation
 - Use type alias instead of numeric types for the ledger.
 - Implement VRF in RustCrypto
@@ -25,6 +33,7 @@
 - [Ledger Specification](https://github.com/IntersectMBO/cardano-ledger)
 - [Network Specification](https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf)
 - [Consensus & Storage Layers](https://ouroboros-consensus.cardano.intersectmbo.org/assets/files/report-25a3c881ef92a4cbb93db7038b7eacf2.pdf)
+- [Plutus Specification](https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf) 
 - [Hard fork versions](https://cardano.org/hardforks/)
 
 ## Other
