@@ -18,3 +18,10 @@ bs58 = "0.2"
 
 kes = { path = "../kes" }
 bip32 = { path = "../bip32" }
+
+[dev-dependencies]
+anyhow = "1"
+const-hex = "1"
+
+[[test]]
+name = "codec"

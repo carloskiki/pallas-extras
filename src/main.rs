@@ -1,5 +1,6 @@
 use const_hex::FromHex;
 use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
+use ledger::Block;
 use network::{
     NetworkMagic, Point, comatch, hlist_pat, mux,
     protocol::{
@@ -8,7 +9,7 @@ use network::{
             self,
             message::{NodeToNodeVersionData, VersionTable},
         },
-        node_to_node::chain_sync,
+        node_to_node::{block_fetch, chain_sync},
     },
 };
 use sha2::Digest;
@@ -43,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001")
         .await?
         .compat();
-    let hlist_pat![(handshake_client, _), (mut chain_sync_client, _), ...] =
+    let hlist_pat![(handshake_client, _), (chain_sync_client, _), (block_fetch_client, _), ...] =
         mux::<NodeToNode>(stream, &TokioSpawner::current())?;
 
     let handshake_client = handshake_client
@@ -62,20 +63,78 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ))
         .await?;
 
-    loop {
+    let server_agency = chain_sync_client
+        .send(chain_sync::message::FindIntersect {
+            points: vec![PREVIEW_ALONZO].into_boxed_slice(),
+        })
+        .await?;
+
+    let Ok((chain_sync::message::IntersectFound { .. }, chain_sync_client)) =
+        server_agency.receive().await?.uninject()
+    else {
+        return Err("Failed to find intersection".into());
+    };
+
+    let Ok((chain_sync::message::RollBackward { .. }, mut chain_sync_client)) = chain_sync_client
+        .send(chain_sync::message::Next)
+        .await?
+        .receive()
+        .await?
+        .uninject()
+    else {
+        return Err("Did not roll backward".into());
+    };
+
+    let mut last_point = Point::Genesis;
+    for _ in 0..10 {
         let server_agency = chain_sync_client.send(chain_sync::message::Next).await?;
         comatch! {server_agency.receive().await?;
             (chain_sync::message::RollForward { header, .. }, new_client) => {
                 chain_sync_client = new_client;
-                println!("Received header #{}", header.body.block_number);
+                last_point = Point::Block { slot: header.body.slot, hash: todo!() };
             },
-            (chain_sync::message::RollBackward { point, .. }, new_client) => {
-                chain_sync_client = new_client;
-                println!("Roll back to {:?}", point);
+            (msg @ chain_sync::message::RollBackward { .. }, _) => {
+                dbg!(msg);
+                panic!("Need to roll back");
             },
             _ => {
                 panic!("Reached AwaitReply");
             }
         }
     }
+
+    let block_fetch_server = block_fetch_client
+        .send(block_fetch::message::RequestRange {
+            start: PREVIEW_ALONZO,
+            end: last_point,
+        })
+        .await?;
+    let mut blocks = Vec::with_capacity(10);
+    let Ok((block_fetch::message::StartBatch, mut streaming_server)) = block_fetch_server.receive().await?.uninject() else {
+        return Err("Cannot receive block".into());
+    };
+    
+    for _ in 0..10 {
+        let Ok((block_fetch::message::Block(block), new_server)) = streaming_server.receive().await?.uninject() else {
+            return Err("Cannot receive block".into());
+        };
+        blocks.push(block);
+        
+        streaming_server = new_server;
+    }
+
+    println!("finished generating test cases.");
+    Ok(())
 }
+
+const PREVIEW_ALONZO: Point = Point::Genesis;
+
+const PREVIEW_BABBAGE: Point = Point::Block {
+    slot: 259180,
+    hash: match const_hex::const_decode_to_array(
+        b"0ad91d3bbe350b1cfa05b13dba5263c47c5eca4f97b3a3105eba96416785a487",
+    ) {
+        Ok(hash) => hash,
+        Err(_) => unreachable!(),
+    },
+};

@@ -10,6 +10,7 @@
 ## MUX
 
 - use async-io instead of futures in mux
+- Implement Future when client/server has no agency (instead of receive).
 - Complete ledger implementation
 - Use type alias instead of numeric types for the ledger.
 - Implement VRF in RustCrypto
