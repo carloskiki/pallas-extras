@@ -45,7 +45,7 @@ pub struct NoBlocks;
 
 impl Message for NoBlocks {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 2;
+    const TAG: u8 = 3;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = Idle;
@@ -57,7 +57,7 @@ pub struct StartBatch;
 
 impl Message for StartBatch {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 3;
+    const TAG: u8 = 2;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = Streaming;

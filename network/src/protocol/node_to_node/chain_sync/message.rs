@@ -1,7 +1,11 @@
 use minicbor::{Decode, Encode};
 
 use crate::{
-    traits::{self, message::{nop_codec, Message}}, Point, Tip
+    Point, Tip, WithEncoded, hard_fork_combinator,
+    traits::{
+        self,
+        message::{Message, nop_codec},
+    },
 };
 
 use super::state::{CanAwait, Idle, Intersect, MustReply};
@@ -63,7 +67,7 @@ impl<C> Decode<'_, C> for IntersectFound {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         let point: Point = d.decode()?;
         let tip: Tip = d.decode()?;
-        
+
         Ok(IntersectFound { point, tip })
     }
 }
@@ -90,10 +94,9 @@ impl Message for IntersectNotFound {
     type ToState = Idle;
 }
 
-// 2
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RollForward {
-    pub header: Box<ledger::block::Header>,
+    pub header: WithEncoded<Box<ledger::block::Header>>,
     pub tip: Tip,
 }
 
@@ -101,31 +104,20 @@ impl<C> Encode<C> for RollForward {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
-        _: &mut C,
+        ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         let ledger_era = self.header.body.protocol_version.major.era();
-        e.array(2)?.encode(ledger_era)?;
-        cbor_util::cbor_encoded::encode(&*self.header, e, &mut ())?;
-        
-        e.encode(self.tip)?.ok()
+        hard_fork_combinator::encode((&self.header, ledger_era), e, ctx)?;
+        self.tip.encode(e, ctx)
     }
 }
 
 impl<C> Decode<'_, C> for RollForward {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let len = d.array()?;
-        if len.is_some_and(|l| l != 2) {
-            return Err(minicbor::decode::Error::message(
-                "expected array of length 2",
-            ));
-        }
-        // We don't use the era to decode currently
-        let _ = d.decode::<ledger::protocol::Era>()?;
-        let result: Result<Box<ledger::block::Header>, _> = cbor_util::cbor_encoded::decode(d, &mut ());
-
-        let header = result?;
+    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
+        let (header, _): (WithEncoded<Box<ledger::block::Header>>, _) =
+            hard_fork_combinator::decode(d, ctx)?;
         let tip: Tip = d.decode()?;
-        
+
         Ok(RollForward { header, tip })
     }
 }
@@ -158,7 +150,7 @@ impl<C> Decode<'_, C> for RollBackward {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
         let point: Point = d.decode()?;
         let tip: Tip = d.decode()?;
-        
+
         Ok(RollBackward { point, tip })
     }
 }

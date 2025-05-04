@@ -1,5 +1,5 @@
-pub mod list_as_map;
 pub mod boxed_slice;
+pub mod list_as_map;
 
 use decode::{BytesIter, StrIter};
 pub use minicbor::*;
@@ -49,7 +49,7 @@ pub mod bounded_bytes {
 
 /// For anything that implements `SignatureEncoding`.
 pub mod signature {
-    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
+    use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
     use signature::SignatureEncoding;
 
     pub fn encode<C, S, W: en::Write>(
@@ -84,7 +84,7 @@ pub mod signature {
 
 /// Encode a type as a byte array that contains the CBOR encoding of the type with tag 24.
 pub mod cbor_encoded {
-    use minicbor::{decode as de, encode as en, CborLen, Decode, Decoder, Encode, Encoder};
+    use minicbor::{CborLen, Decode, Decoder, Encode, Encoder, decode as de, encode as en};
 
     use crate::bytes_iter_collect;
 
@@ -106,7 +106,7 @@ pub mod cbor_encoded {
         if tag != minicbor::data::Tag::new(24) {
             return Err(de::Error::tag_mismatch(tag));
         }
-        
+
         let store;
         let bytes;
         match d.datatype()? {
@@ -119,7 +119,7 @@ pub mod cbor_encoded {
             }
             t => return Err(de::Error::type_mismatch(t)),
         }
-        
+
         let mut inner_decoder = Decoder::new(bytes);
         inner_decoder.decode_with(ctx)
     }
@@ -147,4 +147,29 @@ pub fn str_iter_collect(iter: StrIter<'_, '_>) -> Result<Box<str>, minicbor::dec
         string.push_str(chunk?);
     }
     Ok(string.into_boxed_str())
+}
+
+pub fn array_decode<'a, T, F: FnOnce(&mut Decoder<'a>) -> Result<T, minicbor::decode::Error>>(
+    len: u64,
+    f: F,
+    d: &mut Decoder<'a>,
+) -> Result<T, minicbor::decode::Error> {
+    let arr_len = d.array()?;
+    if arr_len.is_some_and(|l| l != len) {
+        return Err(minicbor::decode::Error::message(
+            format!("expected array of length {}", len),
+        ));
+    }
+    let ret = f(d)?;
+
+    if arr_len.is_none() {
+        if d.datatype()? != minicbor::data::Type::Break {
+            return Err(minicbor::decode::Error::message(
+                format!("expected array of length {}", len),
+            ));
+        }
+        d.skip()?;
+    }
+
+    Ok(ret)
 }

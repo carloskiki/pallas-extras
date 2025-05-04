@@ -1,16 +1,13 @@
-use const_hex::FromHex;
+use const_hex::{FromHex, ToHexExt};
 use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
-use ledger::Block;
+use ledger::{Block, crypto::Blake2b256};
 use network::{
-    NetworkMagic, Point, comatch, hlist_pat, mux,
-    protocol::{
-        NodeToNode,
+    comatch, hlist_pat, mux, protocol::{
         handshake::{
             self,
             message::{NodeToNodeVersionData, VersionTable},
-        },
-        node_to_node::{block_fetch, chain_sync},
-    },
+        }, node_to_node::{block_fetch, chain_sync}, NodeToNode
+    }, NetworkMagic, Point, Tip, WithEncoded
 };
 use sha2::Digest;
 use std::error::Error;
@@ -47,14 +44,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let hlist_pat![(handshake_client, _), (chain_sync_client, _), (block_fetch_client, _), ...] =
         mux::<NodeToNode>(stream, &TokioSpawner::current())?;
 
-    let handshake_client = handshake_client
+    let _client = handshake_client
         .send(handshake::message::ProposeVersions(
             handshake::message::VersionTable {
                 versions: vec![(
                     14,
                     handshake::message::NodeToNodeVersionData {
                         network_magic: NetworkMagic::Preview,
-                        diffusion_mode: false,
+                        diffusion_mode: true,
                         peer_sharing: false,
                         query: false,
                     },
@@ -85,13 +82,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Err("Did not roll backward".into());
     };
 
-    let mut last_point = Point::Genesis;
+    let mut tip = Tip::Genesis;
     for _ in 0..10 {
         let server_agency = chain_sync_client.send(chain_sync::message::Next).await?;
         comatch! {server_agency.receive().await?;
-            (chain_sync::message::RollForward { header, .. }, new_client) => {
+            (chain_sync::message::RollForward { header, tip: new_tip }, new_client) => {
                 chain_sync_client = new_client;
-                last_point = Point::Block { slot: header.body.slot, hash: todo!() };
+                let bytes = WithEncoded::encoded(&header);
+                let hash: [u8; 32] = Blake2b256::digest(bytes).into();
+                println!("Header #{}: hash = {}", header.body.block_number, hash.encode_hex());
+                tip = new_tip;
             },
             (msg @ chain_sync::message::RollBackward { .. }, _) => {
                 dbg!(msg);
@@ -103,23 +103,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    let Tip::Block { slot, hash, .. } = tip else {
+        return Err("tip should not be genesis".into());
+    };
+    let point = Point::Block {
+        slot,
+        hash,
+    };
+    
     let block_fetch_server = block_fetch_client
         .send(block_fetch::message::RequestRange {
-            start: PREVIEW_ALONZO,
-            end: last_point,
+            start: point,
+            end: point,
         })
         .await?;
     let mut blocks = Vec::with_capacity(10);
-    let Ok((block_fetch::message::StartBatch, mut streaming_server)) = block_fetch_server.receive().await?.uninject() else {
+    let Ok((block_fetch::message::StartBatch, mut streaming_server)) =
+        block_fetch_server.receive().await?.uninject()
+    else {
         return Err("Cannot receive block".into());
     };
-    
+
     for _ in 0..10 {
-        let Ok((block_fetch::message::Block(block), new_server)) = streaming_server.receive().await?.uninject() else {
+        let Ok((block_fetch::message::Block(block), new_server)) =
+            streaming_server.receive().await?.uninject()
+        else {
             return Err("Cannot receive block".into());
         };
         blocks.push(block);
-        
+
         streaming_server = new_server;
     }
 
