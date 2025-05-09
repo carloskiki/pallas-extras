@@ -5,7 +5,7 @@ use std::{
 };
 
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
-use minicbor::{Decode, Encode, decode, encode};
+use minicbor::{CborLen, Decode, Encode, decode, encode};
 
 use crate::credential::{self, ChainPointerIter};
 use crate::crypto::Blake2b224Digest;
@@ -133,6 +133,24 @@ impl<'b, C> Decode<'b, C> for Address {
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
         Address::from_bytes(data).map_err(decode::Error::custom)
+    }
+}
+
+impl<C> CborLen<C> for Address {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        let len = 1 + 28
+            + self
+                .stake
+                .map(|deleg| match deleg {
+                    credential::Delegation::StakeKey(v) | credential::Delegation::Script(v) => {
+                        v.len()
+                    }
+                    credential::Delegation::Pointer(chain_pointer) => {
+                        chain_pointer.into_iter().count()
+                    }
+                })
+                .unwrap_or_default();
+        len.cbor_len(ctx) + len
     }
 }
 
@@ -307,6 +325,13 @@ impl<'b, C> Decode<'b, C> for StakeAddress {
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
         StakeAddress::from_bytes(data).map_err(decode::Error::custom)
+    }
+}
+
+impl<C> CborLen<C> for StakeAddress {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        const LEN: usize = 29;
+        LEN.cbor_len(ctx) + LEN
     }
 }
 

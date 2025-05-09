@@ -1,10 +1,10 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b256Digest;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Metadata {
     #[n(0)]
     pub url: String,
@@ -13,7 +13,7 @@ pub struct Metadata {
 }
 
 // TODO: what type to use for dns_name?
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Relay {
     #[n(0)]

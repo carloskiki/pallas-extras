@@ -1,7 +1,7 @@
 use const_hex::FromHex;
 use ledger::Block;
 use minicbor::Decoder;
-use std::{error::Error, fs::File, io::Read};
+use std::{fs::File, io::Read};
 
 
 fn hfc(decoder: &mut Decoder<'_>) -> anyhow::Result<()> {

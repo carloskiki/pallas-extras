@@ -99,17 +99,14 @@ impl<C> CborLen<C> for Body {
         size += minicbor::bytes::CborLenBytes::cbor_len(&self.block_body_hash, ctx);
         if era < protocol::Era::Babbage {
             size += minicbor::bytes::CborLenBytes::cbor_len(
-                self.operational_certificate.kes_verifying_key.as_ref(),
-                ctx,
-            );
-        } else {
-            size += minicbor::bytes::CborLenBytes::cbor_len(
                 &self.operational_certificate.kes_verifying_key.as_ref(),
                 ctx,
             );
             size += self.operational_certificate.sequence_number.cbor_len(ctx);
             size += self.operational_certificate.key_period.cbor_len(ctx);
             size += cbor_util::signature::cbor_len(&self.operational_certificate.signature, ctx);
+        } else {
+            size += self.operational_certificate.cbor_len(ctx);
         }
 
         if era < protocol::Era::Babbage {

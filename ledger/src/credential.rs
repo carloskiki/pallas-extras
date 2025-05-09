@@ -1,8 +1,8 @@
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Payment {
     #[n(0)]
@@ -43,9 +43,7 @@ impl ChainPointer {
         let mut bytes_iter = bytes.into_iter().peekable();
         let numbers = [&mut cp.slot, &mut cp.tx_index, &mut cp.cert_index];
         for num in numbers {
-            if bytes_iter.peek().is_none() {
-                return None;
-            }
+            bytes_iter.peek()?;
             for byte in bytes_iter.by_ref() {
                 *num = (*num << 7) | (byte & 0x7f) as u64;
                 if byte & 0x80 == 0 {

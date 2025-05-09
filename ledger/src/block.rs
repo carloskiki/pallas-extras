@@ -1,11 +1,11 @@
 pub mod header;
 
 pub use header::Header;
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::{transaction, witness};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Block {
     #[n(0)]
     pub header: Header,

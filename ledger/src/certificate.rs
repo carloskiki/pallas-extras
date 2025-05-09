@@ -1,11 +1,10 @@
-use either::Either;
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::{Blake2b224Digest, Blake2b256Digest};
 
 use super::{address::shelley::StakeAddress, credential, pool, protocol::RealNumber};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Certificate {
     #[n(0)]
@@ -76,7 +75,10 @@ pub enum Certificate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RewardTarget(Either<Box<[(StakeAddress, u64)]>, u64>);
+pub enum RewardTarget {
+    OtherAccountingPot(u64),
+    StakeAddresses(Box<[(StakeAddress, u64)]>)
+}
 
 impl<C> Encode<C> for RewardTarget {
     fn encode<W: minicbor::encode::Write>(
@@ -85,14 +87,14 @@ impl<C> Encode<C> for RewardTarget {
         ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         match self {
-            RewardTarget(Either::Left(v)) => {
+            RewardTarget::StakeAddresses(v) => {
                 e.map(v.len() as u64)?;
                 for (address, amount) in v.iter() {
                     e.encode_with(address, ctx)?;
                     e.u64(*amount)?;
                 }
             }
-            RewardTarget(Either::Right(amount)) => {
+            RewardTarget::OtherAccountingPot(amount) => {
                 e.u64(*amount)?;
             }
         }
@@ -101,14 +103,22 @@ impl<C> Encode<C> for RewardTarget {
 }
 
 impl<C> Decode<'_, C> for RewardTarget {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         if d.probe().u64().is_err_and(|e| e.is_type_mismatch()) {
-            let value: Result<Box<[(_, _)]>, minicbor::decode::Error> =
-                d.map_iter::<StakeAddress, u64>()?.collect();
-            return Ok(RewardTarget(Either::Left(value?)));
+            let value: Box<[(StakeAddress, u64)]> = cbor_util::list_as_map::decode(d, ctx)?;
+            return Ok(RewardTarget::StakeAddresses(value));
         } else {
             let value = d.u64()?;
-            return Ok(RewardTarget(Either::Right(value)));
+            return Ok(RewardTarget::OtherAccountingPot(value));
+        }
+    }
+}
+
+impl<C> CborLen<C> for RewardTarget {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        match self {
+            RewardTarget::OtherAccountingPot(v) => v.cbor_len(ctx),
+            RewardTarget::StakeAddresses(items) => cbor_util::list_as_map::cbor_len(items, ctx),
         }
     }
 }

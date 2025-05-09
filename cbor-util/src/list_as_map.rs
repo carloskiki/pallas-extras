@@ -1,4 +1,4 @@
-use minicbor::{Decoder, Encoder, decode as de, encode as en};
+use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
 
 #[allow(clippy::borrowed_box)]
 pub fn encode<C, W: en::Write, T: en::Encode<C>, U: en::Encode<C>>(
@@ -30,8 +30,24 @@ pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
     v.is_empty()
 }
 
+#[allow(clippy::borrowed_box)]
+pub fn cbor_len<Ctx, K: CborLen<Ctx>, V: CborLen<Ctx>>(
+    val: &Box<[(K, V)]>,
+    ctx: &mut Ctx,
+) -> usize {
+    val.len().cbor_len(ctx)
+        + val
+            .iter()
+            .map(|(k, v)| k.cbor_len(ctx) + v.cbor_len(ctx))
+            .sum::<usize>()
+}
+
 pub mod key_bytes {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en, bytes};
+    use minicbor::{
+        CborLen, Decoder, Encoder,
+        bytes::{self, CborLenBytes},
+        decode as de, encode as en,
+    };
 
     #[allow(clippy::borrowed_box)]
     pub fn encode<C, W: en::Write, T: bytes::EncodeBytes<C>, U: en::Encode<C>>(
@@ -62,16 +78,14 @@ pub mod key_bytes {
         if map_len.is_none() {
             let ty = d.datatype()?;
             if ty != minicbor::data::Type::Break {
-                return Err(minicbor::decode::Error::type_mismatch(
-                        ty
-                ));
+                return Err(minicbor::decode::Error::type_mismatch(ty));
             }
             d.skip()?;
         }
 
         Ok(container.into_boxed_slice())
     }
-    
+
     pub fn nil<K, V>() -> Option<Box<[(K, V)]>> {
         Some(Default::default())
     }
@@ -80,5 +94,16 @@ pub mod key_bytes {
     pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
         v.is_empty()
     }
-}
 
+    #[allow(clippy::borrowed_box)]
+    pub fn cbor_len<C, K: CborLenBytes<C>, V: CborLen<C>>(
+        value: &Box<[(K, V)]>,
+        ctx: &mut C,
+    ) -> usize {
+        value.len().cbor_len(ctx)
+            + value
+                .iter()
+                .map(|(key, val)| key.cbor_len(ctx) + val.cbor_len(ctx))
+                .sum::<usize>()
+    }
+}

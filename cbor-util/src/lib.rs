@@ -5,7 +5,7 @@ use decode::{BytesIter, StrIter};
 pub use minicbor::*;
 
 pub mod bool_as_u8 {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en};
+    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
 
     pub fn encode<C, W: en::Write>(
         value: &bool,
@@ -17,6 +17,10 @@ pub mod bool_as_u8 {
 
     pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<bool, de::Error> {
         d.u8().map(|v| v != 0)
+    }
+
+    pub fn cbor_len<C>(value: &bool, ctx: &mut C) -> usize {
+        (*value as u8).cbor_len(ctx)
     }
 }
 
@@ -130,6 +134,11 @@ pub mod cbor_encoded {
 
     pub fn is_nil<T: Encode<()>>(v: &T) -> bool {
         v.is_nil()
+    }
+
+    pub fn cbor_len<C, T: CborLen<C>>(v: &T, ctx: &mut C) -> usize {
+        let len = v.cbor_len(ctx);
+        24.cbor_len(ctx) + len + len.cbor_len(ctx)
     }
 }
 

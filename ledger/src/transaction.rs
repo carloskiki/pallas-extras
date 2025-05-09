@@ -1,5 +1,5 @@
 use cbor_util::{bytes_iter_collect, str_iter_collect};
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use super::{
     address::shelley::{Address, StakeAddress},
@@ -53,17 +53,17 @@ impl<C> Decode<'_, C> for Transaction {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, CborLen)]
 #[cbor(map, tag(259))]
 pub struct Data {
     #[cbor(n(0), with = "cbor_util::list_as_map", has_nil)]
-    metadata: Box<[(u64, Metadatum)]>,
+    pub metadata: Box<[(u64, Metadatum)]>,
     #[cbor(n(1), with = "cbor_util::boxed_slice", has_nil)]
-    auxiliary_scripts: Box<[native::Script]>,
+    pub auxiliary_scripts: Box<[native::Script]>,
     #[cbor(n(2), with = "cbor_util::boxed_slice", has_nil)]
-    plutus_v1: Box<[plutus::Script]>,
+    pub plutus_v1: Box<[plutus::Script]>,
     #[cbor(n(3), with = "cbor_util::boxed_slice", has_nil)]
-    plutus_v2: Box<[plutus::Script]>,
+    pub plutus_v2: Box<[plutus::Script]>,
 }
 
 impl<C> Decode<'_, C> for Data {
@@ -155,19 +155,14 @@ impl<C> Encode<C> for Metadatum {
                 Ok(())
             }
             Metadatum::Map(m) => {
-                e.map(m.len() as u64)?;
-                for (k, v) in m {
-                    k.encode(e, ctx)?;
-                    v.encode(e, ctx)?;
-                }
-                Ok(())
+                cbor_util::list_as_map::encode(m, e, ctx)
             }
         }
     }
 }
 
 impl<C> Decode<'_, C> for Metadatum {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         use minicbor::data::Type;
         match d.datatype()? {
             Type::U8 | Type::U16 | Type::U32 | Type::U64 => Ok(Metadatum::Integer(d.u64()? as i64)),
@@ -182,14 +177,26 @@ impl<C> Decode<'_, C> for Metadatum {
                 d.array_iter()?.collect::<Result<Box<[_]>, _>>()?,
             )),
             Type::Map | Type::MapIndef => Ok(Metadatum::Map(
-                d.map_iter()?.collect::<Result<Box<[_]>, _>>()?,
+                cbor_util::list_as_map::decode(d, ctx)?
             )),
             t => Err(minicbor::decode::Error::type_mismatch(t)),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+impl<C> CborLen<C> for Metadatum {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        match self {
+            Metadatum::Integer(i) => i.cbor_len(ctx),
+            Metadatum::Bytes(items) => items.cbor_len(ctx),
+            Metadatum::Text(str) => str.cbor_len(ctx),
+            Metadatum::Array(metadatums) => metadatums.cbor_len(ctx),
+            Metadatum::Map(items) => cbor_util::list_as_map::cbor_len(items, ctx),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Body {
     #[cbor(n(0), with = "cbor_util::boxed_slice")]
@@ -226,7 +233,7 @@ pub struct Body {
     pub reference_inputs: Box<[Input]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Input {
     #[cbor(n(0), with = "minicbor::bytes")]
     pub id: TransactionId,
@@ -234,7 +241,7 @@ pub struct Input {
     pub index: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, CborLen)]
 #[cbor(map)]
 pub struct Output {
     #[n(0)]
@@ -311,7 +318,7 @@ impl<C> Decode<'_, C> for Output {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Datum {
     #[n(0)]

@@ -38,7 +38,11 @@ pub fn cbor_len<Ctx, T: CborLen<Ctx>>(val: &Box<[T]>, ctx: &mut Ctx) -> usize {
 }
 
 pub mod bytes {
-    use minicbor::{Decoder, Encoder, decode as de, encode as en, bytes};
+    use minicbor::{
+        CborLen, Decoder, Encoder,
+        bytes::{self, CborLenBytes},
+        decode as de, encode as en,
+    };
 
     #[allow(clippy::borrowed_box)]
     pub fn encode<C, W: en::Write, T: bytes::EncodeBytes<C>>(
@@ -71,9 +75,14 @@ pub mod bytes {
             }
             d.skip()?;
         }
-        
+
         Ok(container.into_boxed_slice())
     }
 
-    pub use super::{nil, is_nil};
+    #[allow(clippy::borrowed_box)]
+    pub fn cbor_len<Ctx, T: CborLenBytes<Ctx>>(val: &Box<[T]>, ctx: &mut Ctx) -> usize {
+        val.len().cbor_len(ctx) + val.iter().map(|v| v.cbor_len(ctx)).sum::<usize>()
+    }
+
+    pub use super::{is_nil, nil};
 }

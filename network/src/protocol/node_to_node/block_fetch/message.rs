@@ -1,8 +1,11 @@
 use minicbor::{Decode, Encode};
 
 use crate::{
-    Point,
-    traits::{message::{Message, nop_codec}, state},
+    Point, hard_fork_combinator,
+    traits::{
+        message::{Message, nop_codec},
+        state,
+    },
 };
 
 use super::state::{Busy, Idle, Streaming};
@@ -51,7 +54,6 @@ impl Message for NoBlocks {
     type ToState = Idle;
 }
 
-
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StartBatch;
 
@@ -63,9 +65,29 @@ impl Message for StartBatch {
     type ToState = Streaming;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-#[cbor(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block(pub ledger::block::Block);
+
+impl<C> Encode<C> for Block {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        e: &mut minicbor::Encoder<W>,
+        ctx: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        // hard_fork_combinator::encode(
+        //     (&self.0, self.0.header.body.protocol_version.major.era()),
+        //     e,
+        //     ctx,
+        // )
+        todo!()
+    }
+}
+
+impl<C> Decode<'_, C> for Block {
+    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
+        todo!()
+    }
+}
 
 impl Message for Block {
     const SIZE_LIMIT: usize = 2_500_000;
@@ -86,7 +108,6 @@ impl Message for BatchDone {
 
     type ToState = Idle;
 }
-
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Done;

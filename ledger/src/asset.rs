@@ -1,8 +1,8 @@
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(transparent)]
 pub struct Asset<T>(
     #[cbor(
@@ -11,7 +11,7 @@ pub struct Asset<T>(
     )]
     pub Box<[(Blake2b224Digest, Bundle<T>)]>);
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(transparent)]
 pub struct Bundle<T>(
     #[cbor(

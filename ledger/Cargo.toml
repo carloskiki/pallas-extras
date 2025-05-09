@@ -25,3 +25,6 @@ const-hex = "1"
 
 [[test]]
 name = "codec"
+
+[[test]]
+name = "cbor_len"

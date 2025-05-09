@@ -1,9 +1,13 @@
 use bip32::ExtendedVerifyingKey;
-use minicbor::{Decode, Encode};
+use minicbor::{CborLen, Decode, Encode};
 
-use crate::{crypto::Signature, protocol, script::{native, plutus}};
+use crate::{
+    crypto::Signature,
+    protocol,
+    script::{native, plutus},
+};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Set {
     #[n(0)]
@@ -29,7 +33,7 @@ pub struct Set {
     pub plutus_v2: Box<[plutus::Script]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct VerifyingKey {
     #[n(0)]
     #[cbor(with = "minicbor::bytes")]
@@ -63,28 +67,42 @@ impl<C> Encode<C> for Bootstrap {
 
 impl<C> Decode<'_, C> for Bootstrap {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let array_size = d.array()?;
-        if !matches!(array_size, Some(4)) {
-            return Err(minicbor::decode::Error::message("Invalid array size"));
-        }
-        
-        let verifying_key: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
-        let signature = cbor_util::signature::decode(d, &mut ())?;
-        let chain_code: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
-        let attributes: Vec<u8> = minicbor::bytes::decode(d, &mut ())?;
+        cbor_util::array_decode(
+            4,
+            |d| {
+                let verifying_key: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
+                let signature = cbor_util::signature::decode(d, &mut ())?;
+                let chain_code: [u8; 32] = minicbor::bytes::decode(d, &mut ())?;
+                let attributes: Vec<u8> = minicbor::bytes::decode(d, &mut ())?;
 
-        let key = ExtendedVerifyingKey::new(verifying_key, chain_code)
-            .ok_or(minicbor::decode::Error::message("Invalid verifying key curve point"))?;
+                let key = ExtendedVerifyingKey::new(verifying_key, chain_code).ok_or(
+                    minicbor::decode::Error::message("Invalid verifying key curve point"),
+                )?;
 
-        Ok(Bootstrap {
-            key,
-            signature,
-            attributes: attributes.into_boxed_slice(),
-        })
+                Ok(Bootstrap {
+                    key,
+                    signature,
+                    attributes: attributes.into_boxed_slice(),
+                })
+            },
+            d,
+        )
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+impl<C> CborLen<C> for Bootstrap {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        let attributes: &minicbor::bytes::ByteSlice = (*self.attributes).into();
+        let two_arrays_len = 2 * (32.cbor_len(ctx) + 32);
+
+        4.cbor_len(ctx)
+            + attributes.cbor_len(ctx)
+            + cbor_util::signature::cbor_len(&self.signature, ctx)
+            + two_arrays_len
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Redeemer {
     #[n(0)]
     pub tag: Tag,
@@ -96,7 +114,7 @@ pub struct Redeemer {
     pub execution_units: protocol::ExecutionUnits,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(index_only)]
 pub enum Tag {
     #[n(0)]

@@ -5,8 +5,9 @@ use minicbor::{CborLen, Decode, Encode};
 pub struct Script(#[cbor(with = "minicbor::bytes")] Box<[u8]>);
 
 // TODO: Implement Encode and Decode. This looks complicated, should try to understand how it works
-// to properly represent the different data types.
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+// to properly represent the different data types. NOTE: The CborLen implementation is a shim,
+// don't use it.
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, CborLen)]
 pub struct Data;
 
 impl<C> Encode<C> for Data {
