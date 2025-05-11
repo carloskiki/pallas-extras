@@ -2,14 +2,14 @@
 
 ## VRF
 
-- Document the VRF crate.
-- implement elliptic-curve traits for ed25519-dalek.
+- Document the VRF crate (with references to the RFC).
+- Implement elliptic-curve traits for ed25519-dalek.
 - Implement Elligator2 for ed25519-dalek.
 - Implement VRF in ed25519-dalek.
 
 ## MUX
 
-- use async-io instead of futures in mux
+- [ ] use async-io instead of futures in mux
 - Implement Future when client/server has no agency (instead of receive).
 - Complete ledger implementation
 - Use type alias instead of numeric types for the ledger.
@@ -20,6 +20,10 @@
     - Make sure Debug is only implemented on types that are not secret
     - Use constant time where it makes sense
     - Be mindful of Default
+
+## DB
+
+- On disk format: https://github.com/IntersectMBO/ouroboros-consensus/blob/main/ouroboros-consensus/src/ouroboros-consensus/Ouroboros/Consensus/Storage/ImmutableDB/Impl.hs
 
 # Sources
 
