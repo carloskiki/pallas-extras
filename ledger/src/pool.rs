@@ -7,7 +7,7 @@ use crate::crypto::Blake2b256Digest;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Metadata {
     #[n(0)]
-    pub url: String,
+    pub url: Box<str>,
     #[cbor(n(1), with = "minicbor::bytes")]
     pub metadata_hash: Blake2b256Digest,
 }

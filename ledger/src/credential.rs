@@ -4,17 +4,17 @@ use crate::crypto::Blake2b224Digest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
-pub enum Payment {
+pub enum Credential {
     #[n(0)]
     Script(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
     #[n(1)]
     VerificationKey(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
 }
 
-impl AsRef<Blake2b224Digest> for Payment {
+impl AsRef<Blake2b224Digest> for Credential {
     fn as_ref(&self) -> &Blake2b224Digest {
         match self {
-            Payment::Script(digest) | Payment::VerificationKey(digest) => digest,
+            Credential::Script(digest) | Credential::VerificationKey(digest) => digest,
         }
     }
 }

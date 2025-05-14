@@ -7,14 +7,14 @@ use std::{
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 use minicbor::{CborLen, Decode, Encode, decode, encode};
 
-use crate::credential::{self, ChainPointerIter};
+use crate::{credential::{self, ChainPointerIter}, Credential};
 use crate::crypto::Blake2b224Digest;
 
 const HASH_SIZE: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address {
-    pub payment: credential::Payment,
+    pub payment: Credential,
     pub stake: Option<credential::Delegation>,
     pub mainnet: bool,
 }
@@ -57,19 +57,19 @@ impl Address {
 
             let (payment, stake) = match header {
                 0b0000 => (
-                    credential::Payment::VerificationKey(first_hash),
+                    Credential::VerificationKey(first_hash),
                     credential::Delegation::StakeKey(second_hash),
                 ),
                 0b0001 => (
-                    credential::Payment::Script(first_hash),
+                    Credential::Script(first_hash),
                     credential::Delegation::StakeKey(second_hash),
                 ),
                 0b0010 => (
-                    credential::Payment::VerificationKey(first_hash),
+                    Credential::VerificationKey(first_hash),
                     credential::Delegation::Script(second_hash),
                 ),
                 0b0011 => (
-                    credential::Payment::Script(first_hash),
+                    Credential::Script(first_hash),
                     credential::Delegation::Script(second_hash),
                 ),
                 _ => unreachable!(),
@@ -83,8 +83,8 @@ impl Address {
             let pointer = credential::ChainPointer::from_bytes(data.by_ref())
                 .ok_or(AddressFromBytesError::ChainPointer)?;
             let payment = match header {
-                0b0100 => credential::Payment::VerificationKey(first_hash),
-                0b0101 => credential::Payment::Script(first_hash),
+                0b0100 => Credential::VerificationKey(first_hash),
+                0b0101 => Credential::Script(first_hash),
                 _ => unreachable!(),
             };
 
@@ -99,8 +99,8 @@ impl Address {
             }
 
             let payment = match header {
-                0b0110 => credential::Payment::VerificationKey(first_hash),
-                0b0111 => credential::Payment::Script(first_hash),
+                0b0110 => Credential::VerificationKey(first_hash),
+                0b0111 => Credential::Script(first_hash),
                 _ => unreachable!(),
             };
 
@@ -179,20 +179,20 @@ impl<'a> IntoIterator for &'a Address {
     fn into_iter(self) -> Self::IntoIter {
         let header = match (self.payment, self.stake) {
             (
-                credential::Payment::VerificationKey(_),
+                Credential::VerificationKey(_),
                 Some(credential::Delegation::StakeKey(_)),
             ) => 0b0000,
-            (credential::Payment::Script(_), Some(credential::Delegation::StakeKey(_))) => 0b0001,
-            (credential::Payment::VerificationKey(_), Some(credential::Delegation::Script(_))) => {
+            (Credential::Script(_), Some(credential::Delegation::StakeKey(_))) => 0b0001,
+            (Credential::VerificationKey(_), Some(credential::Delegation::Script(_))) => {
                 0b0010
             }
-            (credential::Payment::Script(_), Some(credential::Delegation::Script(_))) => 0b0011,
-            (credential::Payment::VerificationKey(_), Some(credential::Delegation::Pointer(_))) => {
+            (Credential::Script(_), Some(credential::Delegation::Script(_))) => 0b0011,
+            (Credential::VerificationKey(_), Some(credential::Delegation::Pointer(_))) => {
                 0b0100
             }
-            (credential::Payment::Script(_), Some(credential::Delegation::Pointer(_))) => 0b0101,
-            (credential::Payment::VerificationKey(_), None) => 0b0110,
-            (credential::Payment::Script(_), None) => 0b0111,
+            (Credential::Script(_), Some(credential::Delegation::Pointer(_))) => 0b0101,
+            (Credential::VerificationKey(_), None) => 0b0110,
+            (Credential::Script(_), None) => 0b0111,
         };
         let network_magic = self.mainnet as u8;
         let first_byte = (header << 4) | network_magic;
@@ -224,7 +224,7 @@ impl FromStr for Address {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StakeAddress {
-    pub credential: credential::Payment,
+    pub credential: Credential,
     pub mainnet: bool,
 }
 
@@ -253,9 +253,9 @@ impl StakeAddress {
         }
 
         let credential = if header == 0b1110 {
-            credential::Payment::VerificationKey(hash)
+            Credential::VerificationKey(hash)
         } else if header == 0b1111 {
-            credential::Payment::Script(hash)
+            Credential::Script(hash)
         } else {
             return Err(AddressFromBytesError::AddressType);
         };
@@ -287,8 +287,8 @@ impl<'a> IntoIterator for &'a StakeAddress {
 
     fn into_iter(self) -> Self::IntoIter {
         let header = match self.credential {
-            credential::Payment::VerificationKey(_) => 0b1110,
-            credential::Payment::Script(_) => 0b1111,
+            Credential::VerificationKey(_) => 0b1110,
+            Credential::Script(_) => 0b1111,
         };
         let network_magic = self.mainnet as u8;
         let first_byte = (header << 4) | network_magic;
@@ -428,7 +428,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
                 mainnet: true
             }
@@ -440,7 +440,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
                 mainnet: false
             }
@@ -458,7 +458,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
                 mainnet: true
             }
@@ -470,7 +470,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
                 mainnet: false
             }
@@ -488,7 +488,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
                 mainnet: true
             }
@@ -500,7 +500,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
                 mainnet: false
             }
@@ -518,7 +518,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
                 mainnet: true
             }
@@ -530,7 +530,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
                 mainnet: false
             }
@@ -550,7 +550,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
                 mainnet: true
             }
@@ -562,7 +562,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
                 mainnet: false
             }
@@ -582,7 +582,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
                 mainnet: true
             }
@@ -594,7 +594,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
                 mainnet: false
             }
@@ -612,7 +612,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: None,
                 mainnet: true
             }
@@ -624,7 +624,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::VerificationKey(VK),
+                payment: Credential::VerificationKey(VK),
                 stake: None,
                 mainnet: false
             }
@@ -642,7 +642,7 @@ mod tests {
         assert!(matches!(
             main,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
                 mainnet: true
             }
@@ -654,7 +654,7 @@ mod tests {
         assert!(matches!(
             test,
             Address {
-                payment: credential::Payment::Script(SCRIPT_HASH),
+                payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
                 mainnet: false
             }
@@ -672,7 +672,7 @@ mod tests {
         assert!(matches!(
             main,
             StakeAddress {
-                credential: credential::Payment::VerificationKey(STAKE_VK),
+                credential: Credential::VerificationKey(STAKE_VK),
                 mainnet: true
             }
         ));
@@ -683,7 +683,7 @@ mod tests {
         assert!(matches!(
             test,
             StakeAddress {
-                credential: credential::Payment::VerificationKey(STAKE_VK),
+                credential: Credential::VerificationKey(STAKE_VK),
                 mainnet: false
             }
         ));
@@ -700,7 +700,7 @@ mod tests {
         assert!(matches!(
             main,
             StakeAddress {
-                credential: credential::Payment::Script(SCRIPT_HASH),
+                credential: Credential::Script(SCRIPT_HASH),
                 mainnet: true
             }
         ));
@@ -711,7 +711,7 @@ mod tests {
         assert!(matches!(
             test,
             StakeAddress {
-                credential: credential::Payment::Script(SCRIPT_HASH),
+                credential: Credential::Script(SCRIPT_HASH),
                 mainnet: false
             }
         ));

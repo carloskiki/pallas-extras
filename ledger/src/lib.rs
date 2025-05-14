@@ -13,9 +13,11 @@ pub mod protocol;
 pub mod script;
 pub mod transaction;
 pub mod witness;
+pub mod governance;
 
 pub use asset::Asset;
 pub use block::Block;
 pub use certificate::Certificate;
+pub use credential::Credential;
 pub use script::Script;
 pub use transaction::Transaction;

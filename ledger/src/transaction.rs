@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use cbor_util::{bytes_iter_collect, str_iter_collect};
 use minicbor::{CborLen, Decode, Encode};
 
@@ -22,7 +24,7 @@ pub struct Transaction {
     #[n(2)]
     pub valid_scripts: bool,
     #[n(3)]
-    pub data: Data,
+    pub data: Option<Data>,
 }
 
 impl<C> Decode<'_, C> for Transaction {
@@ -196,6 +198,7 @@ impl<C> CborLen<C> for Metadatum {
     }
 }
 
+// TODO: All optional fields should be in a Set instead of in the struct, as with Protocol Update
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Body {
@@ -209,10 +212,10 @@ pub struct Body {
     pub ttl: Option<u64>,
     #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
     pub certificates: Box<[certificate::Certificate]>,
-    #[cbor(n(5), with = "cbor_util::boxed_slice", has_nil)]
+    #[cbor(n(5), with = "cbor_util::list_as_map", has_nil)]
     pub withdrawals: Box<[(StakeAddress, u64)]>,
     #[n(6)]
-    pub update: Option<protocol::Update>,
+    pub update: Option<protocol::Update>, // TODO: No longer present in conway
     #[cbor(n(7), with = "minicbor::bytes")]
     pub data_hash: Option<Blake2b256Digest>,
     #[n(8)]
@@ -225,12 +228,24 @@ pub struct Body {
     pub collateral: Box<[Input]>,
     #[cbor(n(14), with = "cbor_util::boxed_slice::bytes", has_nil)]
     pub required_signers: Box<[Blake2b224Digest]>,
+    #[cbor(n(15), with = "network_id", has_nil)]
+    pub testnet: Option<bool>,
     #[n(16)]
     pub collateral_return: Option<Output>,
     #[n(17)]
     pub total_collateral: Option<u64>,
     #[cbor(n(18), with = "cbor_util::boxed_slice", has_nil)]
     pub reference_inputs: Box<[Input]>,
+    
+    #[cbor(n(19), with = "cbor_util::boxed_slice", has_nil)]
+    pub voting_procedures: Box<[()]>,
+    #[cbor(n(20), with = "cbor_util::boxed_slice", has_nil)]
+    pub proposal_procedures: Box<[()]>,
+    #[n(21)]
+    pub treasury_donation: Option<u64>, // NOTE: We may have swapped 21 and 22, specification is
+                                        // unclear on which is which
+    #[n(22)]
+    pub current_treasury: Option<NonZeroU64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
@@ -246,6 +261,7 @@ pub struct Input {
 pub struct Output {
     #[n(0)]
     pub address: Address,
+    // TODO: Make this a value instead of a number
     #[n(1)]
     pub amount: u64,
     #[n(2)]
@@ -325,4 +341,43 @@ pub enum Datum {
     Hash(#[cbor(n(0), with = "minicbor::bytes")] Blake2b256Digest),
     #[n(1)]
     Data(#[n(0)] plutus::Data),
+}
+
+mod network_id {
+    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
+
+    pub fn encode<C, W: en::Write>(
+        value: &Option<bool>,
+        e: &mut Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), en::Error<W::Error>> {
+        if let Some(value) = value {
+            e.u8(*value as u8)?.ok()
+        } else {
+            e.null()?.ok()
+        }
+    }
+
+    pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Option<bool>, de::Error> {
+        match d.u8() {
+            Ok(v) => Ok(Some(v != 0)),
+            Err(e) if e.is_type_mismatch() => {
+                d.null()?;
+                Ok(None)
+            },
+            Err(e) => Err(e)
+        }
+    }
+
+    pub fn cbor_len<C>(value: &Option<bool>, ctx: &mut C) -> usize {
+        value.map(|v| (v as u8).cbor_len(ctx)).unwrap_or(1)
+    }
+
+    pub fn nil() -> Option<Option<bool>> {
+        Some(None)
+    }
+
+    pub fn is_nil(v: &Option<bool>) -> bool {
+        v.is_none()
+    }
 }

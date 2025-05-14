@@ -388,7 +388,7 @@ pub struct Update {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(tag(30))]
+#[cbor(tag(30))] // TODO: This isn't a real number, handle all its variants properly.
 pub struct RealNumber {
     #[n(0)]
     pub numerator: u64,
