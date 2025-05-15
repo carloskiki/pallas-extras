@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use minicbor::{CborLen, Decode, Encode};
 
-use crate::crypto::Blake2b224Digest;
+use crate::{crypto::Blake2b224Digest, governance::delegate_representative, pool};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Version {
@@ -94,9 +94,19 @@ pub enum Parameter {
     ExecutionCosts(ExecutionCosts),
     MaxTxExecutionUnits(ExecutionUnits),
     MaxBlockExecutionUnits(ExecutionUnits),
-    MaxValueSize(u64),
-    CollateralPercentage(u64),
-    MaxCollateralInputs(u64),
+    MaxValueSize(u32),
+    CollateralPercentage(u16),
+    MaxCollateralInputs(u16),
+    PoolVotingThresholds(pool::VotingThresholds),
+    DrepVotingThresholds(delegate_representative::VotingThresholds),
+    MinCommitteeSize(u16),
+    CommitteeTermLimit(u32),
+    GovernanceActionValidityPeriod(u32),
+    GovernanceActionDeposit(u64),
+    DrepDeposit(u64),
+    DrepInactivityPeriod(u32),
+    /// Reference script cost per byte
+    ScriptReferenceCost(RealNumber), // TODO: Non negative
 }
 
 impl Parameter {
@@ -127,6 +137,15 @@ impl Parameter {
             Parameter::MaxValueSize(_) => 22,
             Parameter::CollateralPercentage(_) => 23,
             Parameter::MaxCollateralInputs(_) => 24,
+            Parameter::PoolVotingThresholds(_) => 25,
+            Parameter::DrepVotingThresholds(_) => 26,
+            Parameter::MinCommitteeSize(_) => 27,
+            Parameter::CommitteeTermLimit(_) => 28,
+            Parameter::GovernanceActionValidityPeriod(_) => 29,
+            Parameter::GovernanceActionDeposit(_) => 30,
+            Parameter::DrepDeposit(_) => 31,
+            Parameter::DrepInactivityPeriod(_) => 32,
+            Parameter::ScriptReferenceCost(_) => 33,
         }
     }
 }
@@ -164,6 +183,15 @@ impl<C> Encode<C> for Parameter {
             Parameter::MaxValueSize(v) => e.encode_with(v, ctx)?,
             Parameter::CollateralPercentage(v) => e.encode_with(v, ctx)?,
             Parameter::MaxCollateralInputs(v) => e.encode_with(v, ctx)?,
+            Parameter::PoolVotingThresholds(v) => e.encode_with(v, ctx)?,
+            Parameter::DrepVotingThresholds(v) => e.encode_with(v, ctx)?,
+            Parameter::MinCommitteeSize(v) => e.encode_with(v, ctx)?,
+            Parameter::CommitteeTermLimit(v) => e.encode_with(v, ctx)?,
+            Parameter::GovernanceActionValidityPeriod(v) => e.encode_with(v, ctx)?,
+            Parameter::GovernanceActionDeposit(v) => e.encode_with(v, ctx)?,
+            Parameter::DrepDeposit(v) => e.encode_with(v, ctx)?,
+            Parameter::DrepInactivityPeriod(v) => e.encode_with(v, ctx)?,
+            Parameter::ScriptReferenceCost(v) => e.encode_with(v, ctx)?,
         };
         Ok(())
     }
@@ -198,6 +226,15 @@ impl<C> Decode<'_, C> for Parameter {
             22 => Ok(Parameter::MaxValueSize(d.decode()?)),
             23 => Ok(Parameter::CollateralPercentage(d.decode()?)),
             24 => Ok(Parameter::MaxCollateralInputs(d.decode()?)),
+            25 => Ok(Parameter::PoolVotingThresholds(d.decode()?)),
+            26 => Ok(Parameter::DrepVotingThresholds(d.decode()?)),
+            27 => Ok(Parameter::MinCommitteeSize(d.decode()?)),
+            28 => Ok(Parameter::CommitteeTermLimit(d.decode()?)),
+            29 => Ok(Parameter::GovernanceActionValidityPeriod(d.decode()?)),
+            30 => Ok(Parameter::GovernanceActionDeposit(d.decode()?)),
+            31 => Ok(Parameter::DrepDeposit(d.decode()?)),
+            32 => Ok(Parameter::DrepInactivityPeriod(d.decode()?)),
+            33 => Ok(Parameter::ScriptReferenceCost(d.decode()?)),
             _ => Err(minicbor::decode::Error::tag_mismatch(
                 minicbor::data::Tag::new(tag as u64),
             )),
@@ -234,6 +271,15 @@ impl<C> CborLen<C> for Parameter {
                 Parameter::MaxValueSize(v) => v.cbor_len(ctx),
                 Parameter::CollateralPercentage(v) => v.cbor_len(ctx),
                 Parameter::MaxCollateralInputs(v) => v.cbor_len(ctx),
+                Parameter::PoolVotingThresholds(v) => v.cbor_len(ctx),
+                Parameter::DrepVotingThresholds(v) => v.cbor_len(ctx),
+                Parameter::MinCommitteeSize(v) => v.cbor_len(ctx),
+                Parameter::CommitteeTermLimit(v) => v.cbor_len(ctx),
+                Parameter::GovernanceActionValidityPeriod(v) => v.cbor_len(ctx),
+                Parameter::GovernanceActionDeposit(v) => v.cbor_len(ctx),
+                Parameter::DrepDeposit(v) => v.cbor_len(ctx),
+                Parameter::DrepInactivityPeriod(v) => v.cbor_len(ctx),
+                Parameter::ScriptReferenceCost(v) => v.cbor_len(ctx),
             }
     }
 }
@@ -309,6 +355,7 @@ impl<C> Encode<C> for CostModels {
             match model {
                 CostModel::PlutusV1(v) => e.u8(0)?.encode_with(v, ctx)?,
                 CostModel::PlutusV2(v) => e.u8(1)?.encode_with(v, ctx)?,
+                CostModel::PlutusV3(v) => e.u8(2)?.encode_with(v, ctx)?,
             };
         }
         Ok(())
@@ -320,20 +367,35 @@ impl<C> Decode<'_, C> for CostModels {
         d.map_iter::<u8, Vec<i64>>()?
             .map(|v| {
                 let (tag, ints) = v?;
-                let model =
-                    match tag {
-                        0 => CostModel::PlutusV1(ints.try_into().map_err(|_| {
-                            minicbor::decode::Error::message("Invalid array length")
-                        })?),
-                        1 => CostModel::PlutusV2(ints.try_into().map_err(|_| {
-                            minicbor::decode::Error::message("Invalid array length")
-                        })?),
-                        t => {
-                            return Err(minicbor::decode::Error::tag_mismatch(
-                                minicbor::data::Tag::new(t as u64),
-                            ));
-                        }
-                    };
+                let model = match tag {
+                    0 => CostModel::PlutusV1(Box::new(
+                        <[i64; 166]>::try_from(
+                            ints.get(..166)
+                                .ok_or(minicbor::decode::Error::message("Invalid array length"))?,
+                        )
+                        .unwrap(),
+                    )),
+                    1 => CostModel::PlutusV2(Box::new(
+                        <[i64; 175]>::try_from(
+                            ints.get(..175)
+                                .ok_or(minicbor::decode::Error::message("Invalid array length"))?,
+                        )
+                        .unwrap(),
+                    )),
+                    2 => CostModel::PlutusV3(Box::new(
+                        <[i64; 233]>::try_from(
+                            ints.get(..233)
+                                .ok_or(minicbor::decode::Error::message("Invalid array length"))?,
+                        )
+                        .unwrap(),
+                    )),
+
+                    t => {
+                        return Err(minicbor::decode::Error::tag_mismatch(
+                            minicbor::data::Tag::new(t as u64),
+                        ));
+                    }
+                };
                 Ok(model)
             })
             .collect::<Result<_, _>>()
@@ -342,9 +404,11 @@ impl<C> Decode<'_, C> for CostModels {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[allow(clippy::large_enum_variant)]
 pub enum CostModel {
-    PlutusV1([i64; 166]),
-    PlutusV2([i64; 175]),
+    PlutusV1(Box<[i64; 166]>),
+    PlutusV2(Box<[i64; 175]>),
+    PlutusV3(Box<[i64; 233]>),
 }
 
 impl CostModel {
@@ -352,6 +416,7 @@ impl CostModel {
         match self {
             CostModel::PlutusV1(_) => 0,
             CostModel::PlutusV2(_) => 1,
+            CostModel::PlutusV3(_) => 3,
         }
     }
 }
@@ -366,16 +431,19 @@ impl<C> Encode<C> for CostModel {
         match self {
             CostModel::PlutusV1(v) => e.encode_with(v, ctx)?.ok(),
             CostModel::PlutusV2(v) => e.encode_with(v, ctx)?.ok(),
+            CostModel::PlutusV3(v) => e.encode_with(v, ctx)?.ok(),
         }
     }
 }
 
 impl<C> CborLen<C> for CostModel {
     fn cbor_len(&self, ctx: &mut C) -> usize {
-        self.tag().cbor_len(ctx) + match self {
-            CostModel::PlutusV1(v) => v.cbor_len(ctx),
-            CostModel::PlutusV2(v) => v.cbor_len(ctx)
-        }
+        self.tag().cbor_len(ctx)
+            + match self {
+                CostModel::PlutusV1(v) => v.cbor_len(ctx),
+                CostModel::PlutusV2(v) => v.cbor_len(ctx),
+                CostModel::PlutusV3(v) => v.cbor_len(ctx),
+            }
     }
 }
 

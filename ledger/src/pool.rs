@@ -2,7 +2,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use minicbor::{CborLen, Decode, Encode};
 
-use crate::crypto::Blake2b256Digest;
+use crate::{crypto::Blake2b256Digest, protocol::RealNumber};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Metadata {
@@ -37,4 +37,18 @@ pub enum Relay {
         #[n(0)]
         dns_name: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+pub struct VotingThresholds {
+    #[n(0)]
+    motion_no_confidence: RealNumber,
+    #[n(1)]
+    update_committee: RealNumber,
+    #[n(2)]
+    update_committee_no_confidence: RealNumber,
+    #[n(3)]
+    hard_fork_initiation: RealNumber,
+    #[n(4)]
+    security_protocol_parameter_voting: RealNumber,
 }
