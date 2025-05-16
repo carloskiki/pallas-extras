@@ -1,4 +1,4 @@
-use std::num::NonZeroU64;
+use std::num::{NonZeroI64, NonZeroU64};
 
 use cbor_util::{bytes_iter_collect, str_iter_collect};
 use minicbor::{CborLen, Decode, Encode};
@@ -10,10 +10,11 @@ use super::{
 use crate::{
     asset::Asset,
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    script::{Script, native, plutus},
+    script::{native, plutus, Script}, slot,
 };
 
-pub type TransactionId = Blake2b256Digest;
+pub type Id = Blake2b256Digest;
+pub type Coin = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode)]
 pub struct Transaction {
@@ -156,9 +157,7 @@ impl<C> Encode<C> for Metadatum {
                 }
                 Ok(())
             }
-            Metadatum::Map(m) => {
-                cbor_util::list_as_map::encode(m, e, ctx)
-            }
+            Metadatum::Map(m) => cbor_util::list_as_map::encode(m, e, ctx),
         }
     }
 }
@@ -178,9 +177,9 @@ impl<C> Decode<'_, C> for Metadatum {
             Type::Array | Type::ArrayIndef => Ok(Metadatum::Array(
                 d.array_iter()?.collect::<Result<Box<[_]>, _>>()?,
             )),
-            Type::Map | Type::MapIndef => Ok(Metadatum::Map(
-                cbor_util::list_as_map::decode(d, ctx)?
-            )),
+            Type::Map | Type::MapIndef => {
+                Ok(Metadatum::Map(cbor_util::list_as_map::decode(d, ctx)?))
+            }
             t => Err(minicbor::decode::Error::type_mismatch(t)),
         }
     }
@@ -207,21 +206,21 @@ pub struct Body {
     #[cbor(n(1), with = "cbor_util::boxed_slice")]
     pub outputs: Box<[Output]>,
     #[n(2)]
-    pub fee: u64,
+    pub fee: Coin,
     #[n(3)]
-    pub ttl: Option<u64>,
+    pub ttl: Option<slot::Number>,
     #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
     pub certificates: Box<[certificate::Certificate]>,
     #[cbor(n(5), with = "cbor_util::list_as_map", has_nil)]
-    pub withdrawals: Box<[(StakeAddress, u64)]>,
+    pub withdrawals: Box<[(StakeAddress, Coin)]>,
     #[n(6)]
     pub update: Option<protocol::Update>, // TODO: No longer present in conway
     #[cbor(n(7), with = "minicbor::bytes")]
     pub data_hash: Option<Blake2b256Digest>,
     #[n(8)]
-    pub validity_start: Option<u64>,
+    pub validity_start: Option<slot::Number>,
     #[n(9)]
-    pub mint: Option<Asset<i64>>,
+    pub mint: Option<Asset<NonZeroI64>>,
     #[cbor(n(11), with = "minicbor::bytes")]
     pub script_data_hash: Option<Blake2b256Digest>,
     #[cbor(n(13), with = "cbor_util::boxed_slice", has_nil)]
@@ -233,17 +232,17 @@ pub struct Body {
     #[n(16)]
     pub collateral_return: Option<Output>,
     #[n(17)]
-    pub total_collateral: Option<u64>,
+    pub total_collateral: Option<Coin>,
     #[cbor(n(18), with = "cbor_util::boxed_slice", has_nil)]
     pub reference_inputs: Box<[Input]>,
-    
+
     #[cbor(n(19), with = "cbor_util::boxed_slice", has_nil)]
     pub voting_procedures: Box<[()]>,
     #[cbor(n(20), with = "cbor_util::boxed_slice", has_nil)]
     pub proposal_procedures: Box<[()]>,
     #[n(21)]
-    pub treasury_donation: Option<u64>, // NOTE: We may have swapped 21 and 22, specification is
-                                        // unclear on which is which
+    pub treasury_donation: Option<Coin>, // NOTE: We may have swapped 21 and 22, specification is
+    // unclear on which is which
     #[n(22)]
     pub current_treasury: Option<NonZeroU64>,
 }
@@ -251,7 +250,7 @@ pub struct Body {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Input {
     #[cbor(n(0), with = "minicbor::bytes")]
-    pub id: TransactionId,
+    pub id: Id,
     #[n(1)]
     pub index: u16,
 }
@@ -261,9 +260,8 @@ pub struct Input {
 pub struct Output {
     #[n(0)]
     pub address: Address,
-    // TODO: Make this a value instead of a number
     #[n(1)]
-    pub amount: u64,
+    pub amount: Value,
     #[n(2)]
     pub datum: Option<Datum>,
     #[cbor(n(3), with = "cbor_util::cbor_encoded", has_nil)]
@@ -310,7 +308,7 @@ impl<C> Decode<'_, C> for Output {
                     #[n(0)]
                     pub address: Address,
                     #[n(1)]
-                    pub amount: u64,
+                    pub amount: Value,
                     #[n(2)]
                     pub datum: Option<Datum>,
                     #[cbor(n(3), with = "cbor_util::cbor_encoded", has_nil)]
@@ -334,6 +332,55 @@ impl<C> Decode<'_, C> for Output {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Value {
+    Ada(Coin),
+    Other { ada: Coin, assets: Asset<NonZeroU64> },
+}
+
+impl<C> Encode<C> for Value {
+    fn encode<W: minicbor::encode::Write>(
+        &self,
+        e: &mut minicbor::Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        match self {
+            Value::Ada(ada) => e.encode(ada),
+            Value::Other { ada, assets } => e.array(2)?.encode(ada)?.encode(assets),
+        }?
+        .ok()
+    }
+}
+
+impl<C> Decode<'_, C> for Value {
+    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+        match d.datatype()? {
+            minicbor::data::Type::U8
+            | minicbor::data::Type::U16
+            | minicbor::data::Type::U32
+            | minicbor::data::Type::U64 => Ok(Value::Ada(d.u64()?)),
+            minicbor::data::Type::Array | minicbor::data::Type::ArrayIndef => cbor_util::array_decode(2, |d| {
+                Ok(Value::Other {
+                    ada: d.u64()?,
+                    assets: d.decode()?,
+                })
+            }, d),
+            t => Err(minicbor::decode::Error::type_mismatch(t).at(d.position())),
+        }
+    }
+}
+
+impl<C> CborLen<C> for Value {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        match self {
+            Value::Ada(ada) => ada.cbor_len(ctx),
+            Value::Other { ada, assets } => {
+                2.cbor_len(ctx) + ada.cbor_len(ctx) + assets.cbor_len(ctx)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Datum {
@@ -344,7 +391,7 @@ pub enum Datum {
 }
 
 mod network_id {
-    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
+    use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
 
     pub fn encode<C, W: en::Write>(
         value: &Option<bool>,
@@ -364,8 +411,8 @@ mod network_id {
             Err(e) if e.is_type_mismatch() => {
                 d.null()?;
                 Ok(None)
-            },
-            Err(e) => Err(e)
+            }
+            Err(e) => Err(e),
         }
     }
 

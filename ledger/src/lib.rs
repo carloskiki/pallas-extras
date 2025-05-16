@@ -14,6 +14,8 @@ pub mod script;
 pub mod transaction;
 pub mod witness;
 pub mod governance;
+pub mod epoch;
+pub mod slot;
 
 pub use asset::Asset;
 pub use block::Block;

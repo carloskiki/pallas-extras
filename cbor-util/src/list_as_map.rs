@@ -70,9 +70,9 @@ pub mod key_bytes {
         let mut map_len = d.map()?;
         let mut container = Vec::with_capacity(map_len.unwrap_or(0) as usize);
         while map_len.is_some_and(|l| l != 0) || d.datatype()? != minicbor::data::Type::Break {
-            let credential = minicbor::bytes::decode(d, ctx)?;
-            let update = d.decode_with(ctx)?;
-            container.push((credential, update));
+            let key = minicbor::bytes::decode(d, ctx)?;
+            let value = d.decode_with(ctx)?;
+            container.push((key, value));
             map_len = map_len.and_then(|l| l.checked_sub(1));
         }
         if map_len.is_none() {

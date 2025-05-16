@@ -1,6 +1,6 @@
 use minicbor::{CborLen, Decode, Encode};
 
-use crate::crypto::Blake2b224Digest;
+use crate::{crypto::Blake2b224Digest, slot};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
@@ -17,8 +17,8 @@ pub enum Script {
         #[cbor(n(1), with = "cbor_util::boxed_slice")] Box<[Script]>,
     ),
     #[n(4)]
-    InvalidBefore(#[n(0)] u64),
+    InvalidBefore(#[n(0)] slot::Number),
     #[n(5)]
-    InvalidHereafter(#[n(0)] u64),
+    InvalidHereafter(#[n(0)] slot::Number),
 }
 

@@ -1,4 +1,4 @@
-use ledger::transaction::TransactionId;
+use ledger::transaction::Id;
 use minicbor::{Decode, Encode};
 
 use crate::traits::{
@@ -21,7 +21,7 @@ impl Message for Init {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
 #[cbor(transparent)]
-pub struct RequestTransactions(#[cbor(with = "cbor_util::boxed_slice")] pub Box<[TransactionId]>);
+pub struct RequestTransactions(#[cbor(with = "cbor_util::boxed_slice")] pub Box<[Id]>);
 
 impl Message for RequestTransactions {
     const SIZE_LIMIT: usize = 5760;
@@ -93,7 +93,7 @@ pub type TransactionSize = u32;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ReplyTransactionIds(pub Box<[(TransactionId, TransactionSize)]>);
+pub struct ReplyTransactionIds(pub Box<[(Id, TransactionSize)]>);
 
 impl Message for ReplyTransactionIds {
     const SIZE_LIMIT: usize = 2_500_000;
@@ -124,7 +124,7 @@ impl<C> minicbor::Decode<'_, C> for ReplyTransactionIds {
         #[derive(Decode)]
         struct TxIdAndSize {
             #[cbor(n(0), with = "minicbor::bytes")]
-            id: TransactionId,
+            id: Id,
             #[cbor(n(1))]
             size: TransactionSize,
         }

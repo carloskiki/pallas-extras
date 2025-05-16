@@ -3,9 +3,7 @@ use minicbor::{CborLen, Decode, Encode};
 pub mod kind;
 
 use crate::{
-    Credential,
-    crypto::{Blake2b224Digest, Blake2b256Digest},
-    governance,
+    crypto::{Blake2b224Digest, Blake2b256Digest}, epoch, governance, transaction::Coin, Credential
 };
 
 use super::{address::shelley::StakeAddress, pool, protocol::RealNumber};
@@ -14,24 +12,23 @@ use super::{address::shelley::StakeAddress, pool, protocol::RealNumber};
 pub enum Certificate {
     /// Certificate for Delegation and/or Registration.
     ///
-    /// TODO: link conway to enum.
-    /// Since the `Conway` era, registration & delegation can be done at the same time, so this
+    /// Since the [`Era::Conway`] era, registration & delegation can be done at the same time, so this
     /// variant supports these options separately and at the same time.
     Delegation {
         credential: Credential,
         pool_keyhash: Option<Blake2b224Digest>,
         delegate_representative: Option<governance::DelegateRepresentative>,
-        deposit: Option<u64>,
+        deposit: Option<Coin>,
     },
     Unregistration {
         credential: Credential,
-        deposit: Option<u64>,
+        deposit: Option<Coin>,
     },
     PoolRegistration {
         operator: Blake2b224Digest,
         vrf_keyhash: Blake2b256Digest,
-        pledge: u64,
-        cost: u64,
+        pledge: Coin,
+        cost: Coin,
         margin: RealNumber,
         reward_account: StakeAddress,
         owners: Box<[Blake2b224Digest]>,
@@ -40,7 +37,7 @@ pub enum Certificate {
     },
     PoolRetirement {
         pool_keyhash: Blake2b224Digest,
-        epoch: u64,
+        epoch: epoch::Number,
     },
     GenesisKeyDelegation {
         genesis_hash: Blake2b224Digest,

@@ -18,3 +18,5 @@ pub struct Block {
     #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
     pub invalid_transactions: Box<[u16]>,
 }
+
+pub type Number = u64;

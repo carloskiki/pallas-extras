@@ -9,7 +9,7 @@ pub use delegate_representative::DelegateRepresentative;
 
 use crate::{
     address::shelley::StakeAddress,
-    crypto::{Blake2b224Digest, Blake2b256Digest},
+    crypto::{Blake2b224Digest, Blake2b256Digest}, transaction::Coin,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
@@ -31,7 +31,7 @@ pub struct Constitution {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Proposal {
     #[n(0)]
-    pub deposit: u64,
+    pub deposit: Coin,
     #[n(1)]
     pub account: StakeAddress,
     #[n(2)]

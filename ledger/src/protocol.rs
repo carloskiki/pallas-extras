@@ -2,7 +2,9 @@ use std::fmt::Debug;
 
 use minicbor::{CborLen, Decode, Encode};
 
-use crate::{crypto::Blake2b224Digest, governance::delegate_representative, pool};
+use crate::{
+    crypto::Blake2b224Digest, epoch, governance::delegate_representative, pool, transaction::Coin,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Version {
@@ -36,6 +38,10 @@ pub enum MajorVersion {
     /// Part of the Babbage Era
     #[n(8)]
     Valentine,
+    #[n(9)]
+    Chang,
+    #[n(10)]
+    Plomin,
 }
 
 impl MajorVersion {
@@ -49,6 +55,8 @@ impl MajorVersion {
             MajorVersion::Lobster => Era::Alonzo,
             MajorVersion::Vasil => Era::Babbage,
             MajorVersion::Valentine => Era::Babbage,
+            MajorVersion::Chang => Era::Conway,
+            MajorVersion::Plomin => Era::Conway,
         }
     }
 }
@@ -68,18 +76,20 @@ pub enum Era {
     Alonzo,
     #[n(5)]
     Babbage,
+    #[n(6)]
+    Conway,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Parameter {
-    MinfeeA(u64),
-    MinfeeB(u64),
+    MinfeeA(Coin),
+    MinfeeB(Coin),
     MaxBlockBodySize(u32),
     MaxTransactionSize(u32),
     MaxBlockHeaderSize(u16),
-    KeyDeposit(u64),
-    PoolDeposit(u64),
-    MaximumEpoch(u64),
+    KeyDeposit(Coin),
+    PoolDeposit(Coin),
+    MaximumEpoch(epoch::Interval),
     StakePoolCountTarget(u16),
     PoolPledgeInfluence(RealNumber),
     ExpansionRate(RealNumber),
@@ -87,9 +97,9 @@ pub enum Parameter {
     DecentralizationConstant(RealNumber),
     ExtraEntropy(Option<[u8; 32]>),
     ProtocolVersion(Version),
-    MinimumUtxoValue(u64),
-    MinimumPoolCost(u64),
-    AdaPerUtxoByte(u64),
+    MinimumUtxoValue(Coin),
+    MinimumPoolCost(Coin),
+    AdaPerUtxoByte(Coin),
     ScriptCostModel(CostModels),
     ExecutionCosts(ExecutionCosts),
     MaxTxExecutionUnits(ExecutionUnits),
@@ -100,13 +110,13 @@ pub enum Parameter {
     PoolVotingThresholds(pool::VotingThresholds),
     DrepVotingThresholds(delegate_representative::VotingThresholds),
     MinCommitteeSize(u16),
-    CommitteeTermLimit(u32),
-    GovernanceActionValidityPeriod(u32),
-    GovernanceActionDeposit(u64),
-    DrepDeposit(u64),
-    DrepInactivityPeriod(u32),
+    CommitteeTermLimit(epoch::Interval),
+    GovernanceActionValidityPeriod(epoch::Interval),
+    GovernanceActionDeposit(Coin),
+    DrepDeposit(Coin),
+    DrepInactivityPeriod(epoch::Interval),
     /// Reference script cost per byte
-    ScriptReferenceCost(RealNumber), // TODO: Non negative
+    ScriptReferenceCost(RealNumber),
 }
 
 impl Parameter {

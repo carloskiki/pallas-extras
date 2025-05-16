@@ -3,7 +3,9 @@ use minicbor::{CborLen, Decode, Encode};
 
 use crate::crypto::{self, Blake2b256Digest};
 
-use crate::protocol;
+use crate::{protocol, slot};
+
+use super::Number;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Header {
@@ -16,9 +18,9 @@ pub struct Header {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Body {
-    pub block_number: u64,
-    pub slot: u64,
-    pub previous_hash: Option<[u8; 32]>,
+    pub block_number: Number,
+    pub slot: slot::Number,
+    pub previous_hash: Option<Blake2b256Digest>,
     pub issuer_vkey: crypto::VerifyingKey,
     pub vrf_vkey: crypto::VerifyingKey,
     /// In Babbage and beyond, this serves both as the leader VRF and the nonce VRF.

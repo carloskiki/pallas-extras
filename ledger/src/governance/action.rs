@@ -1,6 +1,6 @@
 use minicbor::{CborLen, Decode, Encode};
 
-use crate::{address::shelley::StakeAddress, crypto::{Blake2b224Digest, Blake2b256Digest}, protocol::{self, RealNumber}, Credential};
+use crate::{address::shelley::StakeAddress, crypto::{Blake2b224Digest, Blake2b256Digest}, epoch, protocol::{self, RealNumber}, transaction::Coin, Credential};
 
 use super::Constitution;
 
@@ -26,7 +26,7 @@ pub enum Action {
     #[n(2)]
     TreasuryWithdrawals {
         #[cbor(n(0), with = "cbor_util::list_as_map", has_nil)]
-        withdrawals: Box<[(StakeAddress, u64)]>,
+        withdrawals: Box<[(StakeAddress, Coin)]>,
         #[n(1)]
         policy_hash: Option<Blake2b224Digest>,
     },
@@ -42,7 +42,7 @@ pub enum Action {
         #[cbor(n(1), with = "cbor_util::boxed_slice")]
         remove: Box<[Credential]>, // TODO: Defined as set in conway
         #[cbor(n(2), with = "cbor_util::list_as_map")]
-        add: Box<[(Credential, u64)]>,
+        add: Box<[(Credential, epoch::Number)]>,
         #[n(3)]
         signature_threshold: RealNumber,
     },
@@ -57,7 +57,6 @@ pub enum Action {
     Info,
 }
 
-// TODO: perhaps rename as action::Id
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Id {
     #[cbor(n(0), with = "minicbor::bytes")]

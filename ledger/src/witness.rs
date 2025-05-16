@@ -31,6 +31,9 @@ pub struct Set {
     #[n(6)]
     #[cbor(with = "cbor_util::boxed_slice", has_nil)]
     pub plutus_v2: Box<[plutus::Script]>,
+    #[n(7)]
+    #[cbor(with = "cbor_util::boxed_slice", has_nil)]
+    pub plutus_v3: Box<[plutus::Script]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
@@ -47,7 +50,6 @@ pub struct VerifyingKey {
 pub struct Bootstrap {
     pub key: ExtendedVerifyingKey,
     pub signature: Signature,
-    // TODO: should we ignore the attributes?
     pub attributes: Box<[u8]>,
 }
 
