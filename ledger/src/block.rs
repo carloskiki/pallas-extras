@@ -15,7 +15,12 @@ pub struct Block {
     pub witness_sets: Box<[witness::Set]>,
     #[cbor(n(3), with = "cbor_util::list_as_map")]
     pub auxiliary_data: Box<[(u16, transaction::Data)]>,
-    #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
+    #[cbor(
+        n(4),
+        decode_with = "cbor_util::boxed_slice::decode",
+        nil = "cbor_util::boxed_slice::nil",
+        encode_with = "cbor_util::boxed_slice::encode"
+    )]
     pub invalid_transactions: Box<[u16]>,
 }
 

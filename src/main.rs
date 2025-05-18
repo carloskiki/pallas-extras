@@ -1,152 +1,79 @@
-use const_hex::{FromHex, ToHexExt};
-use curve25519_dalek::{EdwardsPoint, Scalar, edwards::CompressedEdwardsY};
-use ledger::{Block, crypto::Blake2b256};
-use network::{
-    comatch, hlist_pat, mux, protocol::{
-        handshake::{
-            self,
-            message::{NodeToNodeVersionData, VersionTable},
-        }, node_to_node::{block_fetch, chain_sync}, NodeToNode
-    }, NetworkMagic, Point, Tip, WithEncoded
-};
-use sha2::Digest;
-use std::error::Error;
-use tokio::net::TcpStream;
-use tokio_util::compat::TokioAsyncReadCompatExt;
+use std::{error::Error, fs::File, io::Read};
 
-pub struct TokioSpawner(pub tokio::runtime::Handle);
+use minicbor::{Decoder, Encode, Encoder};
+use network::WithEncoded;
 
-impl TokioSpawner {
-    pub fn new(handle: tokio::runtime::Handle) -> Self {
-        TokioSpawner(handle)
-    }
+const SKIPS: &[u16] = &[7779];
 
-    pub fn current() -> Self {
-        TokioSpawner::new(tokio::runtime::Handle::current())
-    }
-}
-
-impl futures::task::Spawn for TokioSpawner {
-    fn spawn_obj(
-        &self,
-        obj: futures::task::FutureObj<'static, ()>,
-    ) -> Result<(), futures::task::SpawnError> {
-        self.0.spawn(obj);
-        Ok(())
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001")
-        .await?
-        .compat();
-    let hlist_pat![(handshake_client, _), (chain_sync_client, _), (block_fetch_client, _), ...] =
-        mux::<NodeToNode>(stream, &TokioSpawner::current())?;
-
-    let _client = handshake_client
-        .send(handshake::message::ProposeVersions(
-            handshake::message::VersionTable {
-                versions: vec![(
-                    14,
-                    handshake::message::NodeToNodeVersionData {
-                        network_magic: NetworkMagic::Preview,
-                        diffusion_mode: true,
-                        peer_sharing: false,
-                        query: false,
-                    },
-                )],
-            },
-        ))
-        .await?;
-
-    let server_agency = chain_sync_client
-        .send(chain_sync::message::FindIntersect {
-            points: vec![PREVIEW_ALONZO].into_boxed_slice(),
-        })
-        .await?;
-
-    let Ok((chain_sync::message::IntersectFound { .. }, chain_sync_client)) =
-        server_agency.receive().await?.uninject()
-    else {
-        return Err("Failed to find intersection".into());
-    };
-
-    let Ok((chain_sync::message::RollBackward { .. }, mut chain_sync_client)) = chain_sync_client
-        .send(chain_sync::message::Next)
-        .await?
-        .receive()
-        .await?
-        .uninject()
-    else {
-        return Err("Did not roll backward".into());
-    };
-
-    let mut tip = Tip::Genesis;
-    for _ in 0..10 {
-        let server_agency = chain_sync_client.send(chain_sync::message::Next).await?;
-        comatch! {server_agency.receive().await?;
-            (chain_sync::message::RollForward { header, tip: new_tip }, new_client) => {
-                chain_sync_client = new_client;
-                let bytes = WithEncoded::encoded(&header);
-                let hash: [u8; 32] = Blake2b256::digest(bytes).into();
-                println!("Header #{}: hash = {}", header.body.block_number, hash.encode_hex());
-                tip = new_tip;
-            },
-            (msg @ chain_sync::message::RollBackward { .. }, _) => {
-                dbg!(msg);
-                panic!("Need to roll back");
-            },
-            _ => {
-                panic!("Reached AwaitReply");
-            }
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut buffer = Vec::new();
+    let mut encoder = Encoder::new(Vec::new());
+    for file in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/db/immutable"))? {
+        let file_data = file?;
+        let file_name_os_str = file_data.file_name();
+        let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
+        if !file_name.ends_with(".chunk") {
+            continue;
         }
+
+        let mut file = File::open(file_data.path())?;
+        file.read_to_end(&mut buffer)?;
+        let mut decoder = Decoder::new(&buffer);
+        loop {
+            let start = decoder.position();
+            let block = match network::hard_fork_combinator::decode::<WithEncoded<ledger::Block>, _>(
+                &mut decoder,
+                &mut (),
+            ) {
+                Err(e) if e.is_end_of_input() => break,
+                Err(e) => {
+                    inspect_tokens(&decoder.input()[start..decoder.position()]);
+                    println!("{}", decoder.position());
+                    
+                    return Err(e.into())
+                },
+                Ok((
+                    WithEncoded {
+                        value: block,
+                        encoded,
+                    },
+                    _,
+                )) => block,
+            };
+            if block.header.body.block_number == 2344009 {
+                println!("Jackpot!! {}", file_name);
+            }
+
+        }
+        buffer.clear();
+        // block.encode(&mut encoder, &mut ())?;
+
+        // if encoder.writer().as_slice() != &*encoded && !SKIPS.contains(&file_name.strip_suffix(".chunk").unwrap().parse()?) {
+        //     let x = Decoder::new(encoder.writer().as_slice())
+        //         .tokens()
+        //         .collect::<Vec<_>>();
+        //     let y = Decoder::new(&encoded).tokens().collect::<Vec<_>>();
+        //     for (x, y) in x.into_iter().zip(y.into_iter()) {
+        //         let x = x?;
+        //         let y = y?;
+        //         if x != y {
+        //             println!("Expected: {:#?}, got: {:#?}", y, x);
+        //             println!("For {}", file_name);
+        //             panic!();
+        //         }
+        //         println!("{:#?}", x);
+        //     }
+        // }
+        // encoder.writer_mut().clear();
+        // if decoder.input()[decoder.position()..].is_empty() {
+        //     break;
+        // }
     }
-
-    let Tip::Block { slot, hash, .. } = tip else {
-        return Err("tip should not be genesis".into());
-    };
-    let point = Point::Block {
-        slot,
-        hash,
-    };
-    
-    let block_fetch_server = block_fetch_client
-        .send(block_fetch::message::RequestRange {
-            start: point,
-            end: point,
-        })
-        .await?;
-    let mut blocks = Vec::with_capacity(10);
-    let Ok((block_fetch::message::StartBatch, mut streaming_server)) =
-        block_fetch_server.receive().await?.uninject()
-    else {
-        return Err("Cannot receive block".into());
-    };
-
-    for _ in 0..10 {
-        let Ok((block_fetch::message::Block(block), new_server)) =
-            streaming_server.receive().await?.uninject()
-        else {
-            return Err("Cannot receive block".into());
-        };
-        blocks.push(block);
-
-        streaming_server = new_server;
-    }
-
-    println!("finished generating test cases.");
     Ok(())
 }
 
-const PREVIEW_ALONZO: Point = Point::Genesis;
+fn inspect_tokens(cbor: &[u8]) {
+    dbg!(Decoder::new(cbor).tokens().collect::<Vec<_>>());
+}
 
-const PREVIEW_BABBAGE: Point = Point::Block {
-    slot: 259180,
-    hash: match const_hex::const_decode_to_array(
-        b"0ad91d3bbe350b1cfa05b13dba5263c47c5eca4f97b3a3105eba96416785a487",
-    ) {
-        Ok(hash) => hash,
-        Err(_) => unreachable!(),
-    },
-};
+// Conway first block: 2344009

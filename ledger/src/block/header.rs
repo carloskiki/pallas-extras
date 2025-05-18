@@ -147,7 +147,7 @@ impl<C> Decode<'_, C> for Body {
                 (
                     first_vrf,
                     VrfCertificate {
-                        hash: vec![].into(),
+                        hash: [0; 64],
                         proof: [0; 80],
                     },
                 )
@@ -201,7 +201,7 @@ impl<C> Decode<'_, C> for Body {
 pub struct VrfCertificate {
     #[n(0)]
     #[cbor(with = "minicbor::bytes")]
-    pub hash: Box<[u8]>,
+    pub hash: [u8; 64],
     // TODO: use the correct proof type once implemented in an upstream crate.
     #[n(1)]
     #[cbor(with = "minicbor::bytes")]

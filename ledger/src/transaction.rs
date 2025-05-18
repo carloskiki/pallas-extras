@@ -10,7 +10,8 @@ use super::{
 use crate::{
     asset::Asset,
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    script::{native, plutus, Script}, slot,
+    script::{Script, native, plutus},
+    slot,
 };
 
 pub type Id = Blake2b256Digest;
@@ -335,7 +336,10 @@ impl<C> Decode<'_, C> for Output {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Value {
     Ada(Coin),
-    Other { ada: Coin, assets: Asset<NonZeroU64> },
+    Other {
+        ada: Coin,
+        assets: Asset<NonZeroU64>,
+    },
 }
 
 impl<C> Encode<C> for Value {
@@ -359,12 +363,18 @@ impl<C> Decode<'_, C> for Value {
             | minicbor::data::Type::U16
             | minicbor::data::Type::U32
             | minicbor::data::Type::U64 => Ok(Value::Ada(d.u64()?)),
-            minicbor::data::Type::Array | minicbor::data::Type::ArrayIndef => cbor_util::array_decode(2, |d| {
-                Ok(Value::Other {
-                    ada: d.u64()?,
-                    assets: d.decode()?,
-                })
-            }, d),
+            minicbor::data::Type::Array | minicbor::data::Type::ArrayIndef => {
+                cbor_util::array_decode(
+                    2,
+                    |d| {
+                        Ok(Value::Other {
+                            ada: d.u64()?,
+                            assets: d.decode()?,
+                        })
+                    },
+                    d,
+                )
+            }
             t => Err(minicbor::decode::Error::type_mismatch(t).at(d.position())),
         }
     }
@@ -387,7 +397,7 @@ pub enum Datum {
     #[n(0)]
     Hash(#[cbor(n(0), with = "minicbor::bytes")] Blake2b256Digest),
     #[n(1)]
-    Data(#[n(0)] plutus::Data),
+    Data(#[cbor(n(0), with = "cbor_util::cbor_encoded")] plutus::Data),
 }
 
 mod network_id {

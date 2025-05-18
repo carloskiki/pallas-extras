@@ -7,8 +7,11 @@ use std::{
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 use minicbor::{CborLen, Decode, Encode, decode, encode};
 
-use crate::{credential::{self, ChainPointerIter}, Credential};
 use crate::crypto::Blake2b224Digest;
+use crate::{
+    Credential,
+    credential::{self, ChainPointerIter},
+};
 
 const HASH_SIZE: usize = 28;
 
@@ -34,10 +37,13 @@ impl Address {
 
         let mut first_hash: Blake2b224Digest = Default::default();
         let mut len = 0;
-        data.by_ref().zip(first_hash.iter_mut()).for_each(|(b, h)| {
-            len += 1;
-            *h = b;
-        });
+        data.by_ref()
+            .take(HASH_SIZE)
+            .zip(first_hash.iter_mut())
+            .for_each(|(b, h)| {
+                len += 1;
+                *h = b;
+            });
         if len != HASH_SIZE {
             return Err(AddressFromBytesError::TooShort);
         }
@@ -51,8 +57,10 @@ impl Address {
                     len += 1;
                     *h = b;
                 });
-            if len != HASH_SIZE || data.next().is_some() {
+            if len != HASH_SIZE {
                 return Err(AddressFromBytesError::TooShort);
+            } else if data.next().is_some() {
+                return Err(AddressFromBytesError::TooLong);
             }
 
             let (payment, stake) = match header {
@@ -82,6 +90,10 @@ impl Address {
         } else if header < 0b0110 {
             let pointer = credential::ChainPointer::from_bytes(data.by_ref())
                 .ok_or(AddressFromBytesError::ChainPointer)?;
+            if data.next().is_some() {
+                return Err(AddressFromBytesError::TooLong);
+            }
+            
             let payment = match header {
                 0b0100 => Credential::VerificationKey(first_hash),
                 0b0101 => Credential::Script(first_hash),
@@ -95,7 +107,7 @@ impl Address {
             })
         } else if header < 0b1000 {
             if data.next().is_some() {
-                return Err(AddressFromBytesError::TooShort);
+                return Err(AddressFromBytesError::TooLong);
             }
 
             let payment = match header {
@@ -138,7 +150,8 @@ impl<'b, C> Decode<'b, C> for Address {
 
 impl<C> CborLen<C> for Address {
     fn cbor_len(&self, ctx: &mut C) -> usize {
-        let len = 1 + 28
+        let len = 1
+            + 28
             + self
                 .stake
                 .map(|deleg| match deleg {
@@ -178,18 +191,11 @@ impl<'a> IntoIterator for &'a Address {
 
     fn into_iter(self) -> Self::IntoIter {
         let header = match (self.payment, self.stake) {
-            (
-                Credential::VerificationKey(_),
-                Some(credential::Delegation::StakeKey(_)),
-            ) => 0b0000,
+            (Credential::VerificationKey(_), Some(credential::Delegation::StakeKey(_))) => 0b0000,
             (Credential::Script(_), Some(credential::Delegation::StakeKey(_))) => 0b0001,
-            (Credential::VerificationKey(_), Some(credential::Delegation::Script(_))) => {
-                0b0010
-            }
+            (Credential::VerificationKey(_), Some(credential::Delegation::Script(_))) => 0b0010,
             (Credential::Script(_), Some(credential::Delegation::Script(_))) => 0b0011,
-            (Credential::VerificationKey(_), Some(credential::Delegation::Pointer(_))) => {
-                0b0100
-            }
+            (Credential::VerificationKey(_), Some(credential::Delegation::Pointer(_))) => 0b0100,
             (Credential::Script(_), Some(credential::Delegation::Pointer(_))) => 0b0101,
             (Credential::VerificationKey(_), None) => 0b0110,
             (Credential::Script(_), None) => 0b0111,

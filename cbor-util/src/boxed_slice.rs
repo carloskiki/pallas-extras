@@ -63,7 +63,7 @@ pub mod bytes {
     ) -> Result<Box<[T]>, de::Error> {
         let mut len = d.array()?;
         let mut container = Vec::with_capacity(len.unwrap_or(0) as usize);
-        while len.is_some_and(|l| l != 0) || d.datatype()? != minicbor::data::Type::Break {
+        while len.is_none_or(|l| l != 0) && d.datatype()? != minicbor::data::Type::Break {
             let value = bytes::decode(d, ctx)?;
             container.push(value);
             len = len.and_then(|l| l.checked_sub(1));

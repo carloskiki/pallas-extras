@@ -133,8 +133,8 @@ impl<C> Decode<'_, C> for Tip {
 /// still considered valid. This would yield different hashes for the same data.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WithEncoded<T> {
-    value: T,
-    encoded: Box<[u8]>,
+    pub value: T,
+    pub encoded: Box<[u8]>,
 }
 
 impl<T: Encode<()>> WithEncoded<T> {

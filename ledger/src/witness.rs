@@ -125,7 +125,7 @@ pub enum Tag {
     Mint,
     // TODO: find name for this
     #[n(2)]
-    Cert,
+    Certify,
     #[n(3)]
     Reward,
 }

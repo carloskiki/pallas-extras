@@ -69,7 +69,7 @@ pub mod key_bytes {
     ) -> Result<Box<[(T, U)]>, de::Error> {
         let mut map_len = d.map()?;
         let mut container = Vec::with_capacity(map_len.unwrap_or(0) as usize);
-        while map_len.is_some_and(|l| l != 0) || d.datatype()? != minicbor::data::Type::Break {
+        while map_len.is_none_or(|l| l != 0) && d.datatype()? != minicbor::data::Type::Break {
             let key = minicbor::bytes::decode(d, ctx)?;
             let value = d.decode_with(ctx)?;
             container.push((key, value));

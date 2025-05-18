@@ -5,7 +5,7 @@ use decode::{BytesIter, StrIter};
 pub use minicbor::*;
 
 pub mod bool_as_u8 {
-    use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
+    use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
 
     pub fn encode<C, W: en::Write>(
         value: &bool,
@@ -25,15 +25,18 @@ pub mod bool_as_u8 {
 }
 
 pub mod bounded_bytes {
-    use minicbor::{Decoder, Encoder, bytes::ByteVec, decode as de, encode as en};
+    use minicbor::{
+        Decoder, Encoder,
+        bytes::{ByteSlice, ByteVec},
+        decode as de, encode as en,
+    };
 
-    #[allow(clippy::borrowed_box)]
     pub fn encode<C, W: en::Write>(
-        value: &Box<[u8]>,
+        value: &[u8],
         e: &mut Encoder<W>,
         _: &mut C,
     ) -> Result<(), en::Error<W::Error>> {
-        if value.len() < 64 {
+        if value.len() <= 64 {
             e.bytes(value)?.ok()
         } else {
             e.begin_bytes()?;
@@ -48,6 +51,23 @@ pub mod bounded_bytes {
         // TODO: Here we do not check whether it respects the bounded bytes requirements.
         let v: ByteVec = d.decode()?;
         Ok(Vec::from(v).into_boxed_slice())
+    }
+
+    pub fn decode_ref<'a, Ctx>(d: &mut Decoder<'a>, _: &mut Ctx) -> Result<&'a [u8], de::Error> {
+        // TODO: Here we do not check whether it respects the bounded bytes requirements.
+        let v: &ByteSlice = d.decode()?;
+        Ok(v)
+    }
+
+    pub fn cbor_len<Ctx>(value: &[u8], ctx: &mut Ctx) -> usize {
+        if value.len() <= 64 {
+            minicbor::bytes::cbor_len(value, ctx)
+        } else {
+            2 + value
+                .chunks(64)
+                .map(|c| minicbor::bytes::cbor_len(c, ctx))
+                .sum::<usize>()
+        }
     }
 }
 
@@ -165,17 +185,19 @@ pub fn array_decode<'a, T, F: FnOnce(&mut Decoder<'a>) -> Result<T, minicbor::de
 ) -> Result<T, minicbor::decode::Error> {
     let arr_len = d.array()?;
     if arr_len.is_some_and(|l| l != len) {
-        return Err(minicbor::decode::Error::message(
-            format!("expected array of length {}", len),
-        ));
+        return Err(minicbor::decode::Error::message(format!(
+            "expected array of length {}",
+            len
+        )));
     }
     let ret = f(d)?;
 
     if arr_len.is_none() {
         if d.datatype()? != minicbor::data::Type::Break {
-            return Err(minicbor::decode::Error::message(
-                format!("expected array of length {}", len),
-            ));
+            return Err(minicbor::decode::Error::message(format!(
+                "expected array of length {}",
+                len
+            )));
         }
         d.skip()?;
     }
