@@ -12,4 +12,6 @@ pub enum Script {
     PlutusV1(#[n(0)] plutus::Script),
     #[n(2)]
     PlutusV2(#[n(0)] plutus::Script),
+    #[n(3)]
+    PlutusV3(#[n(0)] plutus::Script),
 }

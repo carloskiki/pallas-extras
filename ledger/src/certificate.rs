@@ -156,7 +156,7 @@ impl<C> Encode<C> for Certificate {
                 e.u64(*cost)?;
                 e.encode(margin)?;
                 e.encode(reward_account)?;
-                cbor_util::boxed_slice::bytes::encode(owners, e, ctx)?;
+                cbor_util::set::bytes::encode(owners, e, ctx)?;
                 e.encode(relays)?;
                 e.encode(metadata)?;
                 Ok(())
@@ -239,7 +239,7 @@ impl<C> Decode<'_, C> for Certificate {
                 cost: d.u64()?,
                 margin: d.decode()?,
                 reward_account: d.decode()?,
-                owners: cbor_util::boxed_slice::bytes::decode(d, ctx)?,
+                owners: cbor_util::set::bytes::decode(d, ctx)?,
                 relays: cbor_util::boxed_slice::decode(d, ctx)?,
                 metadata: d.decode()?,
             },
@@ -380,7 +380,7 @@ impl<C> CborLen<C> for Certificate {
                         + cost.cbor_len(ctx)
                         + margin.cbor_len(ctx)
                         + reward_account.cbor_len(ctx)
-                        + cbor_util::boxed_slice::bytes::cbor_len(owners, ctx)
+                        + cbor_util::set::bytes::cbor_len(owners, ctx)
                         + relays.cbor_len(ctx)
                         + metadata.cbor_len(ctx)
                 }

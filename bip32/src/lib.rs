@@ -1,7 +1,6 @@
 use curve25519_dalek::{edwards::EdwardsPoint, Scalar, edwards::CompressedEdwardsY, scalar::clamp_integer};
 use minicbor::{
-    Decode, Decoder, Encode, Encoder, decode,
-    encode::{self, Write},
+    decode, encode::{self, Write}, CborLen, Decode, Decoder, Encode, Encoder
 };
 use hmac::Hmac;
 use pbkdf2::pbkdf2_hmac;
@@ -150,7 +149,7 @@ impl ExtendedSecretKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExtendedVerifyingKey {
     // Invariant: Must be a valid EdwardsPoint
     key: CompressedEdwardsY,
@@ -217,15 +216,8 @@ impl<C> Encode<C> for ExtendedVerifyingKey {
         e: &mut Encoder<W>,
         _: &mut C,
     ) -> Result<(), encode::Error<W::Error>> {
-        // Hack because we do not want to allocate to encode two disjoint byte slices into a single
-        // CBOR byte string.
-        const BYTES_TAG: u8 = 0x40;
-        const LEN: u8 = 64;
+        e.bytes_len(64)?;
         let writer = e.writer_mut();
-        // Write the CBOR tag for a byte string of length 64.
-        writer
-            .write_all(&[BYTES_TAG | 24, LEN])
-            .map_err(encode::Error::write)?;
         writer
             .write_all(&self.key.0)
             .map_err(encode::Error::write)?;
@@ -244,6 +236,12 @@ impl<C> Decode<'_, C> for ExtendedVerifyingKey {
             key: CompressedEdwardsY(key),
             chain_code,
         })
+    }
+}
+
+impl<C> CborLen<C> for ExtendedVerifyingKey {
+    fn cbor_len(&self, ctx: &mut C) -> usize {
+        64.cbor_len(ctx) + 64
     }
 }
 

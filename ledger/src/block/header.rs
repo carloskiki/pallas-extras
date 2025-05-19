@@ -16,110 +16,35 @@ pub struct Header {
     pub signature: crypto::kes::Signature,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, CborLen)]
 pub struct Body {
+    #[n(0)]
     pub block_number: Number,
+    #[n(1)]
     pub slot: slot::Number,
+    #[cbor(n(2), with = "minicbor::bytes")]
     pub previous_hash: Option<Blake2b256Digest>,
+    #[cbor(n(3), with = "minicbor::bytes")]
     pub issuer_vkey: crypto::VerifyingKey,
+    #[cbor(n(4), with = "minicbor::bytes")]
     pub vrf_vkey: crypto::VerifyingKey,
-    /// In Babbage and beyond, this serves both as the leader VRF and the nonce VRF.
+    #[cbor(skip)]
     pub nonce_vrf: VrfCertificate,
+    /// In Babbage and beyond, this serves both as the leader VRF and the nonce VRF.
+    #[n(5)]
     pub leader_vrf: VrfCertificate,
+    #[n(6)]
     pub block_body_size: u32,
+    #[cbor(n(7), with = "minicbor::bytes")]
     pub block_body_hash: Blake2b256Digest,
+    #[n(8)]
     pub operational_certificate: OperationalCertificate,
+    #[n(9)]
     pub protocol_version: protocol::Version,
 }
 
 const BABBAGE_ARRAY_SIZE: u64 = 10;
 const LEGACY_ARRAY_SIZE: u64 = 15;
-
-impl<C> Encode<C> for Body {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        let era = self.protocol_version.major.era();
-
-        e.array(if era < protocol::Era::Babbage {
-            LEGACY_ARRAY_SIZE
-        } else {
-            BABBAGE_ARRAY_SIZE
-        })?;
-
-        e.u64(self.block_number)?;
-        e.u64(self.slot)?;
-        if let Some(previous_hash) = self.previous_hash {
-            e.bytes(&previous_hash)?;
-        } else {
-            e.null()?;
-        }
-        minicbor::bytes::encode(&self.issuer_vkey, e, &mut ())?;
-        minicbor::bytes::encode(&self.vrf_vkey, e, &mut ())?;
-        e.encode(&self.leader_vrf)?;
-        if era < protocol::Era::Babbage {
-            e.encode(&self.nonce_vrf)?;
-        }
-        e.u32(self.block_body_size)?;
-        e.bytes(&self.block_body_hash)?;
-
-        if era < protocol::Era::Babbage {
-            e.bytes(self.operational_certificate.kes_verifying_key.as_ref())?;
-            e.u64(self.operational_certificate.sequence_number)?;
-            e.u8(self.operational_certificate.key_period)?;
-            e.bytes(&self.operational_certificate.signature.to_bytes())?;
-        } else {
-            e.encode(&self.operational_certificate)?;
-        }
-
-        if era < protocol::Era::Babbage {
-            e.encode(self.protocol_version.major)?;
-            e.u8(self.protocol_version.minor)?;
-        } else {
-            e.encode(self.protocol_version)?;
-        }
-        Ok(())
-    }
-}
-
-impl<C> CborLen<C> for Body {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        let era = self.protocol_version.major.era();
-        let mut size = if era < protocol::Era::Babbage { BABBAGE_ARRAY_SIZE } else { LEGACY_ARRAY_SIZE }.cbor_len(ctx);
-        size += self.block_number.cbor_len(ctx);
-        size += self.slot.cbor_len(ctx);
-        size += minicbor::bytes::CborLenBytes::cbor_len(&self.previous_hash, ctx);
-        size += minicbor::bytes::CborLenBytes::cbor_len(&self.issuer_vkey, ctx);
-        size += minicbor::bytes::CborLenBytes::cbor_len(&self.vrf_vkey, ctx);
-        size += self.leader_vrf.cbor_len(ctx);
-        if era < protocol::Era::Babbage {
-            size += self.nonce_vrf.cbor_len(ctx);
-        }
-        size += self.block_body_size.cbor_len(ctx);
-        size += minicbor::bytes::CborLenBytes::cbor_len(&self.block_body_hash, ctx);
-        if era < protocol::Era::Babbage {
-            size += minicbor::bytes::CborLenBytes::cbor_len(
-                &self.operational_certificate.kes_verifying_key.as_ref(),
-                ctx,
-            );
-            size += self.operational_certificate.sequence_number.cbor_len(ctx);
-            size += self.operational_certificate.key_period.cbor_len(ctx);
-            size += cbor_util::signature::cbor_len(&self.operational_certificate.signature, ctx);
-        } else {
-            size += self.operational_certificate.cbor_len(ctx);
-        }
-
-        if era < protocol::Era::Babbage {
-            size += self.protocol_version.major.cbor_len(ctx);
-            size += self.protocol_version.minor.cbor_len(ctx);
-        } else {
-            size += self.protocol_version.cbor_len(ctx);
-        }
-        size
-    }
-}
 
 impl<C> Decode<'_, C> for Body {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
@@ -161,12 +86,12 @@ impl<C> Decode<'_, C> for Body {
                 GenericArray::from(kes_verifying_key_bytes);
             let kes_verifying_key = kes::sum::VerifyingKey::from(kes_verifying_key_bytes);
             let sequence_number = d.u64()?;
-            let key_period = d.u8()?;
+            let key_period = d.u64()?;
             let signature = cbor_util::signature::decode(d, &mut ())?;
             OperationalCertificate {
                 kes_verifying_key,
                 sequence_number,
-                key_period,
+                kes_start_period: key_period,
                 signature,
             }
         } else {
@@ -215,7 +140,7 @@ pub struct OperationalCertificate {
     #[n(1)]
     pub sequence_number: u64,
     #[n(2)]
-    pub key_period: u8,
+    pub kes_start_period: u64,
     #[cbor(n(3), with = "cbor_util::signature")]
     pub signature: crypto::Signature,
 }

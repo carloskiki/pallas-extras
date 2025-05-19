@@ -6,13 +6,12 @@ use crate::{crypto::Blake2b256Digest, protocol::RealNumber};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Metadata {
-    #[n(0)]
+    #[cbor(n(0), with = "cbor_util::url")]
     pub url: Box<str>,
     #[cbor(n(1), with = "minicbor::bytes")]
     pub metadata_hash: Blake2b256Digest,
 }
 
-// TODO: what type to use for dns_name?
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(flat)]
 pub enum Relay {
@@ -29,13 +28,13 @@ pub enum Relay {
     HostName {
         #[n(0)]
         port: Option<u16>,
-        #[n(1)]
-        dns_name: String,
+        #[cbor(n(1), with = "cbor_util::url")]
+        dns_name: Box<str>,
     },
     #[n(2)]
     MultiHostName {
-        #[n(0)]
-        dns_name: String,
+        #[cbor(n(0), with = "cbor_util::url")]
+        dns_name: Box<str>,
     },
 }
 

@@ -1,18 +1,19 @@
 use digest::Digest;
 use minicbor::{
-    bytes::{ByteArray, ByteSlice, ByteVec},
-    data::IanaTag,
-    decode,
-    encode::{self, Write},
-    Decode, Decoder, Encode, Encoder,
+    CborLen, Decode, Encode, Encoder,
+    bytes::ByteArray,
 };
 use sha3::Sha3_256;
 
 use crate::crypto::{Blake2b224, Blake2b224Digest, VerifyingKey};
 use bip32::ExtendedVerifyingKey;
 
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
+    #[cbor(n(0), with = "cbor_util::cbor_encoded")]
     payload: Payload,
+    #[n(1)]
     crc: u32,
 }
 
@@ -24,24 +25,24 @@ impl Address {
         root_encoder
             .array(3)
             .unwrap()
-            .encode(&root.addr_type)
+            .encode(root.addr_type)
             .unwrap()
-            .encode(&root.spending_data)
+            .encode(root.spending_data)
             .unwrap()
-            .encode(&attributes)
+            .encode(attributes)
             .unwrap();
 
         let root_bytes = root_encoder.into_writer();
-        let root_digest: Blake2b224Digest = Blake2b224::digest(
-            Sha3_256::digest(&root_bytes),
-        ).into();
+        let root_digest: Blake2b224Digest =
+            Blake2b224::digest(Sha3_256::digest(&root_bytes)).into();
         let payload = Payload {
             root_digest,
             attributes,
             addr_type: root.addr_type,
         };
         // We know this cannot error because of Vec.
-        let cbor_payload = minicbor::to_vec(&payload).unwrap();
+        let cbor_payload = minicbor::to_vec(payload)
+            .expect("should not error because the writer is a vec (which has Infallibe error)");
         let crc = crc32fast::hash(&cbor_payload);
         Self { payload, crc }
     }
@@ -53,9 +54,116 @@ impl Address {
     }
 
     pub fn to_base58(&self) -> String {
-        // We know this cannot error because of Vec.
-        let bytes = minicbor::to_vec(self).unwrap();
+        let bytes = minicbor::to_vec(self)
+            .expect("should not error because the writer is a vec (which has Infallibe error)");
         bs58::encode(bytes).into_string()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+struct Payload {
+    #[cbor(n(0), with = "minicbor::bytes")]
+    root_digest: Blake2b224Digest,
+    #[n(1)]
+    attributes: Attributes,
+    #[n(2)]
+    addr_type: AddressType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Root {
+    addr_type: AddressType,
+    spending_data: SpendingData,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(flat)]
+enum StakeDistribution {
+    #[n(1)]
+    Bootstrap,
+    #[n(0)]
+    SingleKey(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(transparent)]
+pub struct AddressType(pub u32);
+
+impl AddressType {
+    pub fn is_key(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn is_script(&self) -> bool {
+        self.0 == 1
+    }
+
+    pub fn is_redeem(&self) -> bool {
+        self.0 == 2
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode, CborLen)]
+#[cbor(flat)]
+enum SpendingData {
+    #[n(0)]
+    PublicKey(#[n(0)] ExtendedVerifyingKey),
+    #[n(1)]
+    Redeem(#[cbor(n(0), with = "minicbor::bytes")] VerifyingKey),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(map)]
+pub struct Attributes {
+    #[n(0)]
+    distribution: Option<StakeDistribution>,
+    // Only to retain information when encoding, we do not use this.
+    #[n(1)]
+    _key_derivation_path: Option<ByteArray<30>>,
+    #[cbor(n(2), with = "cbor_no_tag", has_nil)]
+    network_magic: Option<u32>,
+}
+
+mod cbor_no_tag {
+    use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
+
+    pub fn encode<C, W: en::Write>(
+        value: &Option<u32>,
+        e: &mut Encoder<W>,
+        ctx: &mut C,
+    ) -> Result<(), en::Error<W::Error>> {
+        e.bytes_len(value.cbor_len(ctx) as u64)?.encode_with(value, ctx)?.ok()
+    }
+
+    pub fn decode<C>(d: &mut Decoder<'_>, ctx: &mut C) -> Result<Option<u32>, de::Error> {
+        let store;
+        let bytes;
+        match d.datatype()? {
+            minicbor::data::Type::Bytes => {
+                bytes = d.bytes()?;
+            }
+            minicbor::data::Type::BytesIndef => {
+                store = cbor_util::bytes_iter_collect(d.bytes_iter()?)?;
+                bytes = &store;
+            }
+            t => return Err(de::Error::type_mismatch(t).at(d.position())),
+        }
+
+        let mut inner_decoder = Decoder::new(bytes);
+        inner_decoder.decode_with(ctx)
+    }
+
+    pub fn cbor_len<C>(value: &Option<u32>, ctx: &mut C) -> usize {
+        let bytes_len = value.cbor_len(ctx);
+        bytes_len.cbor_len(ctx) + bytes_len
+    }
+
+    pub fn nil() -> Option<Option<u32>> {
+        Some(None)
+    }
+
+    pub fn is_nil(value: &Option<u32>) -> bool {
+        value.is_none()
     }
 }
 
@@ -74,246 +182,6 @@ impl From<bs58::decode::Error> for FromBase58Error {
 impl From<minicbor::decode::Error> for FromBase58Error {
     fn from(e: minicbor::decode::Error) -> Self {
         FromBase58Error::Decode(e)
-    }
-}
-
-impl<C> Encode<C> for Address {
-    fn encode<W: Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        e.array(2)?
-            .tag(IanaTag::Cbor)?
-            .bytes(&minicbor::to_vec(&self.payload).unwrap())?
-            .u32(self.crc)?
-            .ok()
-    }
-}
-
-impl<C> Decode<'_, C> for Address {
-    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
-        let array_len = d.array()?;
-        if array_len != Some(2) {
-            return Err(decode::Error::message("invalid Address cbor length"));
-        }
-
-        let tag = d.tag()?;
-        if tag != IanaTag::Cbor.tag() {
-            return Err(decode::Error::message("invalid Address Payload tag"));
-        }
-
-        let bytes = d.bytes()?;
-        let payload: Payload = minicbor::decode(bytes)?;
-        let crc = d.u32()?;
-        Ok(Self { payload, crc })
-    }
-}
-
-#[derive(Encode, Decode)]
-struct Payload {
-    #[cbor(n(0), with = "minicbor::bytes")]
-    root_digest: Blake2b224Digest,
-    #[n(1)]
-    attributes: Attributes,
-    #[n(2)]
-    addr_type: AddressType,
-}
-
-pub struct Root {
-    addr_type: AddressType,
-    spending_data: SpendingData,
-}
-
-enum StakeDistribution {
-    Bootstrap,
-    SingleKey(Blake2b224Digest),
-}
-
-impl<C> Encode<C> for StakeDistribution {
-    fn encode<W: Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        match self {
-            StakeDistribution::SingleKey(x) => {
-                e.array(2)?;
-                e.u32(0)?;
-                e.encode(<&ByteSlice>::from(x.as_slice()))?;
-            }
-            StakeDistribution::Bootstrap => {
-                e.array(1)?;
-                e.u32(1)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<C> Decode<'_, C> for StakeDistribution {
-    fn decode(d: &mut Decoder<'_>, ctx: &mut C) -> Result<Self, decode::Error> {
-        d.array()?;
-        let variant = d.u32()?;
-
-        match variant {
-            0 => Ok(StakeDistribution::SingleKey(ByteArray::<28>::decode(d, ctx)?.into())),
-            1 => Ok(StakeDistribution::Bootstrap),
-            _ => Err(minicbor::decode::Error::message(
-                "Invalid StakeDistribution variant",
-            )),
-        }
-    }
-}
-
-pub struct AddressType(pub u32);
-
-impl AddressType {
-    pub fn is_key(&self) -> bool {
-        self.0 == 0
-    }
-
-    pub fn is_script(&self) -> bool {
-        self.0 == 1
-    }
-
-    pub fn is_redeem(&self) -> bool {
-        self.0 == 2
-    }
-}
-
-impl<C> Encode<C> for AddressType {
-    fn encode<W: Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        e.u32(self.0).map(|_| ())
-    }
-}
-
-impl<C> Decode<'_, C> for AddressType {
-    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
-        Ok(AddressType(d.u32()?))
-    }
-}
-
-enum SpendingData {
-    PublicKey(ExtendedVerifyingKey),
-    Redeem(VerifyingKey),
-}
-
-impl<C> Encode<C> for SpendingData {
-    fn encode<W: Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        match self {
-            SpendingData::PublicKey(x) => {
-                e.array(2)?;
-                e.u32(0)?;
-                e.encode(x)?;
-            }
-            SpendingData::Redeem(x) => {
-                e.array(2)?;
-                e.u32(1)?;
-                e.bytes(x)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<C> Decode<'_, C> for SpendingData {
-    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
-        d.array()?;
-        let discriminant = d.u32()?;
-        Ok(match discriminant {
-            0 => SpendingData::PublicKey(d.decode()?),
-            1 => {
-                let bytes: [u8; 32] = d.bytes()?.try_into().map_err(decode::Error::custom)?;
-                SpendingData::Redeem(bytes)
-            }
-            _ => return Err(decode::Error::message("invalid SpendingData discriminant")),
-        })
-    }
-}
-
-pub struct Attributes {
-    distribution: Option<StakeDistribution>,
-    // Only to retain information when encoding, we do not use this.
-    _key_derivation_path: Option<ByteArray<30>>,
-    network_magic: Option<u32>,
-}
-
-impl<C> minicbor::Encode<C> for Attributes {
-    fn encode<W>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> core::result::Result<(), minicbor::encode::Error<W::Error>>
-    where
-        W: Write,
-    {
-        let field_count = self.distribution.is_some() as u64
-            + self._key_derivation_path.is_some() as u64
-            + self.network_magic.is_some() as u64;
-        e.map(field_count)?;
-        if let Some(distribution) = &self.distribution {
-            e.u32(0)?;
-            e.encode(distribution)?;
-        }
-        if let Some(key_derivation_path) = &self._key_derivation_path {
-            e.u32(1)?;
-            e.encode(key_derivation_path)?;
-        }
-        if let Some(network_magic) = &self.network_magic {
-            e.u32(2)?;
-            e.encode(ByteVec::from(minicbor::to_vec(network_magic).unwrap()))?;
-        }
-        Ok(())
-    }
-}
-impl<'bytes, Ctx> minicbor::Decode<'bytes, Ctx> for Attributes {
-    fn decode(
-        d: &mut minicbor::Decoder<'bytes>,
-        _: &mut Ctx,
-    ) -> core::result::Result<Attributes, minicbor::decode::Error> {
-        let mut distribution: Option<StakeDistribution> = None;
-        let mut key_derivation_path: Option<ByteArray<30>> = None;
-        let mut network_magic: Option<u32> = None;
-        if let Some(map_len) = d.map()? {
-            for _ in 0..map_len {
-                match d.u32()? {
-                    0 => distribution = d.decode()?,
-                    1 => key_derivation_path = d.decode()?,
-                    2 => {
-                        let bytes = d.bytes()?;
-                        network_magic = Some(minicbor::decode(bytes)?);
-                    }
-                    _ => d.skip()?,
-                }
-            }
-        } else {
-            while minicbor::data::Type::Break != d.datatype()? {
-                match d.u32()? {
-                    0 => distribution = d.decode()?,
-                    1 => key_derivation_path = d.decode()?,
-                    2 => {
-                        let bytes = d.bytes()?;
-                        network_magic = Some(minicbor::decode(bytes)?);
-                    }
-                    _ => d.skip()?,
-                }
-            }
-            d.skip()?
-        }
-        Ok(Attributes {
-            distribution,
-            _key_derivation_path: key_derivation_path,
-            network_magic,
-        })
     }
 }
 

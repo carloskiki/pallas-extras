@@ -2,7 +2,7 @@ use minicbor::{CborLen, Decode, Encode};
 
 use crate::{Credential, crypto::Blake2b224Digest};
 
-use super::Anchor;
+use super::{action, Anchor};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Procedure {
@@ -11,6 +11,10 @@ pub struct Procedure {
     #[n(1)]
     pub anchor: Option<Anchor>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(transparent)]
+pub struct Set(#[cbor(with = "cbor_util::list_as_map")] pub Box<[(action::Id, Procedure)]>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(index_only)]

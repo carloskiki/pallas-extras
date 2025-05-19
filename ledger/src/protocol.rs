@@ -42,6 +42,8 @@ pub enum MajorVersion {
     Chang,
     #[n(10)]
     Plomin,
+    #[n(11)] 
+    Next, // TODO: Quickfix, figure out how to handle this.
 }
 
 impl MajorVersion {
@@ -57,6 +59,7 @@ impl MajorVersion {
             MajorVersion::Valentine => Era::Babbage,
             MajorVersion::Chang => Era::Conway,
             MajorVersion::Plomin => Era::Conway,
+            MajorVersion::Next => Era::Conway, // TODO: Fix this.
         }
     }
 }
@@ -294,7 +297,6 @@ impl<C> CborLen<C> for Parameter {
     }
 }
 
-// TODO: Enforce that this only contains one instance of each
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, CborLen)]
 #[cbor(transparent)]
 pub struct ParameterUpdate(pub Box<[Parameter]>);
@@ -414,7 +416,6 @@ impl<C> Decode<'_, C> for CostModels {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[allow(clippy::large_enum_variant)]
 pub enum CostModel {
     PlutusV1(Box<[i64; 166]>),
     PlutusV2(Box<[i64; 175]>),
@@ -426,7 +427,7 @@ impl CostModel {
         match self {
             CostModel::PlutusV1(_) => 0,
             CostModel::PlutusV2(_) => 1,
-            CostModel::PlutusV3(_) => 3,
+            CostModel::PlutusV3(_) => 2,
         }
     }
 }

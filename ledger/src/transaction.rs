@@ -4,12 +4,13 @@ use cbor_util::{bytes_iter_collect, str_iter_collect};
 use minicbor::{CborLen, Decode, Encode};
 
 use super::{
-    address::shelley::{Address, StakeAddress},
+    address::{Address, shelley::StakeAddress},
     certificate, protocol, witness,
 };
 use crate::{
     asset::Asset,
     crypto::{Blake2b224Digest, Blake2b256Digest},
+    governance,
     script::{Script, native, plutus},
     slot,
 };
@@ -127,7 +128,7 @@ impl<C> Decode<'_, C> for Data {
                 metadata: cbor_util::list_as_map::decode(d, ctx)?,
                 ..Default::default()
             }),
-            t => Err(minicbor::decode::Error::type_mismatch(t)),
+            t => Err(minicbor::decode::Error::type_mismatch(t).at(d.position())),
         }
     }
 }
@@ -181,7 +182,7 @@ impl<C> Decode<'_, C> for Metadatum {
             Type::Map | Type::MapIndef => {
                 Ok(Metadatum::Map(cbor_util::list_as_map::decode(d, ctx)?))
             }
-            t => Err(minicbor::decode::Error::type_mismatch(t)),
+            t => Err(minicbor::decode::Error::type_mismatch(t).at(d.position())),
         }
     }
 }
@@ -202,7 +203,7 @@ impl<C> CborLen<C> for Metadatum {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Body {
-    #[cbor(n(0), with = "cbor_util::boxed_slice")]
+    #[cbor(n(0), with = "cbor_util::set")]
     pub inputs: Box<[Input]>,
     #[cbor(n(1), with = "cbor_util::boxed_slice")]
     pub outputs: Box<[Output]>,
@@ -210,7 +211,7 @@ pub struct Body {
     pub fee: Coin,
     #[n(3)]
     pub ttl: Option<slot::Number>,
-    #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
+    #[cbor(n(4), with = "cbor_util::set", has_nil)]
     pub certificates: Box<[certificate::Certificate]>,
     #[cbor(n(5), with = "cbor_util::list_as_map", has_nil)]
     pub withdrawals: Box<[(StakeAddress, Coin)]>,
@@ -220,13 +221,13 @@ pub struct Body {
     pub data_hash: Option<Blake2b256Digest>,
     #[n(8)]
     pub validity_start: Option<slot::Number>,
-    #[n(9)]
-    pub mint: Option<Asset<NonZeroI64>>,
+    #[n(9)] // TODO: should be NonZeroI64
+    pub mint: Option<Asset<i64>>,
     #[cbor(n(11), with = "minicbor::bytes")]
     pub script_data_hash: Option<Blake2b256Digest>,
-    #[cbor(n(13), with = "cbor_util::boxed_slice", has_nil)]
+    #[cbor(n(13), with = "cbor_util::set", has_nil)]
     pub collateral: Box<[Input]>,
-    #[cbor(n(14), with = "cbor_util::boxed_slice::bytes", has_nil)]
+    #[cbor(n(14), with = "cbor_util::set::bytes", has_nil)]
     pub required_signers: Box<[Blake2b224Digest]>,
     #[cbor(n(15), with = "network_id", has_nil)]
     pub testnet: Option<bool>,
@@ -234,13 +235,13 @@ pub struct Body {
     pub collateral_return: Option<Output>,
     #[n(17)]
     pub total_collateral: Option<Coin>,
-    #[cbor(n(18), with = "cbor_util::boxed_slice", has_nil)]
+    #[cbor(n(18), with = "cbor_util::set", has_nil)]
     pub reference_inputs: Box<[Input]>,
 
-    #[cbor(n(19), with = "cbor_util::boxed_slice", has_nil)]
-    pub voting_procedures: Box<[()]>,
-    #[cbor(n(20), with = "cbor_util::boxed_slice", has_nil)]
-    pub proposal_procedures: Box<[()]>,
+    #[cbor(n(19), with = "cbor_util::list_as_map", has_nil)]
+    pub voting_procedures: Box<[(governance::voting::Voter, governance::voting::Set)]>,
+    #[cbor(n(20), with = "cbor_util::set", has_nil)]
+    pub proposal_procedures: Box<[governance::Proposal]>,
     #[n(21)]
     pub treasury_donation: Option<Coin>, // NOTE: We may have swapped 21 and 22, specification is
     // unclear on which is which
@@ -270,20 +271,21 @@ pub struct Output {
 }
 
 impl<C> Decode<'_, C> for Output {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+    #[track_caller]
+    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         use minicbor::data::Type;
         match d.datatype()? {
             Type::Array | Type::ArrayIndef => {
                 let len = d.array()?;
                 match len {
                     Some(2 | 3) | None => {
-                        let ouput = Output {
+                        let output = Output {
                             address: d.decode()?,
                             amount: d.decode()?,
                             datum: if len == Some(3)
                                 || (len.is_none() && d.datatype()? != Type::Break)
                             {
-                                Some(d.decode()?)
+                                Some(Datum::Hash(minicbor::bytes::decode(d, ctx)?))
                             } else {
                                 None
                             },
@@ -297,7 +299,7 @@ impl<C> Decode<'_, C> for Output {
                             };
                             d.skip()?;
                         }
-                        Ok(ouput)
+                        Ok(output)
                     }
                     _ => Err(minicbor::decode::Error::message("Invalid array length")),
                 }
@@ -312,7 +314,7 @@ impl<C> Decode<'_, C> for Output {
                     pub amount: Value,
                     #[n(2)]
                     pub datum: Option<Datum>,
-                    #[cbor(n(3), with = "cbor_util::cbor_encoded", has_nil)]
+                    #[cbor(n(3), with = "cbor_util::cbor_encoded")]
                     pub script_ref: Option<Script>,
                 }
                 let BabbageOutput {
@@ -328,7 +330,9 @@ impl<C> Decode<'_, C> for Output {
                     script_ref,
                 })
             }
-            t => Err(minicbor::decode::Error::type_mismatch(t)),
+            t => Err(minicbor::decode::Error::type_mismatch(t)
+                .at(d.position())
+                .with_message(std::panic::Location::caller())),
         }
     }
 }
@@ -369,7 +373,28 @@ impl<C> Decode<'_, C> for Value {
                     |d| {
                         Ok(Value::Other {
                             ada: d.u64()?,
-                            assets: d.decode()?,
+                            assets: {
+                                // NOTE: We accept assets with count 0, but we filter them out.
+                                // In Conway and beyond, assets with value 0 are forbidden.
+                                let with_zeros: Asset<u64> = d.decode()?;
+                                Asset(
+                                    with_zeros
+                                        .0
+                                        .into_iter()
+                                        .filter_map(|(hash, bundle)| {
+                                            let bundle = bundle
+                                                .0
+                                                .into_iter()
+                                                .filter_map(|(name, value)| {
+                                                    NonZeroU64::new(value).map(|v| (name, v))
+                                                })
+                                                .collect::<Box<[_]>>();
+                                            (!bundle.is_empty())
+                                                .then_some((hash, crate::asset::Bundle(bundle)))
+                                        })
+                                        .collect::<Box<[_]>>(),
+                                )
+                            },
                         })
                     },
                     d,

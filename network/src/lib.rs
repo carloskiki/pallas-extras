@@ -60,7 +60,7 @@ impl<C> Decode<'_, C> for Point {
             if len.is_none() {
                 let ty = d.datatype()?;
                 if ty != minicbor::data::Type::Break {
-                    return Err(minicbor::decode::Error::type_mismatch(ty));
+                    return Err(minicbor::decode::Error::type_mismatch(ty).at(d.position()));
                 }
                 d.skip()?;
             }

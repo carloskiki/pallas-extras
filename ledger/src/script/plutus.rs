@@ -6,9 +6,6 @@ use num_traits::ToPrimitive;
 #[cbor(transparent)]
 pub struct Script(#[cbor(with = "minicbor::bytes")] Box<[u8]>);
 
-// TODO: Implement Encode and Decode. This looks complicated, should try to understand how it works
-// to properly represent the different data types. NOTE: The CborLen implementation is a shim,
-// don't use it.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum Data {
     Map(Box<[(Data, Data)]>),
@@ -107,15 +104,15 @@ impl<C> Decode<'_, C> for Data {
                 match d.tag()?.as_u64() {
                     2 => Ok(Self::BigInt(BigInt::from_bytes_be(
                         num_bigint::Sign::Plus,
-                        cbor_util::bounded_bytes::decode_ref(d, ctx)?,
+                        &cbor_util::bounded_bytes::decode(d, ctx)?,
                     ))),
                     3 => Ok(Self::BigInt(
                         BigInt::from_bytes_be(
                             num_bigint::Sign::Minus,
-                            cbor_util::bounded_bytes::decode_ref(d, ctx)?,
+                            &cbor_util::bounded_bytes::decode(d, ctx)?,
                         ) - 1u8,
                     )),
-                    121..=127 | 1280..=1400 => {
+                    102 | 121..=127 | 1280..=1400 => {
                         d.set_position(pre_tag);
                         Ok(Self::Construct(d.decode()?))
                     }
@@ -136,7 +133,7 @@ impl<C> CborLen<C> for Data {
             Data::Map(items) => cbor_util::list_as_map::cbor_len(items, ctx),
             Data::List(datas) => datas.cbor_len(ctx),
             Data::Bytes(items) => cbor_util::bounded_bytes::cbor_len(items, ctx),
-            Data::BigInt(big_int) if big_int.iter_u64_digits().count() == 1 => {
+            Data::BigInt(big_int) if big_int.iter_u64_digits().count() < 2 => {
                 minicbor::data::Int::try_from(
                     big_int
                         .to_i128()
@@ -150,6 +147,7 @@ impl<C> CborLen<C> for Data {
                     num_bigint::Sign::Minus => (big_int + 1u8).iter_u64_digits().count() * 8,
                     num_bigint::Sign::Plus => big_int.iter_u64_digits().count() * 8,
                     num_bigint::Sign::NoSign => {
+                        dbg!(big_int, big_int.iter_u64_digits().count());
                         unreachable!(
                             "value should not be zero, as it is matched in the previous arm"
                         )
@@ -172,25 +170,8 @@ impl<C> CborLen<C> for Data {
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Construct {
-    tag: u8,
+    pub tag: u64,
     pub value: Box<[Data]>,
-}
-
-impl Construct {
-    /// The tag must be in the range `[0..128]` to be valid.
-    pub fn new(tag: u8, value: Box<[Data]>) -> Option<Self> {
-        if tag < 128 {
-            Some(Self { tag, value })
-        } else {
-            None
-        }
-    }
-}
-
-impl Construct {
-    pub fn tag(&self) -> u8 {
-        self.tag
-    }
 }
 
 impl<C> Encode<C> for Construct {
@@ -200,12 +181,13 @@ impl<C> Encode<C> for Construct {
         _: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         if self.tag <= 6 {
-            e.tag(minicbor::data::Tag::new(self.tag as u64 + 121))?;
+            e.tag(minicbor::data::Tag::new(self.tag + 121))?;
+        } else if self.tag <= 127 {
+            e.tag(minicbor::data::Tag::new(self.tag + 1280 - 7))?;
         } else {
-            // self.tag <= 127, because of constructor
             e.tag(minicbor::data::Tag::new(102))?
                 .array(2)?
-                .u16(self.tag as u16 + 1280 - 7)?;
+                .u64(self.tag)?;
         }
         e.encode(&self.value)?;
         Ok(())
@@ -216,17 +198,29 @@ impl<C> Decode<'_, C> for Construct {
     fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         let tag = d.tag()?.as_u64();
         match tag {
+            102 => {
+                #[derive(Decode)]
+                struct Inner {
+                    #[n(0)]
+                    tag: u64,
+                    #[cbor(n(1), with = "cbor_util::boxed_slice")]
+                    value: Box<[Data]>,
+                }
+                let Inner { tag, value } = d.decode()?;
+                Ok(Self { tag, value })
+            }
+
             121..=127 => Ok(Construct {
-                tag: tag as u8 - 121,
+                tag: tag - 121,
                 value: cbor_util::boxed_slice::decode(d, ctx)?,
             }),
             1280..=1400 => Ok(Construct {
-                tag: (tag - 1280 + 7) as u8,
+                tag: tag - 1280 + 7,
                 value: cbor_util::boxed_slice::decode(d, ctx)?,
             }),
-            t => Err(minicbor::decode::Error::tag_mismatch(
-                minicbor::data::Tag::new(t),
-            )),
+            t => Err(
+                minicbor::decode::Error::tag_mismatch(minicbor::data::Tag::new(t)).at(d.position()),
+            ),
         }
     }
 }
@@ -234,12 +228,15 @@ impl<C> Decode<'_, C> for Construct {
 impl<C> CborLen<C> for Construct {
     fn cbor_len(&self, ctx: &mut C) -> usize {
         if self.tag <= 6 {
-            minicbor::data::Tag::new(self.tag as u64 + 121).cbor_len(ctx) + self.value.cbor_len(ctx)
+            minicbor::data::Tag::new(self.tag + 121).cbor_len(ctx) + self.value.cbor_len(ctx)
+        } else if self.tag <= 127 {
+            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx)
+                + self.value.cbor_len(ctx)
         } else {
             // self.tag <= 127, because of constructor
             minicbor::data::Tag::new(102).cbor_len(ctx)
                 + 2.cbor_len(ctx)
-                + (self.tag as u16 + 1280 - 7).cbor_len(ctx)
+                + self.tag.cbor_len(ctx)
                 + self.value.cbor_len(ctx)
         }
     }

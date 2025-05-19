@@ -1,5 +1,6 @@
 pub mod boxed_slice;
 pub mod list_as_map;
+pub mod set;
 
 use decode::{BytesIter, StrIter};
 pub use minicbor::*;
@@ -27,7 +28,7 @@ pub mod bool_as_u8 {
 pub mod bounded_bytes {
     use minicbor::{
         Decoder, Encoder,
-        bytes::{ByteSlice, ByteVec},
+        bytes::ByteSlice,
         decode as de, encode as en,
     };
 
@@ -48,15 +49,28 @@ pub mod bounded_bytes {
     }
 
     pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Box<[u8]>, de::Error> {
-        // TODO: Here we do not check whether it respects the bounded bytes requirements.
-        let v: ByteVec = d.decode()?;
-        Ok(Vec::from(v).into_boxed_slice())
-    }
-
-    pub fn decode_ref<'a, Ctx>(d: &mut Decoder<'a>, _: &mut Ctx) -> Result<&'a [u8], de::Error> {
-        // TODO: Here we do not check whether it respects the bounded bytes requirements.
-        let v: &ByteSlice = d.decode()?;
-        Ok(v)
+        match d.datatype()? {
+            minicbor::data::Type::Bytes => {
+                let bytes: &ByteSlice = d.decode()?;
+                if bytes.len() > 64 {
+                    Err(de::Error::message("byte slice too long for bounded bytes"))
+                } else {
+                    Ok(Box::from(&**bytes))
+                }
+            },
+            minicbor::data::Type::BytesIndef => {
+                let mut bytes = Vec::with_capacity(64);
+                for slice in  d.bytes_iter()? {
+                    let slice = slice?;
+                    if slice.len() > 64 {
+                        return Err(de::Error::message("byte slice too long for bounded bytes"))
+                    }
+                    bytes.extend_from_slice(slice);
+                }
+                Ok(bytes.into_boxed_slice())
+            },
+            t => Err(de::Error::type_mismatch(t).at(d.position()))
+        }
     }
 
     pub fn cbor_len<Ctx>(value: &[u8], ctx: &mut Ctx) -> usize {
@@ -109,6 +123,7 @@ pub mod signature {
 /// Encode a type as a byte array that contains the CBOR encoding of the type with tag 24.
 pub mod cbor_encoded {
     use minicbor::{CborLen, Decode, Decoder, Encode, Encoder, decode as de, encode as en};
+    use std::fmt::Debug;
 
     use crate::bytes_iter_collect;
 
@@ -122,7 +137,7 @@ pub mod cbor_encoded {
         e.encode_with(value, ctx)?.ok()
     }
 
-    pub fn decode<'a, T: for<'b> de::Decode<'b, Ctx>, Ctx>(
+    pub fn decode<'a, T: for<'b> de::Decode<'b, Ctx> + Debug, Ctx>(
         d: &mut Decoder<'a>,
         ctx: &mut Ctx,
     ) -> Result<T, de::Error> {
@@ -141,7 +156,7 @@ pub mod cbor_encoded {
                 store = bytes_iter_collect(d.bytes_iter()?)?;
                 bytes = &store;
             }
-            t => return Err(de::Error::type_mismatch(t)),
+            t => return Err(de::Error::type_mismatch(t).at(d.position())),
         }
 
         let mut inner_decoder = Decoder::new(bytes);
@@ -159,6 +174,31 @@ pub mod cbor_encoded {
     pub fn cbor_len<C, T: CborLen<C>>(v: &T, ctx: &mut C) -> usize {
         let len = v.cbor_len(ctx);
         24.cbor_len(ctx) + len + len.cbor_len(ctx)
+    }
+}
+
+pub mod url {
+    use minicbor::{CborLen, Decoder, Encoder};
+
+    pub fn encode<C, W: minicbor::encode::Write>(
+        value: &str,
+        e: &mut Encoder<W>,
+        _: &mut C,
+    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        e.str(value)?.ok()
+    }
+
+    pub fn decode<C>(d: &mut Decoder<'_>, _: &mut C) -> Result<Box<str>, minicbor::decode::Error> {
+        let string = d.str()?;
+        if string.len() > 128 {
+            Err(minicbor::decode::Error::message("url too long").at(d.position()))
+        } else {
+            Ok(Box::from(string))
+        }
+    }
+
+    pub fn cbor_len<C>(value: &str, c: &mut C) -> usize {
+        value.cbor_len(c)
     }
 }
 

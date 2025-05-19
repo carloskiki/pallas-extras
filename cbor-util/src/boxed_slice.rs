@@ -1,40 +1,32 @@
-use std::ops::Deref;
-
 use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
 
-#[allow(clippy::borrowed_box)]
 pub fn encode<C, W: en::Write, T: en::Encode<C>>(
-    value: &Box<[T]>,
+    value: &[T],
     e: &mut Encoder<W>,
     ctx: &mut C,
 ) -> Result<(), en::Error<W::Error>> {
-    e.array(value.len() as u64)?;
-    for v in value.iter() {
-        e.encode_with(v, ctx)?;
-    }
-    Ok(())
+    e.encode_with(value, ctx)?.ok()
 }
 
 pub fn decode<'a, T: de::Decode<'a, Ctx>, Ctx>(
     d: &mut Decoder<'a>,
     ctx: &mut Ctx,
 ) -> Result<Box<[T]>, de::Error> {
-    let v: Vec<T> = d.decode_with(ctx)?;
-    Ok(v.into_boxed_slice())
+    let x = d.array_iter_with(ctx)?.collect::<Result<Box<[_]>, _>>()?;
+    
+    Ok(x)
 }
 
 pub fn nil<T>() -> Option<Box<[T]>> {
     Some(Vec::new().into_boxed_slice())
 }
 
-#[allow(clippy::borrowed_box)]
-pub fn is_nil<T>(v: &Box<[T]>) -> bool {
+pub fn is_nil<T>(v: &[T]) -> bool {
     v.is_empty()
 }
 
-#[allow(clippy::borrowed_box)]
-pub fn cbor_len<Ctx, T: CborLen<Ctx>>(val: &Box<[T]>, ctx: &mut Ctx) -> usize {
-    val.deref().cbor_len(ctx)
+pub fn cbor_len<Ctx, T: CborLen<Ctx>>(val: &[T], ctx: &mut Ctx) -> usize {
+    val.cbor_len(ctx)
 }
 
 pub mod bytes {
@@ -44,9 +36,8 @@ pub mod bytes {
         decode as de, encode as en,
     };
 
-    #[allow(clippy::borrowed_box)]
     pub fn encode<C, W: en::Write, T: bytes::EncodeBytes<C>>(
-        value: &Box<[T]>,
+        value: &[T],
         e: &mut Encoder<W>,
         ctx: &mut C,
     ) -> Result<(), en::Error<W::Error>> {
@@ -71,7 +62,7 @@ pub mod bytes {
         if len.is_none() {
             let ty = d.datatype()?;
             if ty != minicbor::data::Type::Break {
-                return Err(de::Error::type_mismatch(ty));
+                return Err(de::Error::type_mismatch(ty).at(d.position()));
             }
             d.skip()?;
         }
@@ -79,8 +70,7 @@ pub mod bytes {
         Ok(container.into_boxed_slice())
     }
 
-    #[allow(clippy::borrowed_box)]
-    pub fn cbor_len<Ctx, T: CborLenBytes<Ctx>>(val: &Box<[T]>, ctx: &mut Ctx) -> usize {
+    pub fn cbor_len<Ctx, T: CborLenBytes<Ctx>>(val: &[T], ctx: &mut Ctx) -> usize {
         val.len().cbor_len(ctx) + val.iter().map(|v| v.cbor_len(ctx)).sum::<usize>()
     }
 

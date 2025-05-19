@@ -19,21 +19,17 @@ const HASH_SIZE: usize = 28;
 pub struct Address {
     pub payment: Credential,
     pub stake: Option<credential::Delegation>,
-    pub mainnet: bool,
+    pub network: Network,
 }
 
 impl Address {
-    fn from_bytes(bytes: impl IntoIterator<Item = u8>) -> Result<Self, AddressFromBytesError> {
+    pub(super) fn from_bytes(bytes: impl IntoIterator<Item = u8>) -> Result<Self, AddressFromBytesError> {
         let mut data = bytes.into_iter();
 
         let first_byte = data.next().ok_or(AddressFromBytesError::TooShort)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        let mainnet = match network_magic {
-            0 => false,
-            1 => true,
-            _ => return Err(AddressFromBytesError::NetworkMagic),
-        };
+        let network = Network(network_magic);
 
         let mut first_hash: Blake2b224Digest = Default::default();
         let mut len = 0;
@@ -85,7 +81,7 @@ impl Address {
             Ok(Address {
                 payment,
                 stake: Some(stake),
-                mainnet,
+                network,
             })
         } else if header < 0b0110 {
             let pointer = credential::ChainPointer::from_bytes(data.by_ref())
@@ -103,7 +99,7 @@ impl Address {
             Ok(Address {
                 payment,
                 stake: Some(credential::Delegation::Pointer(pointer)),
-                mainnet,
+                network,
             })
         } else if header < 0b1000 {
             if data.next().is_some() {
@@ -119,7 +115,7 @@ impl Address {
             Ok(Address {
                 payment,
                 stake: None,
-                mainnet,
+                network,
             })
         } else {
             Err(AddressFromBytesError::AddressType)
@@ -135,16 +131,6 @@ impl<C> Encode<C> for Address {
     ) -> Result<(), encode::Error<W::Error>> {
         let bytes = self.into_iter().collect::<Box<[_]>>();
         e.bytes(&bytes)?.ok()
-    }
-}
-
-impl<'b, C> Decode<'b, C> for Address {
-    fn decode(d: &mut decode::Decoder<'b>, _: &mut C) -> Result<Self, decode::Error> {
-        // This ignores decoding errors of the inner slices, but does not matter because if the
-        // inner slice errors then the value wont parse correctly anyway.
-        let data = d.bytes_iter()?.flatten().flatten().copied();
-
-        Address::from_bytes(data).map_err(decode::Error::custom)
     }
 }
 
@@ -169,7 +155,7 @@ impl<C> CborLen<C> for Address {
 
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.mainnet { "addr" } else { "addr_test" });
+        let hrp = Hrp::parse_unchecked(if self.network.main() { "addr" } else { "addr_test" });
         self.into_iter()
             .bytes_to_fes()
             .with_checksum::<Bech32>(&hrp)
@@ -200,7 +186,7 @@ impl<'a> IntoIterator for &'a Address {
             (Credential::VerificationKey(_), None) => 0b0110,
             (Credential::Script(_), None) => 0b0111,
         };
-        let network_magic = self.mainnet as u8;
+        let network_magic = self.network.0;
         let first_byte = (header << 4) | network_magic;
 
         iter::once(first_byte)
@@ -231,7 +217,7 @@ impl FromStr for Address {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StakeAddress {
     pub credential: Credential,
-    pub mainnet: bool,
+    pub network: Network,
 }
 
 impl StakeAddress {
@@ -240,12 +226,8 @@ impl StakeAddress {
         let first_byte = data.next().ok_or(AddressFromBytesError::TooShort)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        let mainnet = match network_magic {
-            0 => false,
-            1 => true,
-            _ => return Err(AddressFromBytesError::NetworkMagic),
-        };
-
+        let network = Network(network_magic);
+        
         let mut hash: Blake2b224Digest = Default::default();
         let mut len = 0;
         data.take(HASH_SIZE)
@@ -268,14 +250,14 @@ impl StakeAddress {
 
         Ok(StakeAddress {
             credential,
-            mainnet,
+            network,
         })
     }
 }
 
 impl Display for StakeAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.mainnet { "stake" } else { "stake_test" });
+        let hrp = Hrp::parse_unchecked(if self.network.main() { "stake" } else { "stake_test" });
 
         self.into_iter()
             .bytes_to_fes()
@@ -296,7 +278,7 @@ impl<'a> IntoIterator for &'a StakeAddress {
             Credential::VerificationKey(_) => 0b1110,
             Credential::Script(_) => 0b1111,
         };
-        let network_magic = self.mainnet as u8;
+        let network_magic = self.network.0;
         let first_byte = (header << 4) | network_magic;
 
         core::iter::once(first_byte).chain(self.credential.as_ref().iter().copied())
@@ -341,6 +323,26 @@ impl<C> CborLen<C> for StakeAddress {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Network(u8);
+
+impl Network {
+    pub const MAIN: Self = Network(1);
+    pub const TEST: Self = Network(0);
+    
+    pub fn main(&self) -> bool {
+        self.0 == 1
+    }
+
+    pub fn test(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn unknown(&self) -> bool {
+        self.0 > 1
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AddressFromStrError {
     Bytes(AddressFromBytesError),
@@ -377,8 +379,6 @@ pub enum AddressFromBytesError {
     TooShort,
     /// The given input is too long.
     TooLong,
-    /// Incorrect network magic.
-    NetworkMagic,
     /// The header contains an invalid address type.
     AddressType,
     /// Error decoding the chain pointer.
@@ -390,7 +390,6 @@ impl Display for AddressFromBytesError {
         match self {
             AddressFromBytesError::TooShort => write!(f, "The given input is too short"),
             AddressFromBytesError::TooLong => write!(f, "The given input is too long"),
-            AddressFromBytesError::NetworkMagic => write!(f, "Incorrect network magic"),
             AddressFromBytesError::AddressType => {
                 write!(f, "The header contains an invalid address type")
             }
@@ -436,7 +435,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -448,7 +447,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -466,7 +465,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -478,7 +477,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -496,7 +495,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -508,7 +507,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -526,7 +525,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -538,7 +537,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -558,7 +557,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -570,7 +569,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -590,7 +589,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -602,7 +601,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -620,7 +619,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: None,
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -632,7 +631,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: None,
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -650,7 +649,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -662,7 +661,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -679,7 +678,7 @@ mod tests {
             main,
             StakeAddress {
                 credential: Credential::VerificationKey(STAKE_VK),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -690,7 +689,7 @@ mod tests {
             test,
             StakeAddress {
                 credential: Credential::VerificationKey(STAKE_VK),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();
@@ -707,7 +706,7 @@ mod tests {
             main,
             StakeAddress {
                 credential: Credential::Script(SCRIPT_HASH),
-                mainnet: true
+                network: Network::MAIN
             }
         ));
         let serialized = main.to_string();
@@ -718,7 +717,7 @@ mod tests {
             test,
             StakeAddress {
                 credential: Credential::Script(SCRIPT_HASH),
-                mainnet: false
+                network: Network::TEST
             }
         ));
         let serialized = test.to_string();

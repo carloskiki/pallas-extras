@@ -1,5 +1,9 @@
 # TODOs
 
+## Ledger
+
+- Fix types so that we can only construct valid ones (e.g., Set, non-empty set)
+
 ## VRF
 
 - Document the VRF crate (with references to the RFC).
