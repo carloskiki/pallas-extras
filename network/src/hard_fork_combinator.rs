@@ -1,3 +1,7 @@
+//! Hard Fork Combinator
+//!
+//! Encode and decode data that uses the hard fork combinator format.
+
 use minicbor::{decode as de, encode as en, CborLen, Decoder, Encoder};
 
 pub fn encode<C, W: en::Write, T: en::Encode<C> + CborLen<C>>(

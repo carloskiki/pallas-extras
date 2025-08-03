@@ -2,11 +2,11 @@
 //!
 //! [net-spec]: https://ouroboros-network.cardano.intersectmbo.org/pdfs/network-spec/network-spec.pdf
 
+pub(crate) mod hard_fork_combinator;
 pub mod mux;
 pub mod protocol;
-pub mod traits;
-pub mod typefu;
-pub mod hard_fork_combinator;
+pub(crate) mod traits;
+pub(crate) mod typefu;
 
 use std::{convert::Infallible, ops::Deref};
 
@@ -27,10 +27,20 @@ pub enum NetworkMagic {
     Mainnet = 764824073,
 }
 
+/// A point on the block chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Point {
+    /// The genesis block.
     Genesis,
-    Block { slot: u64, hash: [u8; 32] },
+    /// A specific block on the chain.
+    Block {
+        /// The slot number of the block.
+        slot: u64,
+        /// The hash of the block header.
+        ///
+        /// This is used to distinguish blocks and epoch boundary blocks (EBBs) in the Byron era.
+        hash: [u8; 32],
+    },
 }
 
 impl<C> Encode<C> for Point {
@@ -83,12 +93,21 @@ impl From<Tip> for Point {
     }
 }
 
+/// The tip of the block chain.
+///
+/// Some mini-protocols require this information in responses, indicating the current state of the
+/// block chain as seen by the node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tip {
+    /// The genesis block.
     Genesis,
+    /// A specific block on the chain.
     Block {
+        /// The block's slot number.
         slot: u64,
+        /// The hash of the block header.
         hash: [u8; 32],
+        /// The block number.
         block_number: u64,
     },
 }
@@ -111,18 +130,22 @@ impl<C> Encode<C> for Tip {
 
 impl<C> Decode<'_, C> for Tip {
     fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        cbor_util::array_decode(2, |d| {
-            let point = Point::decode(d, &mut ())?;
-            let block_number = d.u64()?;
-            Ok(match point {
-                Point::Genesis => Tip::Genesis,
-                Point::Block { slot, hash } => Tip::Block {
-                    slot,
-                    hash,
-                    block_number,
-                },
-            })
-        }, d)
+        cbor_util::array_decode(
+            2,
+            |d| {
+                let point = Point::decode(d, &mut ())?;
+                let block_number = d.u64()?;
+                Ok(match point {
+                    Point::Genesis => Tip::Genesis,
+                    Point::Block { slot, hash } => Tip::Block {
+                        slot,
+                        hash,
+                        block_number,
+                    },
+                })
+            },
+            d,
+        )
     }
 }
 

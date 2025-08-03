@@ -1,5 +1,15 @@
 [workspace]
-members = ["bip32", "bip39", "cbor-util", "database", "kes", "ledger", "network", "vrf"]
+members = [
+    "sparse-struct",
+    "bip32",
+    "bip39",
+    "cbor-util",
+    "database",
+    "kes",
+    "ledger",
+    "network",
+    "vrf",
+]
 
 [workspace.dependencies]
 # TODO: we don't need the half feature in prod

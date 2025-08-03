@@ -26,7 +26,6 @@ impl<C> Encode<C> for DelegateRepresentative {
         e: &mut minicbor::Encoder<W>,
         ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.u8(self.tag())?;
         match self {
             DelegateRepresentative::Credential(
                 Credential::VerificationKey(h) | Credential::Script(h),
@@ -68,9 +67,10 @@ impl<C> CborLen<C> for DelegateRepresentative {
         tag.cbor_len(ctx)
             + match self {
                 DelegateRepresentative::Credential(credential) => {
+                    2.cbor_len(ctx) +
                     minicbor::bytes::cbor_len(credential.as_ref(), ctx)
                 }
-                _ => 0,
+                _ => 1.cbor_len(ctx),
             }
     }
 }

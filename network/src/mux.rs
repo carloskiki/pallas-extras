@@ -47,6 +47,7 @@ mod header;
 pub mod server;
 mod task;
 
+/// Errors that can occur while using the multiplexer.
 #[derive(Debug)]
 pub enum MuxError {
     /// An IO error occurred.
@@ -116,7 +117,7 @@ impl Error for MuxError {}
 
 /// Create a multiplexer for the given protocol.
 ///
-/// __Don't pay attention to the type requirements!__ (unless you want to waste your time :)).
+/// __Don't pay attention to the type requirements!__ (unless you're interested :)).
 ///
 /// To use this function, one must provide a `bearer` (a connection to the peer), and a
 /// `spawner` (something that can spawn tasks). The function will return a [`Result`] containing
@@ -393,17 +394,12 @@ impl Future for &TaskHandle {
 
 #[cfg(test)]
 mod tests {
-    use futures::{executor::LocalPool, io::Cursor, task::Spawn};
-
     use crate::{
-        hlist_pat,
         mux::{FuncOnce, MiniProtocolSendBundle, ProtocolSendBundle, ToRef, task::BundleRef},
         protocol::NodeToNode,
-        traits::protocol::{self, Protocol},
+        traits::protocol,
         typefu::map::{CMap, HMap, Identity, Overwrite, TypeMap},
     };
-
-    use super::mux;
 
     #[test]
     fn create_mux() {

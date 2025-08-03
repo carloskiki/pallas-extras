@@ -1,8 +1,32 @@
 # TODOs
 
+## Data structures
+
+- Chain (Header only) & block DB on disk
+- Environment (UTXO + Certificates + blah) (Probably need to store on disk with LRU cache)
+
+## Components
+
+### Peer manager
+- Manages Peer sharing client & server
+- Sends new peer handles to the components that require peers.
+- Other components register to the peer manager
+
+### DB sync
+- Runs the Chain sync & block fetch protocols (clients & servers)
+- Manager 
+
+### Tx manager
+- Manages the Mempool
+- Shares tx with other nodes
+
+### Block producer
+- Produces blocks & manages certificates
+
 ## Ledger
 
 - Fix types so that we can only construct valid ones (e.g., Set, non-empty set)
+- Decoding with Era context
 
 ## VRF
 

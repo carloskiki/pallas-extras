@@ -1,13 +1,9 @@
 use digest::Digest;
-use minicbor::{
-    CborLen, Decode, Encode, Encoder,
-    bytes::ByteArray,
-};
+use minicbor::{CborLen, Decode, Encode, Encoder, bytes::ByteArray};
 use sha3::Sha3_256;
 
 use crate::crypto::{Blake2b224, Blake2b224Digest, VerifyingKey};
 use bip32::ExtendedVerifyingKey;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
@@ -117,11 +113,11 @@ enum SpendingData {
 pub struct Attributes {
     #[n(0)]
     distribution: Option<StakeDistribution>,
-    // Only to retain information when encoding, we do not use this.
-    #[n(1)]
-    _key_derivation_path: Option<ByteArray<30>>,
     #[cbor(n(2), with = "cbor_no_tag", has_nil)]
     network_magic: Option<u32>,
+    // Only to retain information when encoding, we do not use this.
+    #[cbor(n(1), decode_with = "fill_bytes")]
+    _key_derivation_path: Option<ByteArray<30>>,
 }
 
 mod cbor_no_tag {
@@ -132,7 +128,9 @@ mod cbor_no_tag {
         e: &mut Encoder<W>,
         ctx: &mut C,
     ) -> Result<(), en::Error<W::Error>> {
-        e.bytes_len(value.cbor_len(ctx) as u64)?.encode_with(value, ctx)?.ok()
+        e.bytes_len(value.cbor_len(ctx) as u64)?
+            .encode_with(value, ctx)?
+            .ok()
     }
 
     pub fn decode<C>(d: &mut Decoder<'_>, ctx: &mut C) -> Result<Option<u32>, de::Error> {
@@ -183,6 +181,23 @@ impl From<minicbor::decode::Error> for FromBase58Error {
     fn from(e: minicbor::decode::Error) -> Self {
         FromBase58Error::Decode(e)
     }
+}
+
+fn fill_bytes<C>(
+    d: &mut minicbor::Decoder<'_>,
+    _: &mut C,
+) -> Result<Option<ByteArray<30>>, minicbor::decode::Error> {
+    let bytes = match d.bytes() {
+        Ok(v) => v,
+        Err(e) if e.is_type_mismatch() => return Ok(None),
+        Err(x) => return Err(x),
+    };
+    if bytes.len() > 30 {
+        return Err(minicbor::decode::Error::message("bytes too long").at(d.position()));
+    } 
+    let mut array = [0; 30];
+    array[..bytes.len()].copy_from_slice(bytes);
+    Ok(Some(array.into()))
 }
 
 #[cfg(test)]

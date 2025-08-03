@@ -7,6 +7,11 @@ use crate::{protocol, slot};
 
 use super::Number;
 
+// Byron Header decisions:
+// - Ignore protocol magic.
+
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Header {
     #[n(0)]

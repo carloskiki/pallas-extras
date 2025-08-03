@@ -1,6 +1,5 @@
 use minicbor::{CborLen, Decode, Encode};
 use num_bigint::BigInt;
-use num_traits::ToPrimitive;
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, Decode, CborLen)]
 #[cbor(transparent)]
@@ -25,51 +24,35 @@ impl<C> Encode<C> for Data {
             Data::Map(items) => cbor_util::list_as_map::encode(items, e, ctx),
             Data::List(data) => e.encode(data)?.ok(),
             Data::Bytes(bytes) => cbor_util::bounded_bytes::encode(bytes, e, ctx),
-            Data::BigInt(big_int) => match big_int.sign() {
-                num_bigint::Sign::NoSign => e.u8(0)?.ok(),
-                num_bigint::Sign::Plus | num_bigint::Sign::Minus
-                    if big_int.iter_u64_digits().count() == 1 =>
-                {
-                    e.int(
-                        minicbor::data::Int::try_from(
-                            match big_int.sign() {
-                                num_bigint::Sign::Minus => 1,
-                                num_bigint::Sign::Plus => -1,
-                                _ => unreachable!(
-                                    "value should not be zero, as it is matched in the previous arm"
-                                ),
-                            } * (big_int
-                                .iter_u64_digits()
-                                .next()
-                                .expect("iterator should have one digit")
-                                as i128),
-                        )
-                        .expect("integer should fit the range"),
-                    )?
-                    .ok()
-                }
-                num_bigint::Sign::Plus | num_bigint::Sign::Minus => {
-                    e.tag(match big_int.sign() {
-                        num_bigint::Sign::Minus => minicbor::data::IanaTag::NegBignum,
-                        num_bigint::Sign::Plus => minicbor::data::IanaTag::PosBignum,
-                        _ => unreachable!(
-                            "value should not be zero, as it is matched in the previous arm"
-                        ),
-                    })?;
-                    cbor_util::bounded_bytes::encode(
-                        &(big_int
-                            + if big_int.sign() == num_bigint::Sign::Minus {
-                                1u8
-                            } else {
-                                0
-                            })
-                        .to_bytes_be()
-                        .1,
-                        e,
-                        ctx,
+            Data::BigInt(big_int) if big_int.iter_u64_digits().count() < 2 => e
+                .encode(
+                    minicbor::data::Int::try_from(
+                        i128::try_from(big_int).expect("should fit since only one u64 digit"),
                     )
-                }
-            },
+                    .expect("should fit since only one u64 digit"),
+                )?
+                .ok(),
+            Data::BigInt(big_int) => {
+                e.tag(match big_int.sign() {
+                    num_bigint::Sign::Minus => minicbor::data::IanaTag::NegBignum,
+                    num_bigint::Sign::Plus => minicbor::data::IanaTag::PosBignum,
+                    _ => {
+                        unreachable!("value should not be zero, it is matched in the previous arm")
+                    }
+                })?;
+                cbor_util::bounded_bytes::encode(
+                    &(big_int
+                        + if big_int.sign() == num_bigint::Sign::Minus {
+                            1u8
+                        } else {
+                            0
+                        })
+                    .to_bytes_be()
+                    .1,
+                    e,
+                    ctx,
+                )
+            }
             Data::Construct(construct) => e.encode(construct)?.ok(),
         }
     }
@@ -135,32 +118,32 @@ impl<C> CborLen<C> for Data {
             Data::Bytes(items) => cbor_util::bounded_bytes::cbor_len(items, ctx),
             Data::BigInt(big_int) if big_int.iter_u64_digits().count() < 2 => {
                 minicbor::data::Int::try_from(
-                    big_int
-                        .to_i128()
-                        .expect("should fit since only one u64 digit"),
+                    i128::try_from(big_int).expect("should fit since only one u64 digit"),
                 )
                 .expect("should fit since only one u64 digit")
                 .cbor_len(ctx)
             }
             Data::BigInt(big_int) => {
                 let len = match big_int.sign() {
-                    num_bigint::Sign::Minus => (big_int + 1u8).iter_u64_digits().count() * 8,
-                    num_bigint::Sign::Plus => big_int.iter_u64_digits().count() * 8,
+                    num_bigint::Sign::Minus => (big_int + 1u8).bits().div_ceil(8),
+                    num_bigint::Sign::Plus => big_int.bits().div_ceil(8),
                     num_bigint::Sign::NoSign => {
-                        dbg!(big_int, big_int.iter_u64_digits().count());
                         unreachable!(
                             "value should not be zero, as it is matched in the previous arm"
                         )
                     }
-                };
+                } as usize;
                 // Tag size + size of bounded bytes with this len.
                 1 + if len <= 64 {
                     len.cbor_len(ctx) + len
                 } else {
                     let last_chunk_len = len % 64;
                     2 + (len / 64) * (64.cbor_len(ctx) + 64)
-                        + last_chunk_len.cbor_len(ctx)
-                        + last_chunk_len
+                        + if last_chunk_len != 0 {
+                            last_chunk_len.cbor_len(ctx) + last_chunk_len
+                        } else {
+                            0
+                        }
                 }
             }
             Data::Construct(construct) => construct.cbor_len(ctx),
@@ -230,8 +213,7 @@ impl<C> CborLen<C> for Construct {
         if self.tag <= 6 {
             minicbor::data::Tag::new(self.tag + 121).cbor_len(ctx) + self.value.cbor_len(ctx)
         } else if self.tag <= 127 {
-            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx)
-                + self.value.cbor_len(ctx)
+            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx) + self.value.cbor_len(ctx)
         } else {
             // self.tag <= 127, because of constructor
             minicbor::data::Tag::new(102).cbor_len(ctx)

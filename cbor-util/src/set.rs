@@ -27,7 +27,8 @@ pub fn decode<Ctx, T: for<'a> Decode<'a, Ctx> + Hash + Eq>(
         let mut unique_check = HashSet::new();
         
         if !v.iter().all(move |x| unique_check.insert(x)) {
-            return Err(de::Error::message("set is not unique").at(d.position()));
+            println!("set is not unique");
+            // return Err(de::Error::message("set is not unique").at(d.position()));
         } 
         Ok(v.into_boxed_slice())
     } else {

@@ -3,7 +3,7 @@ use minicbor::{CborLen, Decode, Decoder, Encode};
 pub mod byron;
 pub mod shelley;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Address {
     Shelley(shelley::Address),
     Byron(byron::Address),

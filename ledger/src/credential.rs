@@ -65,6 +65,8 @@ impl IntoIterator for ChainPointer {
             slot: self.slot,
             tx_index: self.tx_index,
             cert_index: self.cert_index,
+            shift_value: None,
+            stage: Stage::Slot,
         }
     }
 }
@@ -73,33 +75,67 @@ pub struct ChainPointerIter {
     slot: u64,
     tx_index: u64,
     cert_index: u64,
+    shift_value: Option<u8>,
+    stage: Stage,
+}
+
+enum Stage {
+    Slot,
+    Transaction,
+    Certificate,
+    Done,
 }
 
 impl Iterator for ChainPointerIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let num = if self.slot != 0 {
-            &mut self.slot
-        } else if self.tx_index != 0 {
-            &mut self.tx_index
-        } else if self.cert_index != 0 {
-            &mut self.cert_index
-        } else {
-            return None;
+        let num = match self.stage {
+            Stage::Slot => &mut self.slot,
+            Stage::Transaction => &mut self.tx_index,
+            Stage::Certificate => &mut self.cert_index,
+            Stage::Done => return None,
         };
+        let shift_value = self.shift_value.get_or_insert_with(|| {
+            let bit_count = 64 - num.leading_zeros();
+            // Get the first 7 bits in the correct window.
+            // We do (- 1) because if there is a multiple of 7 bits, we don't want to shift by the
+            // bitcount.
+            ((bit_count.saturating_sub(1)) / 7 * 7) as u8
+        });
 
-        let bit_count = 64 - num.leading_zeros();
-        // Get the first 7 bits in the correct window.
-        // We do (- 1) because if there is a multiple of 7 bits, we don't want to shift by the
-        // bitcount.
-        let shift_value = (bit_count - 1) / 7 * 7;
-        let mut value = *num >> shift_value;
-        let mask = (1 << shift_value) - 1;
+        let mut value = *num >> *shift_value;
+        let mask = (1 << *shift_value) - 1;
         *num &= mask;
-        if *num != 0 {
+        if *shift_value != 0 {
             value |= 0x80;
+            *shift_value -= 7;
+        } else {
+            self.shift_value = None;
+            self.stage = match self.stage {
+                Stage::Slot => Stage::Transaction,
+                Stage::Transaction => Stage::Certificate,
+                Stage::Certificate => Stage::Done,
+                Stage::Done => Stage::Done,
+            }
         }
         Some(value as u8)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ChainPointer;
+
+    #[test]
+    fn roundtrip() {
+        let cp = ChainPointer {
+            slot: 5769364348142524036,
+            tx_index: 2738360720289502774,
+            cert_index: 16804527708160595773,
+        };
+
+        let output = ChainPointer::from_bytes(cp).unwrap();
+        assert_eq!(output, cp);
     }
 }

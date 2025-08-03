@@ -1,4 +1,4 @@
-use std::num::{NonZeroI64, NonZeroU64};
+use std::num::NonZeroU64;
 
 use cbor_util::{bytes_iter_collect, str_iter_collect};
 use minicbor::{CborLen, Decode, Encode};
@@ -69,6 +69,8 @@ pub struct Data {
     pub plutus_v1: Box<[plutus::Script]>,
     #[cbor(n(3), with = "cbor_util::boxed_slice", has_nil)]
     pub plutus_v2: Box<[plutus::Script]>,
+    #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
+    pub plutus_v3: Box<[plutus::Script]>,
 }
 
 impl<C> Decode<'_, C> for Data {
@@ -88,6 +90,8 @@ impl<C> Decode<'_, C> for Data {
                     plutus_v1: Box<[plutus::Script]>,
                     #[cbor(n(3), with = "cbor_util::boxed_slice", has_nil)]
                     plutus_v2: Box<[plutus::Script]>,
+                    #[cbor(n(4), with = "cbor_util::boxed_slice", has_nil)]
+                    plutus_v3: Box<[plutus::Script]>,
                 }
 
                 let DataAlonzo {
@@ -95,6 +99,7 @@ impl<C> Decode<'_, C> for Data {
                     auxiliary_scripts,
                     plutus_v1,
                     plutus_v2,
+                    plutus_v3,
                 } = d.decode()?;
 
                 Ok(Data {
@@ -102,6 +107,7 @@ impl<C> Decode<'_, C> for Data {
                     auxiliary_scripts,
                     plutus_v1,
                     plutus_v2,
+                    plutus_v3,
                 })
             }
             Type::Array | Type::ArrayIndef => {
@@ -135,9 +141,9 @@ impl<C> Decode<'_, C> for Data {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Metadatum {
-    Integer(i64),
-    Bytes(Box<[u8]>),
-    Text(Box<str>),
+    Integer(minicbor::data::Int),
+    Bytes(Box<[u8]>), // TODO: max len = 64
+    Text(Box<str>),   // TODO: max len = 64
     Array(Box<[Metadatum]>),
     Map(Box<[(Metadatum, Metadatum)]>),
 }
@@ -149,16 +155,10 @@ impl<C> Encode<C> for Metadatum {
         ctx: &mut C,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         match self {
-            Metadatum::Integer(i) => e.i64(*i)?.ok(),
+            Metadatum::Integer(i) => e.int(*i)?.ok(),
             Metadatum::Bytes(b) => e.bytes(b)?.ok(),
             Metadatum::Text(s) => e.str(s)?.ok(),
-            Metadatum::Array(a) => {
-                e.array(a.len() as u64)?;
-                for item in a {
-                    item.encode(e, ctx)?;
-                }
-                Ok(())
-            }
+            Metadatum::Array(a) => e.encode(a)?.ok(),
             Metadatum::Map(m) => cbor_util::list_as_map::encode(m, e, ctx),
         }
     }
@@ -168,8 +168,15 @@ impl<C> Decode<'_, C> for Metadatum {
     fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         use minicbor::data::Type;
         match d.datatype()? {
-            Type::U8 | Type::U16 | Type::U32 | Type::U64 => Ok(Metadatum::Integer(d.u64()? as i64)),
-            Type::I8 | Type::I16 | Type::I32 | Type::I64 => Ok(Metadatum::Integer(d.i64()?)),
+            Type::U8
+            | Type::U16
+            | Type::U32
+            | Type::U64
+            | Type::I8
+            | Type::I16
+            | Type::I32
+            | Type::I64
+            | Type::Int => Ok(Metadatum::Integer(d.int()?)),
             Type::Bytes | Type::BytesIndef => {
                 Ok(Metadatum::Bytes(bytes_iter_collect(d.bytes_iter()?)?))
             }
@@ -191,8 +198,8 @@ impl<C> CborLen<C> for Metadatum {
     fn cbor_len(&self, ctx: &mut C) -> usize {
         match self {
             Metadatum::Integer(i) => i.cbor_len(ctx),
-            Metadatum::Bytes(items) => items.cbor_len(ctx),
-            Metadatum::Text(str) => str.cbor_len(ctx),
+            Metadatum::Bytes(bytes) => minicbor::bytes::cbor_len(bytes, ctx),
+            Metadatum::Text(string) => string.cbor_len(ctx),
             Metadatum::Array(metadatums) => metadatums.cbor_len(ctx),
             Metadatum::Map(items) => cbor_util::list_as_map::cbor_len(items, ctx),
         }
@@ -271,7 +278,6 @@ pub struct Output {
 }
 
 impl<C> Decode<'_, C> for Output {
-    #[track_caller]
     fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         use minicbor::data::Type;
         match d.datatype()? {

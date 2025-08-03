@@ -1,0 +1,5 @@
+error: `SparseStruct` can only be derived for enums with up to 64 variants.
+ --> tests/ui/too-many.rs:4:6
+  |
+4 | enum Enum {
+  |      ^^^^
