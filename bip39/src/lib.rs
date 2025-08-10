@@ -155,8 +155,8 @@ impl Mnemonic {
     /// Basic usage:
     ///
     /// ```
-    /// use ponk::bip39::Mnemonic;
-    /// use ponk::entropy::Entropy;
+    /// use bip39::Mnemonic;
+    /// use bip39::entropy::Entropy;
     ///
     /// let mnemonic = Mnemonic::from_entropy(Entropy::from([0; 32]));
     /// for (i, word) in mnemonic.words().enumerate() {
@@ -175,8 +175,8 @@ impl Mnemonic {
     /// Basic usage:
     ///
     /// ```
-    /// use ponk::bip39::{Language, Mnemonic};
-    /// use ponk::entropy::Entropy;
+    /// use bip39::{Language, Mnemonic};
+    /// use bip39::entropy::Entropy;
     ///
     /// let list = Language::English.word_list();
     /// let mnemonic = Mnemonic::from_entropy(Entropy::from([0; 32]));

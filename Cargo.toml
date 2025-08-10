@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.dependencies]
-# TODO: we don't need the half feature in prod
+# TODO: we don't need the half feature, only for debugging
 minicbor = { version = "1.0", features = ["std", "half", "derive"] }
 cbor-util = { path = "cbor-util" }
 
@@ -34,7 +34,7 @@ ed25519-dalek = { path = "../curve25519-dalek/ed25519-dalek", features = [
 ] }
 
 [package]
-name = "ponk"
+name = "pallas-extras"
 version = "0.1.0"
 edition = "2024"
 
@@ -52,6 +52,3 @@ rand = "0.8"
 cbor-util = { path = "cbor-util" }
 indicatif = "0.17"
 
-[[bench]]
-name = "comparison"
-harness = false

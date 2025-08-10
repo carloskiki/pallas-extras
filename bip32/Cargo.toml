@@ -18,3 +18,7 @@ curve25519-dalek = { workspace = true }
 ed25519-bip32 = "0.4"
 criterion = "0.5"
 rand = "0.8"
+
+[[bench]]
+name = "comparison"
+harness = false
