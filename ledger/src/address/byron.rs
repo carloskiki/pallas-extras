@@ -5,6 +5,7 @@ use sha3::Sha3_256;
 use crate::crypto::{Blake2b224, Blake2b224Digest, VerifyingKey};
 use bip32::ExtendedVerifyingKey;
 
+/// Byron Era address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
     #[cbor(n(0), with = "cbor_util::cbor_encoded")]

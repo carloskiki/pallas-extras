@@ -15,6 +15,7 @@ use crate::{
 
 const HASH_SIZE: usize = 28;
 
+/// Shelley Era address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Address {
     pub payment: Credential,
