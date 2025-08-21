@@ -7,8 +7,8 @@ are developed and experimented with, and then merged into `pallas` once mature e
 
 ## Current modules
 
-- [`ledger`](/ledger): an alternative ledger implementation that focuses on minimizing the amount of structs.
-- `network`: an alternative network implementation that represents all protocol state machines at
+- [`ledger`](ledger): an alternative ledger implementation that focuses on minimizing the amount of structs.
+- [`network`](network): an alternative network implementation that represents all protocol state machines at
     the type level.
 - `kes`: A fully generic KES implementation based on the MMM paper.
 - `bip32`: A BIP32 implementation based on the Ed25519 BIP32 paper.
