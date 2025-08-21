@@ -1,0 +1,24 @@
+[package]
+name = "minicbor-derive"
+version = "0.18.0"
+authors = ["Charles Edward Gagnon"]
+edition = "2024"
+description = "Derive minicbor `Decode` and `Encode` traits."
+repository = "https://github.com/twittner/minicbor"
+keywords = ["cbor", "minicbor", "serialization", "encoding", "no_std"]
+categories = ["encoding"]
+
+[lib]
+proc-macro = true
+
+[features]
+alloc = []
+std = ["alloc"]
+
+[dependencies]
+proc-macro2 = "1.0.79"
+quote = "1.0.35"
+syn = { version = "2.0.58", features = ["derive", "extra-traits", "visit"] }
+
+[dev-dependencies]
+minicbor = { version = "2.1.0", features = ["std", "derive"] }

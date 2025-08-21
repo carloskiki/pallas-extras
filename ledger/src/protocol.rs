@@ -81,6 +81,8 @@ pub enum Era {
     Babbage,
     #[n(6)]
     Conway,
+    #[n(7)]
+    Dijkstra,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

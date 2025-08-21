@@ -1,5 +1,7 @@
 use minicbor::{CborLen, Decode, Decoder, Encode};
 
+use crate::protocol::Era;
+
 pub mod byron;
 pub mod shelley;
 
@@ -10,16 +12,22 @@ pub enum Address {
     Byron(byron::Address),
 }
 
-impl<C> Encode<C> for Address {
+impl Encode<Era> for Address {
     fn encode<W: minicbor::encode::Write>(
         &self,
         e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
+        era: &mut Era,
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        if matches!(era, Era::Byron) && !matches!(self, Address::Byron(_)) {
+            return Err(minicbor::encode::Error::message(
+                "cannot encode Shelley address in Byron era",
+            ));
+        }
+
         match self {
             Address::Shelley(address) => e.encode(address),
             Address::Byron(address) => {
-                e.bytes_len(address.cbor_len(ctx) as u64)?;
+                e.bytes_len(address.cbor_len(era) as u64)?;
                 e.encode(address)
             }
         }?
@@ -27,8 +35,11 @@ impl<C> Encode<C> for Address {
     }
 }
 
-impl<C> Decode<'_, C> for Address {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
+impl Decode<'_, Era> for Address {
+    fn decode(
+        d: &mut minicbor::Decoder<'_>,
+        era: &mut Era,
+    ) -> Result<Self, minicbor::decode::Error> {
         // This ignores decoding errors of the inner slices, but does not matter because if the
         // inner slice errors then the value wont parse correctly anyway.
         let mut data = d.bytes_iter()?.flatten().flatten().copied().peekable();
@@ -39,11 +50,16 @@ impl<C> Decode<'_, C> for Address {
                     let bytes: Box<[u8]> = data.collect();
                     let mut inner_d = Decoder::new(&bytes);
                     Ok(Address::Byron(inner_d.decode()?))
-                } else {
+                } else if !matches!(era, Era::Byron) {
                     Ok(Address::Shelley(
                         shelley::Address::from_bytes(data)
                             .map_err(minicbor::decode::Error::custom)?,
                     ))
+                } else {
+                    Err(minicbor::decode::Error::message(
+                        "cannot decode Shelley address in Byron era",
+                    )
+                    .at(d.position()))
                 }
             }
             None => Err(minicbor::decode::Error::message("empty byte slice").at(d.position())),

@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "sparse-struct",
     "bip32",
     "bip39",
     "cbor-util",
@@ -9,6 +8,8 @@ members = [
     "ledger",
     "network",
     "vrf",
+    "ledger/minicbor-derive",
+    "ledger/sparse-struct",
 ]
 
 [workspace.dependencies]
