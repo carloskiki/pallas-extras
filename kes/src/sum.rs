@@ -280,9 +280,9 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SignatureFromBytesError::Signature(e) => write!(f, "Signature error: {}", e),
-            SignatureFromBytesError::Left(e) => write!(f, "Left verifying key error: {}", e),
-            SignatureFromBytesError::Right(e) => write!(f, "Right verifying key error: {}", e),
+            SignatureFromBytesError::Signature(e) => write!(f, "Signature error: {e}"),
+            SignatureFromBytesError::Left(e) => write!(f, "Left verifying key error: {e}"),
+            SignatureFromBytesError::Right(e) => write!(f, "Right verifying key error: {e}"),
         }
     }
 }

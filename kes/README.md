@@ -1,3 +1,11 @@
+# MMM KES
+
+A partial implementation of the [MMM KES paper](MMM-paper.pdf), relevant for Cardano.
+
+Specifically, this implements the `Sum` construction from the paper with both the
+normal `Signatore` and the `CompactSignature` variants. This is implemented generically
+over any `Signer` and `Verifier`.
+
 ## TODOs
 
 - Implement `LowerHex` and `UpperHex` where it makes sense.
@@ -9,7 +17,6 @@
     This could be done at no cost using `union`s (unsafe code), but we would require that the period
     stored in the signature must be exact otherwise we would cause UB.
 
-## To report
+## To report to `RustCrypto`
 
-The `SignatureEncoding` trait is shit.
-The `SignerMut` trait is also shit.
+The `SignatureEncoding` trait bad.
