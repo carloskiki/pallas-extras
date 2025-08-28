@@ -1,7 +1,5 @@
-#![cfg(feature = "std")]
-
-use minicbor::{CborLen, Decode, Encode};
-use quickcheck::{quickcheck, Arbitrary, Gen};
+use arbitrary::Arbitrary;
+use minicbor::{to_vec, CborLen, Decode, Encode};
 
 #[derive(Encode, Decode, CborLen, Clone, Debug)]
 #[cbor(array)]
@@ -61,109 +59,124 @@ struct BytesMapEncoding {
 #[cbor(transparent)]
 struct TransparentEncoding(#[cbor(n(0))] u8);
 
-impl Arbitrary for SampleArrayEncoding<BytesArrayEncoding> {
-    fn arbitrary(g: &mut Gen) -> Self {
-        match g.choose(&[0, 1, 2, 3]).unwrap() {
+impl Arbitrary<'_> for SampleArrayEncoding<BytesArrayEncoding> {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(match u.choose(&[0, 1, 2, 3])? {
             0 => SampleArrayEncoding::Unit,
             1 => SampleArrayEncoding::Struct {
-                field1: Arbitrary::arbitrary(g),
-                field2: Arbitrary::arbitrary(g),
+                field1: Arbitrary::arbitrary(u)?,
+                field2: Arbitrary::arbitrary(u)?,
             },
-            2 => SampleArrayEncoding::TupleStruct(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)),
-            _ => SampleArrayEncoding::Generic(Arbitrary::arbitrary(g)),
-        }
+            2 => SampleArrayEncoding::TupleStruct(Arbitrary::arbitrary(u)?, Arbitrary::arbitrary(u)?),
+            _ => SampleArrayEncoding::Generic(Arbitrary::arbitrary(u)?),
+        })
     }
 }
 
-impl Arbitrary for SampleArrayEncoding<BytesMapEncoding> {
-    fn arbitrary(g: &mut Gen) -> Self {
-        match g.choose(&[0, 1, 2, 3]).unwrap() {
+impl Arbitrary<'_> for SampleArrayEncoding<BytesMapEncoding> {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(match u.choose(&[0, 1, 2, 3])? {
             0 => SampleArrayEncoding::Unit,
             1 => SampleArrayEncoding::Struct {
-                field1: Arbitrary::arbitrary(g),
-                field2: Arbitrary::arbitrary(g),
+                field1: Arbitrary::arbitrary(u)?,
+                field2: Arbitrary::arbitrary(u)?,
             },
-            2 => SampleArrayEncoding::TupleStruct(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)),
-            _ => SampleArrayEncoding::Generic(Arbitrary::arbitrary(g)),
-        }
+            2 => SampleArrayEncoding::TupleStruct(Arbitrary::arbitrary(u)?, Arbitrary::arbitrary(u)?),
+            _ => SampleArrayEncoding::Generic(Arbitrary::arbitrary(u)?),
+        })
     }
 }
 
-impl Arbitrary for SampleMapEncoding<BytesArrayEncoding> {
-    fn arbitrary(g: &mut Gen) -> Self {
-        match g.choose(&[0, 1, 2, 3]).unwrap() {
+impl Arbitrary<'_> for SampleMapEncoding<BytesArrayEncoding> {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(match u.choose(&[0, 1, 2, 3]).unwrap() {
             0 => SampleMapEncoding::Unit,
             1 => SampleMapEncoding::Struct {
-                field1: Arbitrary::arbitrary(g),
-                field2: Arbitrary::arbitrary(g),
+                field1: Arbitrary::arbitrary(u)?,
+                field2: Arbitrary::arbitrary(u)?,
             },
-            2 => SampleMapEncoding::TupleStruct(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)),
-            _ => SampleMapEncoding::Generic(Arbitrary::arbitrary(g)),
-        }
+            2 => SampleMapEncoding::TupleStruct(Arbitrary::arbitrary(u)?, Arbitrary::arbitrary(u)?),
+            _ => SampleMapEncoding::Generic(Arbitrary::arbitrary(u)?),
+        })
     }
 }
 
-impl Arbitrary for SampleMapEncoding<BytesMapEncoding> {
-    fn arbitrary(g: &mut Gen) -> Self {
-        match g.choose(&[0, 1, 2, 3]).unwrap() {
+impl Arbitrary<'_> for SampleMapEncoding<BytesMapEncoding> {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(match u.choose(&[0, 1, 2, 3]).unwrap() {
             0 => SampleMapEncoding::Unit,
             1 => SampleMapEncoding::Struct {
-                field1: Arbitrary::arbitrary(g),
-                field2: Arbitrary::arbitrary(g),
+                field1: Arbitrary::arbitrary(u)?,
+                field2: Arbitrary::arbitrary(u)?,
             },
-            2 => SampleMapEncoding::TupleStruct(Arbitrary::arbitrary(g), Arbitrary::arbitrary(g)),
-            _ => SampleMapEncoding::Generic(Arbitrary::arbitrary(g)),
-        }
+            2 => SampleMapEncoding::TupleStruct(Arbitrary::arbitrary(u)?, Arbitrary::arbitrary(u)?),
+            _ => SampleMapEncoding::Generic(Arbitrary::arbitrary(u)?),
+        })
     }
 }
 
-impl Arbitrary for BytesArrayEncoding {
-    fn arbitrary(g: &mut Gen) -> Self {
-        BytesArrayEncoding {
+impl Arbitrary<'_> for BytesArrayEncoding {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(BytesArrayEncoding {
             array: [1; 32],
-            vector: Arbitrary::arbitrary(g),
-        }
+            vector: Arbitrary::arbitrary(u)?,
+        })
     }
 }
 
-impl Arbitrary for BytesMapEncoding {
-    fn arbitrary(g: &mut Gen) -> Self {
-        BytesMapEncoding {
+impl Arbitrary<'_> for BytesMapEncoding {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(BytesMapEncoding {
             array: [1; 32],
-            vector: Arbitrary::arbitrary(g),
-        }
+            vector: Arbitrary::arbitrary(u)?,
+        })
     }
 }
 
-impl Arbitrary for TransparentEncoding {
-    fn arbitrary(g: &mut Gen) -> Self {
-        TransparentEncoding(Arbitrary::arbitrary(g))
+impl Arbitrary<'_> for TransparentEncoding {
+    fn arbitrary(u: &mut arbitrary::Unstructured) -> arbitrary::Result<Self> {
+        Ok(TransparentEncoding(Arbitrary::arbitrary(u)?))
     }
 }
 
-quickcheck! {
-    fn sample_array_array(val: SampleArrayEncoding<BytesArrayEncoding>) -> bool {
-        let bytes = minicbor::to_vec(&val).unwrap();
-        bytes.len() == minicbor::len(&val)
+#[test]
+fn fuzz() {
+    let mut data = [0u8; 1024];
+    rand::fill(&mut data);
+    let mut ctx = ();
+
+    for _ in 0..100 {
+        let mut u = arbitrary::Unstructured::new(&data);
+        let val: SampleArrayEncoding<BytesArrayEncoding> = Arbitrary::arbitrary(&mut u).unwrap();
+        assert_eq!(val.cbor_len(&mut ctx), to_vec(val).unwrap().len());
+        rand::fill(&mut data);
     }
 
-    fn sample_array_map(val: SampleArrayEncoding<BytesMapEncoding>) -> bool {
-        let bytes = minicbor::to_vec(&val).unwrap();
-        bytes.len() == minicbor::len(&val)
+    for _ in 0..100 {
+        let mut u = arbitrary::Unstructured::new(&data);
+        let val: SampleArrayEncoding<BytesMapEncoding> = Arbitrary::arbitrary(&mut u).unwrap();
+        assert_eq!(val.cbor_len(&mut ctx), to_vec(val).unwrap().len());
+        rand::fill(&mut data);
     }
 
-    fn sample_map_map(val: SampleMapEncoding<BytesMapEncoding>) -> bool {
-        let bytes = minicbor::to_vec(&val).unwrap();
-        bytes.len() == minicbor::len(&val)
+    for _ in 0..100 {
+        let mut u = arbitrary::Unstructured::new(&data);
+        let val: SampleMapEncoding<BytesMapEncoding> = Arbitrary::arbitrary(&mut u).unwrap();
+        assert_eq!(val.cbor_len(&mut ctx), to_vec(val).unwrap().len());
+        rand::fill(&mut data);
     }
 
-    fn sample_map_array(val: SampleMapEncoding<BytesArrayEncoding>) -> bool {
-        let bytes = minicbor::to_vec(&val).unwrap();
-        bytes.len() == minicbor::len(&val)
+    for _ in 0..100 {
+        let mut u = arbitrary::Unstructured::new(&data);
+        let val: SampleMapEncoding<BytesArrayEncoding> = Arbitrary::arbitrary(&mut u).unwrap();
+        assert_eq!(val.cbor_len(&mut ctx), to_vec(val).unwrap().len());
+        rand::fill(&mut data);
     }
 
-    fn sample_transparent(val: TransparentEncoding) -> bool {
-        let bytes = minicbor::to_vec(&val).unwrap();
-        bytes.len() == minicbor::len(&val)
+    for _ in 0..100 {
+        let mut u = arbitrary::Unstructured::new(&data);
+        let val: TransparentEncoding = Arbitrary::arbitrary(&mut u).unwrap();
+        assert_eq!(val.cbor_len(&mut ctx), to_vec(val).unwrap().len());
+        rand::fill(&mut data);
     }
 }

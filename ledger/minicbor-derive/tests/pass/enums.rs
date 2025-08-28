@@ -1,9 +1,6 @@
-#![cfg(feature = "derive")]
-
 use minicbor::{
-    decode,
+    CborLen, Decode, Decoder, Encode, Encoder, decode,
     encode::{self, Write},
-    CborLen, Decode, Decoder, Encode, Encoder,
 };
 
 mod unit {
@@ -360,3 +357,5 @@ enum BE3<'a, T, U> {
         field: U,
     },
 }
+
+fn main() {}

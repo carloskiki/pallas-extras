@@ -220,7 +220,7 @@ fn on_enum(inp: &mut syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
     }
 
     {
-        let bound = gen_encode_bound()?;
+        let bound = gen_encode_bound(false)?;
         let params = inp.generics.type_params_mut();
         add_bound_to_type_params(bound, params, &blacklist, &field_attrs, Mode::Encode);
     }

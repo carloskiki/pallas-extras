@@ -1,10 +1,6 @@
 // Some compile-time tests mostly testing derive functionality.
 
-#![cfg(feature = "std")]
-#![allow(unused)]
-
-use minicbor::decode;
-use minicbor::{bytes::ByteSlice, Decode, Decoder, Encode, Encoder};
+use minicbor::{Decode, Decoder, Encode, bytes::ByteSlice};
 use std::borrow::Cow;
 
 #[derive(Encode, Decode)]
@@ -242,3 +238,5 @@ impl AsMut<BC> for CC {
         &mut self.1
     }
 }
+
+fn main() {}

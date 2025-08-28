@@ -1,5 +1,3 @@
-#![cfg(feature = "std")]
-
 use minicbor::bytes::{ByteArray, ByteSlice, ByteVec};
 use minicbor::{Decode, Encode};
 use std::borrow::Cow;
@@ -70,3 +68,5 @@ struct GenericCowArray<'a, const N: usize> {
     #[n(0)]
     field: Cow<'a, ByteArray<N>>,
 }
+
+fn main() {}

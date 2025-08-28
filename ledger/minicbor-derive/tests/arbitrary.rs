@@ -1,9 +1,8 @@
-#![cfg(all(feature = "derive", feature = "alloc"))]
+mod deriving;
 
 use arbitrary::{Arbitrary, Unstructured};
 use core::fmt::Debug;
 use minicbor::{Encode, Decode, CborLen, Decoder};
-use minicbor_tests::deriving;
 
 const RUNS: usize = 100;
 

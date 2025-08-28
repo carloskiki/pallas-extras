@@ -1,9 +1,6 @@
-#![cfg(feature = "std")]
-
 use minicbor::{
-    decode,
+    CborLen, Decode, Decoder, Encode, Encoder, decode,
     encode::{self, Write},
-    CborLen, Decode, Decoder, Encode, Encoder,
 };
 
 mod unit {
@@ -248,3 +245,5 @@ struct W5<'a, T> {
     #[b(0)]
     inner: BS2<'a, T>,
 }
+
+fn main() {}

@@ -1,5 +1,3 @@
-#![cfg(feature = "std")]
-
 use minicbor::{CborLen, Decode, Encode};
 
 const NULL: u8 = 0xf6;

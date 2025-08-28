@@ -1,8 +1,3 @@
-#![cfg(feature = "derive")]
-
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 use arbitrary::Arbitrary;
 use minicbor::{CborLen, Decode, Encode};
 
