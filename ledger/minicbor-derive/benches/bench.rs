@@ -76,7 +76,6 @@ fn bench(label: &str, mut f: impl FnMut() -> bool) {
     for _ in 0..ITERATIONS {
         assert!(f())
     }
-    eprintln!("{label:24} {:0.2?}", start.elapsed() / ITERATIONS)
 }
 
 #[test]
