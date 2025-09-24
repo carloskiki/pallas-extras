@@ -1,5 +1,6 @@
 use arbitrary::Arbitrary;
-use minicbor::{to_vec, CborLen, Decode, Encode};
+use minicbor::to_vec;
+use minicbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Encode, Decode, CborLen, Clone, Debug)]
 #[cbor(array)]
