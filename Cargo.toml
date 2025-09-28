@@ -9,7 +9,7 @@ members = [
     "network",
     "vrf",
     "ledger/minicbor-derive",
-    "ledger/sparse-struct",
+    "ledger/sparse-struct", "plutus",
 ]
 
 [workspace.dependencies]
