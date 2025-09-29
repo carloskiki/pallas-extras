@@ -1,6 +1,7 @@
 use enumeration::Enum;
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use structure::Struct;
+use syn::Ident;
 
 mod enumeration;
 mod structure;
@@ -14,6 +15,56 @@ pub struct Container {
 }
 
 impl Container {
+    pub fn decode(self) -> proc_macro2::TokenStream {
+        let Container {
+            tag,
+            bounds:
+                Bounds {
+                    bound,
+                    decode_bound,
+                    context_bound,
+                    ..
+                },
+            data,
+            original:
+                syn::DeriveInput {
+                    ident,
+                    mut generics,
+                    ..
+                },
+        } = self;
+        let (impl_generics, ty_generics, where_clause) = context_generics(&mut generics);
+
+        let tag = tag
+            .map_or(quote! { true }, |t| {
+                let t = t as u64;
+                quote! { tag.as_u64() == #t }
+            });
+
+        let procedure = data.decode();
+
+        quote! {
+            impl #impl_generics ::minicbor::Decode<'_, __C> for #ident #ty_generics
+                #where_clause
+                #(#bound,)*
+                #(#decode_bound,)*
+                #(__C: #context_bound,)*
+            {
+                fn decode(
+                    d: &mut ::minicbor::decode::Decoder<'_>,
+                    ctx: &mut __C
+                ) -> Result<Self, ::minicbor::decode::Error> {
+                    let tag = d.tag()?;
+                    if #tag {
+                        #procedure
+                    } else {
+                        Err(::minicbor::decode::Error::tag_mismatch(tag).at(d.position()))
+                    }
+                }
+            }
+        }
+    }
+
     pub fn encode(self) -> proc_macro2::TokenStream {
         let Container {
             tag,
@@ -32,27 +83,23 @@ impl Container {
                     ..
                 },
         } = self;
-        let (_, ty_generics, _) = generics.split_for_impl();
-        let ty_generics = quote! { #ty_generics };
-        
-        generics.params.push(syn::parse_quote! { C });
-        let (impl_generics, _, where_clause) = generics.split_for_impl();
-        
+        let (impl_generics, ty_generics, where_clause) = context_generics(&mut generics);
+
         let tag = tag.map(|t| quote! { e.tag(#t)?; });
 
         let procedure = data.encode();
 
         quote! {
-            impl #impl_generics ::minicbor::Encode<C> for #ident #ty_generics
+            impl #impl_generics ::minicbor::Encode<__C> for #ident #ty_generics
                 #where_clause
                 #(#bound,)*
                 #(#encode_bound,)*
-                #(#context_bound,)*
+                #(__C: #context_bound,)*
             {
                 fn encode<W: ::minicbor::encode::Write>(
                     &self,
                     e: &mut ::minicbor::encode::Encoder<W>,
-                    ctx: &mut C
+                    ctx: &mut __C
                 ) -> Result<(), ::minicbor::encode::Error<W::Error>> {
                     #tag
                     #procedure
@@ -62,13 +109,60 @@ impl Container {
         }
     }
 
-    pub fn decode(self) -> proc_macro2::TokenStream {
-        todo!()
-    }
-
     pub fn len(self) -> proc_macro2::TokenStream {
-        todo!()
+        let Container {
+            tag,
+            bounds:
+                Bounds {
+                    bound,
+                    len_bound,
+                    context_bound,
+                    ..
+                },
+            data,
+            original:
+                syn::DeriveInput {
+                    ident,
+                    mut generics,
+                    ..
+                },
+        } = self;
+        let (impl_generics, ty_generics, where_clause) = context_generics(&mut generics);
+
+        let tag = tag.map(|t| quote! { #t.cbor_len(ctx) + });
+
+        let procedure = data.len();
+
+        quote! {
+            impl #impl_generics ::minicbor::CborLen<__C> for #ident #ty_generics
+                #where_clause
+                #(#bound,)*
+                #(#len_bound,)*
+                #(__C: #context_bound,)*
+            {
+                fn cbor_len(
+                    &self,
+                    ctx: &mut __C
+                ) -> usize {
+                    #tag #procedure
+                }
+            }
+        }
     }
+}
+
+fn context_generics(
+    generics: &mut syn::Generics,
+) -> (
+    syn::ImplGenerics<'_>,
+    proc_macro2::TokenStream,
+    Option<&syn::WhereClause>,
+) {
+    let (_, ty_generics, _) = generics.split_for_impl();
+    let ty_generics = quote! { #ty_generics };
+    generics.params.push(syn::parse_quote! { __C });
+    let (impl_generics, _, where_clause) = generics.split_for_impl();
+    (impl_generics, ty_generics, where_clause)
 }
 
 impl TryFrom<syn::DeriveInput> for Container {
@@ -97,7 +191,7 @@ impl TryFrom<syn::DeriveInput> for Container {
                 Ok(())
             })?;
         }
-        
+
         let data = match input.data {
             syn::Data::Struct(ref data) => Data::Struct(Struct::parse(data, encoding)?),
             syn::Data::Enum(ref data) => Data::Enum(input.attrs.iter().try_fold(
@@ -165,10 +259,24 @@ pub enum Data {
 }
 
 impl Data {
+    pub fn decode(self) -> proc_macro2::TokenStream {
+        match self {
+            Data::Struct(s) => s.decode(None),
+            Data::Enum(e) => e.decode(),
+        }
+    }
+
     pub fn encode(self) -> proc_macro2::TokenStream {
         match self {
             Data::Struct(s) => s.encode(true),
             Data::Enum(e) => e.encode(),
+        }
+    }
+
+    pub fn len(self) -> proc_macro2::TokenStream {
+        match self {
+            Data::Struct(s) => s.len(true),
+            Data::Enum(e) => e.len(),
         }
     }
 }
@@ -176,8 +284,7 @@ impl Data {
 #[derive(Debug, Clone)]
 pub struct Field {
     pub index: isize,
-    pub skip: bool,
-    pub default: bool,
+    pub optional: bool,
     pub tag: Option<usize>,
     pub decode_with: Option<syn::Path>,
     pub encode_with: Option<syn::Path>,
@@ -189,9 +296,8 @@ pub struct Field {
 impl Field {
     fn parse(value: &syn::Field, member: syn::Member, flat: bool) -> syn::Result<Self> {
         let syn::Field { attrs, .. } = value;
+        let mut optional = false;
         let mut index = None;
-        let mut skip = false;
-        let mut default = false;
         let mut tag = None;
         let mut decode_with = None;
         let mut encode_with = None;
@@ -208,16 +314,11 @@ impl Field {
             attr.parse_nested_meta(|meta| {
                 if meta_index(&mut index, &meta, flat)? {
                     return Ok(());
-                } else if meta.path.is_ident("skip") {
-                    if skip {
-                        return Err(meta.error("duplicate skip attribute"));
+                } else if meta.path.is_ident("optional") {
+                    if optional {
+                        return Err(meta.error("duplicate optional attribute"));
                     }
-                    skip = true;
-                } else if meta.path.is_ident("default") {
-                    if default {
-                        return Err(meta.error("duplicate default attribute"));
-                    }
-                    default = true;
+                    optional = true;
                 } else if meta.path.is_ident("tag") {
                     if tag.is_some() {
                         return Err(meta.error("duplicate tag attribute"));
@@ -254,7 +355,7 @@ impl Field {
                 Ok(())
             })?;
         }
-        
+
         let Some(index) = index else {
             return Err(syn::Error::new_spanned(
                 value,
@@ -263,8 +364,7 @@ impl Field {
         };
         Ok(Field {
             index,
-            skip,
-            default,
+            optional,
             tag,
             decode_with,
             encode_with,
@@ -274,18 +374,45 @@ impl Field {
         })
     }
 
+    fn decode(self) -> proc_macro2::TokenStream {
+        let Field {
+            tag,
+            decode_with,
+            with,
+            ..
+        } = self;
+        let tag = tag.map_or(quote! {}, |t| {
+            let t = t as u64;
+            quote! { 
+                let tag = d.tag()?;
+                if !(tag.as_u64() == #t) {
+                    return Err(::minicbor::decode::Error::tag_mismatch(tag).at(d.position()));
+                }
+            }
+        });
+
+        let decode_procedure = if let Some(decode_with) = decode_with {
+            quote! { #decode_with(d, ctx)? }
+        } else if let Some(with) = with {
+            quote! { #with::decode(d, ctx)? }
+        } else {
+            quote! { ::minicbor::Decode::decode(d, ctx)? }
+        };
+
+        quote! {
+            #tag
+            #decode_procedure
+        }
+    }
+
     fn encode(self, use_self: bool) -> proc_macro2::TokenStream {
         let Field {
-            skip,
             tag,
             encode_with,
             with,
             member,
             ..
         } = self;
-        if skip {
-            return proc_macro2::TokenStream::new();
-        }
         let tag = tag.map(|t| quote! { e.tag(#t)?; });
         let member = if use_self {
             quote! { self.#member }
@@ -304,6 +431,37 @@ impl Field {
             #encode_procedure
         }
     }
+
+    fn len(self, use_self: bool) -> proc_macro2::TokenStream {
+        let Field {
+            tag,
+            len_with,
+            with,
+            member,
+            ..
+        } = self;
+        let tag = tag.map(|t| quote! { #t.cbor_len(ctx) + });
+        let member = if use_self {
+            quote! { self.#member }
+        } else {
+            format_ident!("_{}", member).to_token_stream()
+        };
+        let len_procedure = if let Some(len_with) = len_with {
+            quote! { #len_with(&#member, ctx) }
+        } else if let Some(with) = with {
+            quote! { #with::cbor_len(&#member, ctx) }
+        } else {
+            quote! { ::minicbor::CborLen::cbor_len(&#member, ctx) }
+        };
+        quote! {
+            #tag #len_procedure
+        }
+    }
+
+    fn variable(&self) -> Ident {
+        let member = &self.member;
+        format_ident!("_{}", member)
+    }
 }
 
 pub fn parse_fields(fields: &syn::Fields, flat: bool) -> syn::Result<Vec<Field>> {
@@ -312,6 +470,18 @@ pub fn parse_fields(fields: &syn::Fields, flat: bool) -> syn::Result<Vec<Field>>
         .zip(fields.members())
         .map(|(field, member)| Field::parse(field, member, flat))
         .collect()
+}
+
+pub fn struct_pattern(name: Ident, fields: &[Field]) -> proc_macro2::TokenStream {
+    let members = fields
+        .iter()
+        .map(|f| {
+            let variable = f.variable();
+            let member = &f.member;
+            quote! { #member: #variable }
+        })
+        .collect::<Vec<_>>();
+    quote! { Self::#name { #(#members),* } }
 }
 
 #[derive(Debug, Clone, Default)]

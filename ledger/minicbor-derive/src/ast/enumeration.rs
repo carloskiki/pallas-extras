@@ -1,7 +1,7 @@
-use crate::ast::structure::Struct;
+use crate::ast::{struct_pattern, structure::Struct};
 
 use super::{Encoding, Field, attr_index, encoding_update, meta_index, parse_fields};
-use quote::{format_ident, quote};
+use quote::quote;
 
 #[derive(Debug, Clone)]
 pub enum Enum {
@@ -49,13 +49,106 @@ impl Enum {
         })
     }
 
+    pub fn decode(self) -> proc_macro2::TokenStream {
+        match self {
+            Enum::Normal { encoding, variants } => {
+                let match_arms = variants.into_iter().map(|v| {
+                    let index = v.index as i64;
+                    let encoding = v.encoding.unwrap_or(encoding);
+                    let _struct = Struct {
+                        encoding,
+                        fields: v.fields,
+                    };
+                    
+                    let struct_proc = _struct.decode(Some(v.ident));
+                    
+                    quote! {
+                        #index => {
+                            #struct_proc
+                        }
+                    }
+                });
+                quote! {
+                    {
+                        let array_len = d.array()?;
+                        if array_len != 2 {
+                            return Err(::minicbor::decode::Error::message(format!("expected array of length 2, found {}", array_len)));
+                        }
+                        let index = d.i64()?;
+                        match index {
+                            #(#match_arms)*
+                            _ => return Err(::minicbor::decode::Error::message(format!("unknown enum index {}", index))),
+                        }
+                    }
+                }
+            },
+            Enum::Index { variants } => {
+                let match_arms = variants.iter().map(|v| {
+                    let name = &v.ident;
+                    let index = v.index;
+                    quote! {
+                        #index => Self::#name {},
+                    }
+                });
+                quote! {
+                    {
+                        let index = d.i64()?;
+                        match index {
+                            #(#match_arms)*
+                            _ => return Err(::minicbor::decode::Error::message(format!("unknown enum index {}", index))),
+                        }
+                    }
+                }
+            },
+            Enum::Flat { variants } => {
+                let match_arms = variants.into_iter().map(|v| {
+                    let index = v.index as i64;
+                    let array_len = v.fields.last().map_or(0, |f| f.index + 1) as u64 + 1;
+                    let match_pattern = struct_pattern(v.ident, &v.fields);
+                    let mut fields = v.fields.into_iter().peekable();
+                    let field_procedures = (0..(array_len - 1)).map(|i| {
+                        let field = fields.peek().expect("the last index matches the last field");
+                        if field.index as u64 == i {
+                            let field = fields.next().expect("peeked");
+                            field.decode()
+                        } else {
+                            quote ! {
+                                d.skip()?;
+                            }
+                        }
+                    });
+                    quote! {
+                        #index => {
+                            if array_len != #array_len {
+                                return Err(::minicbor::decode::Error::message(format!("expected array of length {}, found {}", #array_len, array_len)));
+                            }
+                            #(#field_procedures)*
+                            Self::#match_pattern
+                        }
+                    }
+                });
+                quote! {
+                    {
+                        
+                        let array_len = d.array()?;
+                        let index = d.i64()?;
+                        match index {
+                            #(#match_arms)*
+                            _ => return Err(cbor_event::Error::CustomError(format!("unknown enum index {}", index))),
+                        }
+                    }
+                }
+            },
+        }
+    }
+
     pub fn encode(self) -> proc_macro2::TokenStream {
         match self {
             Enum::Normal { encoding, variants } => {
                 let match_arms = variants.into_iter().map(|v| {
                     let index = v.index as i64;
                     let encoding = v.encoding.unwrap_or(encoding);
-                    let match_pattern = v.match_pattern();
+                    let match_pattern = struct_pattern(v.ident, &v.fields);
                     let _struct = Struct {
                         encoding,
                         fields: v.fields,
@@ -92,12 +185,10 @@ impl Enum {
                 }
             },
             Enum::Flat { variants } => {
-                let match_arms = variants.into_iter().map(|mut v| {
-                    v.fields.retain(|f| !f.skip);
-                    
+                let match_arms = variants.into_iter().map(|v| {
                     let index = v.index as i64;
                     let array_len = v.fields.last().map_or(0, |f| f.index + 1) as u64 + 1;
-                    let match_pattern = v.match_pattern();
+                    let match_pattern = struct_pattern(v.ident, &v.fields);
                     let mut fields = v.fields.into_iter().peekable();
                     let field_procedures = (0..array_len).map(|i| {
                         let field = fields.peek().expect("the last index matches the last field");
@@ -115,6 +206,78 @@ impl Enum {
                             e.array(#array_len)?;
                             e.i64(#index)?;
                             #(#field_procedures)*
+                        }
+                    }
+                });
+                quote! {
+                    match self {
+                        #(#match_arms)*
+                    }
+                }
+            },
+        }
+    }
+
+    pub fn len(self) -> proc_macro2::TokenStream {
+        match self {
+            Enum::Normal { encoding, variants } => {
+                let match_arms = variants.into_iter().map(|v| {
+                    let index = v.index as i64;
+                    let encoding = v.encoding.unwrap_or(encoding);
+                    let match_pattern = struct_pattern(v.ident, &v.fields);
+                    let _struct = Struct {
+                        encoding,
+                        fields: v.fields,
+                    };
+                    
+                    let struct_proc = _struct.len(false);
+                    
+                    quote! {
+                        #match_pattern => {
+                            #index.cbor_len(ctx) + #struct_proc
+                        }
+                    }
+                });
+                quote! {
+                    2.cbor_len(ctx) + match self {
+                        #(#match_arms)*
+                    }
+                }
+            },
+            Enum::Index { variants } => {
+                let match_arms = variants.iter().map(|v| {
+                    let name = &v.ident;
+                    let index = v.index;
+                    quote! {
+                        Self::#name { .. } => #index.cbor_len(ctx),
+                    }
+                });
+                quote! {
+                    match self {
+                        #(#match_arms)*
+                    }
+                }
+            },
+            Enum::Flat { variants } => {
+                let match_arms = variants.into_iter().map(|v| {
+                    let index = v.index as i64;
+                    let array_len = v.fields.last().map_or(0, |f| f.index + 1) as u64 + 1;
+                    let match_pattern = struct_pattern(v.ident, &v.fields);
+                    let mut fields = v.fields.into_iter().peekable();
+                    let field_lens = (0..array_len).map(|i| {
+                        let field = fields.peek().expect("the last index matches the last field");
+                        if field.index as u64 == i {
+                            let field = fields.next().expect("peeked");
+                            field.len(false)
+                        } else {
+                            quote! { 1 } // null
+                        }
+                    });
+                    quote! {
+                        #match_pattern => {
+                            #array_len.cbor_len(ctx) +
+                            #index.cbor_len(ctx) +
+                            #( #field_lens )+*
                         }
                     }
                 });
@@ -168,18 +331,6 @@ impl TryFrom<&syn::Variant> for Variant {
     }
 }
 
-impl Variant {
-    pub fn match_pattern(&self) -> proc_macro2::TokenStream {
-        let name = &self.ident;
-        let members = self.fields.iter().map(|f| {
-            let name = format_ident!("_{}", f.member);
-            let member = &f.member;
-            quote! { #member: #name }
-        }).collect::<Vec<_>>();
-        quote! { Self::#name { #(#members),* } }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct IndexVariant {
     index: isize,
@@ -220,18 +371,6 @@ pub struct FlatVariant {
     pub index: isize,
     pub fields: Vec<Field>,
     pub ident: syn::Ident,
-}
-
-impl FlatVariant {
-    pub fn match_pattern(&self) -> proc_macro2::TokenStream {
-        let name = &self.ident;
-        let members = self.fields.iter().map(|f| {
-            let member = &f.member;
-            quote! { #member }
-        }).collect::<Vec<_>>();
-            
-        quote! { Self::#name { #(#members),* } }
-    }
 }
 
 impl TryFrom<&syn::Variant> for FlatVariant {
