@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut buffer = Vec::new();
     let mut encoder = Encoder::new(Vec::new());
     
-    for file in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/db/immutable"))?.progress_count(55671) {
+    for file in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/snapshots/preview/immutable"))?.progress_count(55671) {
         let file_data = file?;
         let file_name_os_str = file_data.file_name();
         let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut decoder = Decoder::new(&buffer);
         loop {
             let start = decoder.position();
-            let block = match db_block_thing(&mut decoder) {
+            let encoded = match db_block_thing(&mut decoder) {
                 Err(e) if e.is_end_of_input() => break,
                 Err(e) => {
                     inspect_tokens(&decoder.input()[start..decoder.position()]);
@@ -34,21 +34,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(WithEncoded {
                     value: block,
                     encoded,
-                }) => block,
+                    ..
+                }) => encoded,
             };
-            encoder.encode(&block.transaction_bodies)?;
-            let bytes = encoder.writer();
-            let encoded = bytes.len();
-            let calculated = block.transaction_bodies.cbor_len(&mut ());
-            if  encoded != calculated {
-                inspect_tokens(bytes);
-                
-                println!("Actual len: {encoded}, calculated: {calculated}");
-                panic!();
-            }
-            encoder.writer_mut().clear()
         }
-        buffer.clear();
     }
     Ok(())
 }
