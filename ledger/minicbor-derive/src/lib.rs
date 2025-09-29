@@ -521,12 +521,11 @@ mod variant;
 /// See the [crate] documentation for details.
 #[proc_macro_derive(Decode, attributes(n, cbor))]
 pub fn derive_decode(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    // match Container::try_from(input) {
-    //     Ok(container) => container.decode(),
-    //     Err(e) => e.into_compile_error(),
-    // }.into()
-    proc_macro::TokenStream::new()
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    match Container::try_from(input) {
+        Ok(container) => container.decode(),
+        Err(e) => e.into_compile_error(),
+    }.into()
 }
 
 /// Derive the `minicbor::Encode` trait for a struct or enum.
@@ -546,10 +545,9 @@ pub fn derive_encode(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
 /// See the [crate] documentation for details.
 #[proc_macro_derive(CborLen, attributes(n, cbor))]
 pub fn derive_cbor_len(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    // match Container::try_from(input) {
-    //     Ok(container) => container.len(),
-    //     Err(e) => e.into_compile_error(),
-    // }.into()
-    proc_macro::TokenStream::new()
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    match Container::try_from(input) {
+        Ok(container) => container.len(),
+        Err(e) => e.into_compile_error(),
+    }.into()
 }
