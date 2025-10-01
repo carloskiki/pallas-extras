@@ -56,7 +56,8 @@ impl Address {
             if len != HASH_SIZE {
                 return Err(AddressFromBytesError::TooShort);
             } else if data.next().is_some() {
-                return Err(AddressFromBytesError::TooLong);
+                // TODO: Only enforced starting with Babbage ERA
+                // return Err(AddressFromBytesError::TooLong);
             }
 
             let (payment, stake) = match header {
@@ -87,7 +88,8 @@ impl Address {
             let pointer = credential::ChainPointer::from_bytes(data.by_ref())
                 .ok_or(AddressFromBytesError::ChainPointer)?;
             if data.next().is_some() {
-                return Err(AddressFromBytesError::TooLong);
+                // TODO: Only enforced starting with Babbage ERA
+                // return Err(AddressFromBytesError::TooLong);
             }
             
             let payment = match header {
@@ -103,7 +105,8 @@ impl Address {
             })
         } else if header < 0b1000 {
             if data.next().is_some() {
-                return Err(AddressFromBytesError::TooLong);
+                // TODO: Only enforced starting with Babbage ERA
+                // return Err(AddressFromBytesError::TooLong);
             }
 
             let payment = match header {
@@ -312,7 +315,7 @@ impl<'b, C> Decode<'b, C> for StakeAddress {
         // inner slice errors then the value wont parse correctly anyway.
         let data = d.bytes_iter()?.flatten().flatten().copied();
 
-        StakeAddress::from_bytes(data).map_err(decode::Error::custom)
+        StakeAddress::from_bytes(data).map_err(|e| decode::Error::custom(e).at(d.position()))
     }
 }
 

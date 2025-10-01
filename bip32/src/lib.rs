@@ -277,7 +277,6 @@ mod tests {
     fn derive() {
         let [scalar, hash_prefix, chain_code]: [[u8; 32]; 3] = transmute!(D1);
 
-        eprintln!("{:?}", scalar);
         let skey = ExtendedSecretKey {
             chain_code,
             key: scalar,

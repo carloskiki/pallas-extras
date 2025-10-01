@@ -231,12 +231,11 @@ use super::*;
 		}
 
 		let mut ok = true;
-		for (word, langs) in words.into_iter() {
+		for (_, langs) in words.into_iter() {
 			if langs.len() == 1 {
 				continue;
 			}
 			if langs.iter().any(|l| l.unique_words()) {
-				println!("Word {} is not unique: {:?}", word, langs);
 				ok = false;
 			}
 		}

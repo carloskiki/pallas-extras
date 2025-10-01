@@ -7,7 +7,7 @@ use crate::crypto::Blake2b224Digest;
 pub struct Asset<T>(
     #[cbor(
         with = "cbor_util::list_as_map::key_bytes",
-        bound = "T: Encode<Ctx> + for<'a> Decode<'a, Ctx>"
+        bound = "T: Encode<Ctx> + for<'a> Decode<'a, Ctx> + CborLen<Ctx>"
     )]
     pub Box<[(Blake2b224Digest, Bundle<T>)]>,
 );
@@ -17,7 +17,7 @@ pub struct Asset<T>(
 pub struct Bundle<T>(
     #[cbor(
         with = "cbor_util::list_as_map",
-        bound = "T: Encode<Ctx> + for<'a> Decode<'a, Ctx>"
+        bound = "T: Encode<Ctx> + for<'a> Decode<'a, Ctx> + CborLen<Ctx>"
     )]
     pub Box<[(Name, T)]>,
 );

@@ -2,6 +2,11 @@
 
 This crate contains the ledger data types and the logic for encoding and decoding them.
 
+## TODOs
+
+- [ ] Check what is never used in byron.
+- [ ] Check if only definite lists are good for structs and enums.
+
 ## Design Decisions
 
 - All types own their data, so lists are of type `Box<[T]>`, and maps are of type `Box<[(K, V)]>`.

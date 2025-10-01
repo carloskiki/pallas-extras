@@ -27,7 +27,8 @@ pub fn decode<Ctx, T: for<'a> Decode<'a, Ctx> + Hash + Eq>(
         let mut unique_check = HashSet::new();
         
         if !v.iter().all(move |x| unique_check.insert(x)) {
-            return Err(de::Error::message("set is not unique").at(d.position()));
+            // TODO: Figure out if this is also the case in mainnet, and 
+            // return Err(de::Error::message("set is not unique").at(d.position()));
         } 
         Ok(v.into_boxed_slice())
     } else {
@@ -81,7 +82,8 @@ pub mod bytes {
         while len.is_none_or(|l| l != 0) && d.datatype()? != minicbor::data::Type::Break {
             let value = bytes::decode(d, ctx)?;
             if !container.insert(value) && has_tag {
-                return Err(de::Error::message("set is not unique").at(d.position()));
+                // TODO: Figure out this stuff
+                // return Err(de::Error::message("set is not unique").at(d.position()));
             }
             len = len.and_then(|l| l.checked_sub(1));
         }

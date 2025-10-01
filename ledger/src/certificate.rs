@@ -3,7 +3,10 @@ use minicbor::{CborLen, Decode, Encode};
 pub mod kind;
 
 use crate::{
-    crypto::{Blake2b224Digest, Blake2b256Digest}, epoch, governance, transaction::Coin, Credential
+    Credential,
+    crypto::{Blake2b224Digest, Blake2b256Digest},
+    epoch, governance,
+    transaction::Coin,
 };
 
 use super::{address::shelley::StakeAddress, pool, protocol::RealNumber};
@@ -60,7 +63,7 @@ pub enum Certificate {
     },
 }
 
-const ARRAY_LENGTHS: [u64; 19] = [2, 2, 3, 10, 3, 4, 3, 3, 3, 3, 4, 4, 4, 5, 3, 3, 4, 3, 3];
+const ARRAY_LENGTHS: [u64; 19] = [2, 2, 3, 10, 3, 4, 2, 3, 3, 3, 4, 4, 4, 5, 3, 3, 4, 3, 3];
 
 impl Certificate {
     fn tag(&self) -> u8 {
@@ -180,6 +183,7 @@ impl<C> Encode<C> for Certificate {
                 Ok(())
             }
             Certificate::MoveRewards { from_treasury, to } => {
+                e.array(2)?;
                 cbor_util::bool_as_u8::encode(from_treasury, e, ctx)?;
                 e.encode(to)?;
                 Ok(())
@@ -252,10 +256,16 @@ impl<C> Decode<'_, C> for Certificate {
                 genesis_delegate_hash: minicbor::bytes::decode(d, ctx)?,
                 vrf_keyhash: minicbor::bytes::decode(d, ctx)?,
             },
-            6 => Certificate::MoveRewards {
-                from_treasury: cbor_util::bool_as_u8::decode(d, ctx)?,
-                to: d.decode()?,
-            },
+            6 => cbor_util::array_decode(
+                2,
+                |d| {
+                    Ok(Certificate::MoveRewards {
+                        from_treasury: cbor_util::bool_as_u8::decode(d, ctx)?,
+                        to: d.decode()?,
+                    })
+                },
+                d,
+            )?,
             7 => Certificate::Delegation {
                 credential: d.decode()?,
                 deposit: Some(d.u64()?),
@@ -428,7 +438,7 @@ impl<C> CborLen<C> for Certificate {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RewardTarget {
     OtherAccountingPot(u64),
-    StakeAddresses(Box<[(StakeAddress, u64)]>),
+    StakeAddresses(Box<[(Credential, u64)]>),
 }
 
 impl<C> Encode<C> for RewardTarget {
@@ -456,7 +466,7 @@ impl<C> Encode<C> for RewardTarget {
 impl<C> Decode<'_, C> for RewardTarget {
     fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
         if d.probe().u64().is_err_and(|e| e.is_type_mismatch()) {
-            let value: Box<[(StakeAddress, u64)]> = cbor_util::list_as_map::decode(d, ctx)?;
+            let value: Box<[(Credential, u64)]> = cbor_util::list_as_map::decode(d, ctx)?;
             Ok(RewardTarget::StakeAddresses(value))
         } else {
             let value = d.u64()?;

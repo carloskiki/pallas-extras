@@ -42,7 +42,7 @@ pub enum MajorVersion {
     Chang,
     #[n(10)]
     Plomin,
-    #[n(11)] 
+    #[n(11)]
     Next, // TODO: Quickfix, figure out how to handle this.
 }
 
@@ -184,7 +184,10 @@ impl<C> Encode<C> for Parameter {
             Parameter::ExpansionRate(v) => e.encode_with(v, ctx)?,
             Parameter::TreasuryGrowthRate(v) => e.encode_with(v, ctx)?,
             Parameter::DecentralizationConstant(v) => e.encode_with(v, ctx)?,
-            Parameter::ExtraEntropy(v) => e.encode_with(v, ctx)?,
+            Parameter::ExtraEntropy(v) => {
+                nonce_encode(e, v)?;
+                e
+            }
             Parameter::ProtocolVersion(v) => e.encode_with(v, ctx)?,
             Parameter::MinimumUtxoValue(v) => e.encode_with(v, ctx)?,
             Parameter::MinimumPoolCost(v) => e.encode_with(v, ctx)?,
@@ -227,7 +230,7 @@ impl<C> Decode<'_, C> for Parameter {
             10 => Ok(Parameter::ExpansionRate(d.decode()?)),
             11 => Ok(Parameter::TreasuryGrowthRate(d.decode()?)),
             12 => Ok(Parameter::DecentralizationConstant(d.decode()?)),
-            13 => Ok(Parameter::ExtraEntropy(d.decode()?)),
+            13 => Ok(Parameter::ExtraEntropy(nonce_decode(d)?)),
             14 => Ok(Parameter::ProtocolVersion(d.decode()?)),
             15 => Ok(Parameter::MinimumUtxoValue(d.decode()?)),
             16 => Ok(Parameter::MinimumPoolCost(d.decode()?)),
@@ -272,7 +275,7 @@ impl<C> CborLen<C> for Parameter {
                 Parameter::ExpansionRate(v) => v.cbor_len(ctx),
                 Parameter::TreasuryGrowthRate(v) => v.cbor_len(ctx),
                 Parameter::DecentralizationConstant(v) => v.cbor_len(ctx),
-                Parameter::ExtraEntropy(v) => v.cbor_len(ctx),
+                Parameter::ExtraEntropy(v) => nonce_len(v),
                 Parameter::ProtocolVersion(v) => v.cbor_len(ctx),
                 Parameter::MinimumUtxoValue(v) => v.cbor_len(ctx),
                 Parameter::MinimumPoolCost(v) => v.cbor_len(ctx),
@@ -294,6 +297,49 @@ impl<C> CborLen<C> for Parameter {
                 Parameter::DrepInactivityPeriod(v) => v.cbor_len(ctx),
                 Parameter::ScriptReferenceCost(v) => v.cbor_len(ctx),
             }
+    }
+}
+
+fn nonce_encode<W: minicbor::encode::Write>(
+    e: &mut minicbor::Encoder<W>,
+    n: &Option<[u8; 32]>,
+) -> Result<(), minicbor::encode::Error<W::Error>> {
+    match n {
+        Some(bytes) => e.array(2)?.u8(1)?.bytes(bytes)?.ok(),
+        None => e.array(1)?.u8(0)?.ok(),
+    }
+}
+
+fn nonce_decode(
+    d: &mut minicbor::Decoder<'_>,
+) -> Result<Option<[u8; 32]>, minicbor::decode::Error> {
+    let array_len = d.array()?;
+
+    let tag = d.u8()?;
+    let nonce = match tag {
+        0 if array_len.is_none_or(|l| l == 1) => None,
+        1 if array_len.is_none_or(|l| l == 2) => {
+            let bytes = d.bytes()?;
+            Some(bytes.try_into().map_err(minicbor::decode::Error::custom)?)
+        }
+        _ => {
+            return Err(minicbor::decode::Error::message(
+                "array len incorrect or tag incorrect",
+            ));
+        }
+    };
+
+    if array_len.is_none() && d.datatype()? != minicbor::data::Type::Break {
+        return Err(minicbor::decode::Error::message("invalid array len"));
+    }
+
+    Ok(nonce)
+}
+
+fn nonce_len(nonce: &Option<[u8; 32]>) -> usize {
+    match nonce {
+        Some(bytes) => 2.cbor_len(&mut ()) + 1.cbor_len(&mut ()) + bytes.cbor_len(&mut ()),
+        None => 1.cbor_len(&mut ()) + 0.cbor_len(&mut ()),
     }
 }
 

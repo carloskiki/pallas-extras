@@ -3,7 +3,7 @@ use minicbor::{CborLen, Decode, Decoder, Encode};
 pub mod byron;
 pub mod shelley;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Address {
     Shelley(shelley::Address),
     Byron(byron::Address),
@@ -41,7 +41,7 @@ impl<C> Decode<'_, C> for Address {
                 } else {
                     Ok(Address::Shelley(
                         shelley::Address::from_bytes(data)
-                            .map_err(minicbor::decode::Error::custom)?,
+                            .map_err(|e| minicbor::decode::Error::custom(e).at(d.position()))?,
                     ))
                 }
             }

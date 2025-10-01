@@ -9,7 +9,7 @@ use crate::crypto::{Blake2b224, Blake2b224Digest, VerifyingKey};
 use bip32::ExtendedVerifyingKey;
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
     #[cbor(n(0), with = "cbor_util::cbor_encoded")]
     payload: Payload,
@@ -29,7 +29,7 @@ impl Address {
             .unwrap()
             .encode(root.spending_data)
             .unwrap()
-            .encode(attributes)
+            .encode(&attributes)
             .unwrap();
 
         let root_bytes = root_encoder.into_writer();
@@ -41,7 +41,7 @@ impl Address {
             addr_type: root.addr_type,
         };
         // We know this cannot error because of Vec.
-        let cbor_payload = minicbor::to_vec(payload)
+        let cbor_payload = minicbor::to_vec(&payload)
             .expect("should not error because the writer is a vec (which has Infallibe error)");
         let crc = crc32fast::hash(&cbor_payload);
         Self { payload, crc }
@@ -60,7 +60,7 @@ impl Address {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 struct Payload {
     #[cbor(n(0), with = "minicbor::bytes")]
     root_digest: Blake2b224Digest,
@@ -112,14 +112,15 @@ enum SpendingData {
     Redeem(#[cbor(n(0), with = "minicbor::bytes")] VerifyingKey),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Attributes {
     #[n(0)]
     distribution: Option<StakeDistribution>,
     // Only to retain information when encoding, we do not use this.
     #[n(1)]
-    _key_derivation_path: Option<ByteArray<30>>,
+    #[cbor(with = "cbor_util::bytes")]
+    _key_derivation_path: Option<Box<[u8]>>,
     #[cbor(n(2), with = "cbor_no_tag", has_nil)]
     network_magic: Option<u32>,
 }

@@ -3,7 +3,7 @@ members = ["bip32", "bip39", "cbor-util", "database", "kes", "ledger", "network"
 
 [workspace.dependencies]
 # TODO: we don't need the half feature in prod
-minicbor = { version = "1.0", features = ["std", "half", "derive"] }
+minicbor = { version = "2.1", features = ["std", "half", "derive"] }
 cbor-util = { path = "cbor-util" }
 
 zerocopy = "0.8"
