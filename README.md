@@ -1,5 +1,10 @@
 # TODOs
 
+## Strictness Test Info
+
+- In Haskell, `decodeBytes` means _definite length_ bytestring!
+- We checked the full chain for stuff.
+
 ## Ledger
 
 - Fix types so that we can only construct valid ones (e.g., Set, non-empty set)
