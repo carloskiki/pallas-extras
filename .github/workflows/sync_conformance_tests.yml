@@ -14,10 +14,10 @@ env:
   REMOTE_REPO: 'IntersectMBO/plutus'
   
   # The specific directory within that repository you want to sync
-  REMOTE_DIR: 'plutus-conformance/test-cases/uplc'
+  REMOTE_DIR: 'plutus-conformance/test-cases'
 
   # The directory in THIS repository where you want to place the synced content
-  LOCAL_DIR: 'plutus/tests/conformance/uplc'
+  LOCAL_DIR: 'plutus/tests/conformance'
   
   # The branch of the remote repository to check
   REMOTE_BRANCH: 'master'
