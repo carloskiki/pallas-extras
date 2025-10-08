@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rug = { version = "1.28.0", default-features = false, features = ["integer", "std"] }
+bls12_381 = { version = "0.8.0", default-features = false, features = ["pairings"] }
+strum = { version = "0.27.2", features = ["derive"] }
+const-hex = "1.16.0"
+minicbor = { workspace = true }
+cbor-util = { path = "../cbor-util" }

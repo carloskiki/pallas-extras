@@ -428,7 +428,7 @@ pub enum Datum {
     #[n(0)]
     Hash(#[cbor(n(0), with = "minicbor::bytes")] Blake2b256Digest),
     #[n(1)]
-    Data(#[cbor(n(0), with = "cbor_util::cbor_encoded")] plutus::Data),
+    Data(#[cbor(n(0), with = "cbor_util::cbor_encoded")] plutus::data::Data),
 }
 
 mod network_id {

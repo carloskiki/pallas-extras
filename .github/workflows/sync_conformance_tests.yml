@@ -1,0 +1,117 @@
+name: Sync Conformance Tests
+
+on:
+  # Run the workflow every week
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at midnight UTC
+  
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Environment variables to make configuration easy
+env:
+  # The repository you want to sync FROM (e.g., 'owner/another-repo')
+  REMOTE_REPO: 'IntersectMBO/plutus'
+  
+  # The specific directory within that repository you want to sync
+  REMOTE_DIR: 'plutus-conformance/test-cases/uplc'
+
+  # The directory in THIS repository where you want to place the synced content
+  LOCAL_DIR: 'plutus/tests/conformance/uplc'
+  
+  # The branch of the remote repository to check
+  REMOTE_BRANCH: 'master'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    # Permissions needed to check out the repo and push changes
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: 2. Get latest commit hash from remote directory
+        id: get_remote_hash
+        run: |
+          # Use the GitHub CLI to query the API for the latest commit affecting the target directory
+          REMOTE_HASH=$(gh api repos/${{ env.REMOTE_REPO }}/commits --jq '.[0].sha' --method GET -f path=${{ env.REMOTE_DIR }} -f sha=${{ env.REMOTE_BRANCH }})
+          
+          if [ -z "$REMOTE_HASH" ]; then
+            echo "Could not fetch remote hash. The path or repository might be incorrect."
+            exit 1
+          fi
+
+          echo "Latest remote hash for '${{ env.REMOTE_DIR }}' is $REMOTE_HASH"
+          echo "remote_hash=$REMOTE_HASH" >> $GITHUB_OUTPUT
+        env:
+          # The GITHUB_TOKEN is automatically provided by GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 3. Get last synced commit hash
+        id: get_local_hash
+        run: |
+          # Check if the hash file exists. If not, set hash to an empty string to force an update.
+          if [ -f "${{ env.LOCAL_DIR }}/.last_synced_hash" ]; then
+            LOCAL_HASH=$(cat "${{ env.LOCAL_DIR }}/.last_synced_hash")
+            echo "Last synced hash is $LOCAL_HASH"
+          else
+            LOCAL_HASH=""
+            echo "No local hash file found. Will perform initial sync."
+          fi
+          echo "local_hash=$LOCAL_HASH" >> $GITHUB_OUTPUT
+
+      - name: 4. Compare hashes and decide to sync
+        id: check_hashes
+        if: steps.get_remote_hash.outputs.remote_hash != steps.get_local_hash.outputs.local_hash
+        run: |
+          echo "Hashes do not match. Proceeding with sync."
+          echo "needs_sync=true" >> $GITHUB_OUTPUT
+
+      - name: 5. Sync the directory if needed
+        if: steps.check_hashes.outputs.needs_sync == 'true'
+        run: |
+          echo "Starting sync from ${{ env.REMOTE_REPO }}/${{ env.REMOTE_DIR }}"
+          
+          # Create a temporary directory for the sparse checkout
+          TEMP_CLONE_DIR="temp_clone"
+          mkdir -p $TEMP_CLONE_DIR
+          
+          # Perform sparse checkout
+          cd $TEMP_CLONE_DIR
+          git init
+          git remote add origin https://github.com/${{ env.REMOTE_REPO }}.git
+          git config core.sparseCheckout true
+          
+          # Tell git which directory we want
+          echo "${{ env.REMOTE_DIR }}/*" > .git/info/sparse-checkout
+          
+          # Pull only the required files
+          git pull --depth=1 origin ${{ env.REMOTE_BRANCH }}
+          cd ..
+
+          # Create the local directory if it doesn't exist
+          mkdir -p "${{ env.LOCAL_DIR }}"
+          
+          # Use rsync to copy the contents, deleting files that no longer exist in the source
+          rsync -av --delete --exclude=".git" "$TEMP_CLONE_DIR/${{ env.REMOTE_DIR }}/" "${{ env.LOCAL_DIR }}/"
+          
+          # Store the new hash in the synced directory for the next check
+          echo "${{ steps.get_remote_hash.outputs.remote_hash }}" > "${{ env.LOCAL_DIR }}/.last_synced_hash"
+          
+          # Clean up the temporary clone
+          rm -rf $TEMP_CLONE_DIR
+          echo "Sync complete."
+
+      - name: 6. Commit and push changes
+        if: steps.check_hashes.outputs.needs_sync == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: Sync updates for ${{ env.LOCAL_DIR }} from ${{ env.REMOTE_REPO }}"
+          file_pattern: "${{ env.LOCAL_DIR }}/**" # Commit only changes within the target directory
+          commit_user_name: "GitHub Actions Bot"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_author: "GitHub Actions Bot <github-actions[bot]@users.noreply.github.com>"

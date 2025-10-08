@@ -15,10 +15,10 @@ sha3 = "0.10"
 bech32 = "0.11"
 crc32fast = "1.4"
 bs58 = "0.2"
-num-bigint = "0.4.6"
 
 kes = { path = "../kes" }
 bip32 = { path = "../bip32" }
+plutus = { path = "../plutus" }
 
 [dev-dependencies]
 anyhow = "1"
