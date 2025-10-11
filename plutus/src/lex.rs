@@ -27,6 +27,13 @@ pub fn word(s: &str) -> (&str, &str) {
         .unwrap_or((s, ""))
 }
 
+pub fn list(s: &str) -> Option<(&str, &str)> {
+    if !s.starts_with('[') {
+        return None;
+    }
+    s[1..].split_once(']').map(|(a, b)| (a.trim(), b.trim_start()))
+}
+
 pub fn group(s: &str) -> Option<(&str, &str)> {
     if !s.starts_with('(') {
         return None;

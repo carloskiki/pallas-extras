@@ -7,6 +7,7 @@ mod constant;
 mod data;
 mod lex;
 
+#[derive(Debug)]
 pub struct Version {
     major: u64,
     minor: u64,
@@ -32,6 +33,7 @@ impl FromStr for Version {
     }
 }
 
+#[derive(Debug)]
 pub struct Program {
     version: Version,
     constants: Vec<Constant>,
@@ -87,7 +89,7 @@ impl FromStr for Program {
                             stack.push((rest, false));
                         }
                         "lam" => {
-                            let (var, rest) = s
+                            let (var, rest) = rest
                                 .split_once(|c: char| c.is_whitespace() || c == '(')
                                 .ok_or(())?;
                             if var.contains(|c: char| !c.is_ascii_alphanumeric()) {
@@ -99,7 +101,7 @@ impl FromStr for Program {
                             variables.push(var);
                         }
                         "con" => {
-                            constants.push(Constant::from_str(s)?);
+                            constants.push(Constant::from_str(rest)?);
                             let index = (constants.len() - 1) as u16;
                             program.push(Instruction::Constant(index));
                         }
@@ -112,11 +114,11 @@ impl FromStr for Program {
                             stack.push((rest, false));
                         }
                         "builtin" => {
-                            let builtin = Builtin::from_str(s).map_err(|_| ())?;
+                            let builtin = Builtin::from_str(rest).map_err(|_| ())?;
                             program.push(Instruction::Builtin(builtin));
                         }
                         "constr" => {
-                            let (index_str, mut rest) = lex::word(s);
+                            let (index_str, mut rest) = lex::word(rest);
                             let determinant: u16 = index_str.parse().map_err(|_| ())?;
                             let mut count = 0u8;
                             while !rest.is_empty() {
@@ -132,7 +134,7 @@ impl FromStr for Program {
                         }
                         "case" => {
                             let mut count = 0u16;
-                            let mut rest = s;
+                            let mut rest = rest;
                             while !rest.is_empty() {
                                 let (prefix, arg) = lex::right_term(rest).ok_or(())?;
                                 rest = prefix;
@@ -165,6 +167,7 @@ impl FromStr for Program {
     }
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     // De Bruijn index
     Variable(u16),
