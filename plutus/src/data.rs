@@ -147,68 +147,84 @@ impl FromStr for Data {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (ty, data_str) = lex::word(s);
-        match ty {
-            "B" => {
-                let hex = data_str.strip_prefix("#").ok_or(())?;
-                let bytes = const_hex::decode(hex).map_err(|_| ())?;
-                Ok(Data::Bytes(bytes.into_boxed_slice()))
-            }
-            "I" => {
-                let int = rug::Integer::from_str_radix(data_str, 10).map_err(|_| ())?;
-                Ok(Data::Integer(int))
-            }
-            "List" => data_list(data_str).map(Data::List),
-            "Map" => {
-                let mut items_str = data_str
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .ok_or(())?
-                    .trim_start();
-                let mut items = Vec::new();
-                while !items_str.is_empty() {
-                    let (first, rest) = lex::group(items_str).ok_or(())?;
-                    let (key_str, rest) = lex::group(first).ok_or(())?;
-                    let (value_str, "") = rest
-                        .strip_prefix(',')
-                        .and_then(|s| lex::group(s))
-                        .ok_or(())? else {
-                        return Err(());
-                        };
-
-                    let key = Data::from_str(key_str)?;
-                    let value = Data::from_str(value_str)?;
-                    items.push((key, value));
-                    items_str = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+        parse_data(s)
+            .and_then(|(data, rest)| {
+                if rest.is_empty() {
+                    Some(data)
+                } else {
+                    None
                 }
-
-                Ok(Data::Map(items.into_boxed_slice()))
-            }
-            "Constr" => {
-                let (tag_str, rest) = data_str.split_once(char::is_whitespace).ok_or(())?;
-                let tag = u64::from_str(tag_str).map_err(|_| ())?;
-                let value = data_list(rest).map_err(|_| ())?;
-                Ok(Data::Construct(Construct { tag, value }))
-            }
-            _ => Err(()),
-        }
+            })
+            .ok_or(())
     }
 }
 
-fn data_list(s: &str) -> Result<Box<[Data]>, ()> {
-    let mut items_str = s
-        .strip_prefix('[')
-        .and_then(|s| s.strip_suffix(']'))
-        .ok_or(())?
-        .trim_start();
+fn parse_data(s: &str) -> Option<(Data, &str)> {
+    let (ty, data_str) = lex::word(s);
+    let (word_str, mut rest) = data_str
+        .find(',')
+        .map(|pos| (data_str[..pos].trim_end(), &data_str[pos..]))
+        .unwrap_or((data_str.trim_end(), ""));
+    let data = match ty {
+        "B" => {
+            let hex = word_str.strip_prefix("#")?;
+            let bytes = const_hex::decode(hex).ok()?;
+            Data::Bytes(bytes.into_boxed_slice())
+        }
+        "I" => {
+            let int = rug::Integer::from_str_radix(word_str, 10).ok()?;
+            Data::Integer(int)
+        }
+        "List" => {
+            let (data, list_rest) = data_list(data_str)?;
+            rest = list_rest;
+            Data::List(data)
+        }
+        "Map" => {
+            let (mut items_str, map_rest) = lex::group::<b'[', b']'>(data_str)?;
+            rest = map_rest.strip_prefix(',').unwrap_or(map_rest).trim_start();
+            let mut items = Vec::new();
+            while !items_str.is_empty() {
+                let (pair, rest) = lex::group::<b'(', b')'>(items_str)?;
+                items_str = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+                let (key, rest) = parse_data(pair)?;
+                let (value, "") = parse_data(rest.strip_prefix(',')?.trim_start())? else {
+                    return None;
+                };
+
+                items.push((key, value));
+            }
+
+            Data::Map(items.into_boxed_slice())
+        }
+        "Constr" => {
+            let (tag_str, tag_rest) = data_str.split_once(char::is_whitespace)?;
+            let tag = u64::from_str(tag_str).ok()?;
+            let (value, constr_rest) = data_list(tag_rest)?;
+            rest = constr_rest;
+            Data::Construct(Construct { tag, value })
+        }
+        _ => return None,
+    };
+
+    Some((data, rest))
+}
+
+fn data_list(s: &str) -> Option<(Box<[Data]>, &str)> {
+    let (mut items_str, rest) = lex::group::<b'[', b']'>(s)?;
     let mut items = Vec::new();
     while !items_str.is_empty() {
-        let (first, rest) = lex::group(items_str).ok_or(())?;
-        items.push(Data::from_str(first)?);
-        items_str = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+        let (item, mut list_rest) = parse_data(items_str)?;
+        items.push(item);
+        if let Some(rest) = list_rest.strip_prefix(',') {
+            list_rest = rest.trim_start();
+        } else if !list_rest.is_empty() {
+            return None;
+        }
+        items_str = list_rest;
     }
-
-    Ok(items.into_boxed_slice())
+    
+    Some((items.into_boxed_slice(), rest))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]

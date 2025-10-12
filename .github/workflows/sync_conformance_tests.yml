@@ -106,7 +106,24 @@ jobs:
           rm -rf $TEMP_CLONE_DIR
           echo "Sync complete."
 
-      - name: 6. Commit and push changes
+      - name: 6. Remove comments from .uplc files
+        if: steps.check_hashes.outputs.needs_sync == 'true'
+        run: |
+          echo "Searching for and removing comments from .uplc files in ${{ env.LOCAL_DIR }}..."
+          
+          # Find all files ending in .uplc and process them
+          # - The 'find' command locates the files.
+          # - '-print0' and 'xargs -0' handle filenames with spaces or special characters safely.
+          # - 'sed -i' edits the files in-place.
+          # - 's/--.*$//' is the substitution command:
+          #   - s/ indicates substitution.
+          #   - --.*$ is the pattern: '--' followed by any character (.*) until the end of the line ($).
+          #   - // is the replacement (empty, i.e., delete the pattern).
+          find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -print0 | xargs -0 sed -i 's/--.*$//'
+          
+          echo "Comment removal complete."
+          
+      - name: 7. Commit and push changes
         if: steps.check_hashes.outputs.needs_sync == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:

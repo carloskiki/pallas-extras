@@ -10,6 +10,7 @@ pub enum Constant {
     Uint,
     Boolean(bool),
     List(Box<[Constant]>),
+    Array(Box<[Constant]>),
     Pair(Box<(Constant, Constant)>),
     Data(Data),
     BLSG1Element(Box<bls12_381::G1Affine>),
@@ -21,7 +22,7 @@ impl FromStr for Constant {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (ty, constant) = lex::constant_type(s).ok_or(())?;
-        let (constant, "") = from_split(ty, constant, false)? else {
+        let (constant, "") = from_split(ty, constant)? else {
             return Err(());
         };
 
@@ -29,17 +30,13 @@ impl FromStr for Constant {
     }
 }
 
-fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Constant, &'a str), ()> {
+fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
     let (ty, ty_rest) = lex::word(ty);
 
-    let (konst_word, mut konst_rest) = if split_comma {
-        konst
-            .split_once(',')
-            .map(|(a, b)| (a.trim_end(), b.trim_start()))
-            .unwrap_or((konst, ""))
-    } else {
-        (konst, "")
-    };
+    let (konst_word, mut konst_rest) = konst
+        .find(',')
+        .map(|pos| (konst[..pos].trim_end(), &konst[pos..]))
+        .unwrap_or((konst, ""));
     let constant = match ty {
         "integer" => {
             let int = rug::Integer::from_str_radix(konst_word, 10).map_err(|_| ())?;
@@ -51,30 +48,10 @@ fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Consta
             Constant::Bytes(bytes.into_boxed_slice())
         }
         "string" => {
-            let konst_chars = konst.strip_prefix('"').ok_or(())?.chars();
-            let mut inner = String::new();
-            let mut escape = false;
-            for c in konst_chars {
-                if escape {
-                    match c {
-                        'n' => inner.push('\n'),
-                        'r' => inner.push('\r'),
-                        't' => inner.push('\t'),
-                        '\\' => inner.push('\\'),
-                        '"' => inner.push('"'),
-                        _ => return Err(()),
-                    }
-                    escape = false;
-                } else if c == '\\' {
-                    escape = true;
-                } else if c == '"' {
-                    break;
-                } else {
-                    inner.push(c);
-                }
-            }
+            let (string, rest) = lex::string(konst).ok_or(())?;
+            konst_rest = rest;
 
-            Constant::String(inner.into_boxed_str())
+            Constant::String(string.into_boxed_str())
         }
 
         "bool" => match konst_word {
@@ -89,7 +66,7 @@ fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Consta
             Constant::Uint
         }
         "data" => {
-            let (data_str, rest) = lex::group(konst).ok_or(())?;
+            let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
             konst_rest = rest;
             let data = Data::from_str(data_str)?;
             Constant::Data(data)
@@ -112,16 +89,25 @@ fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Consta
                     .ok_or(())?,
             ))
         }
-        "list" => {
+        "list" | "array" => {
             let mut items = Vec::new();
-            let (mut items_str, rest) = lex::list(konst).ok_or(())?;
+            let (mut items_str, rest) = lex::group::<b'[', b']'>(konst).ok_or(())?;
             while !items_str.is_empty() {
-                let (item, rest) = from_split(ty_rest, items_str, true)?;
-                items_str = rest;
+                let (item, mut list_rest) = from_split(ty_rest, items_str)?;
+                if let Some(rest) = list_rest.strip_prefix(',') {
+                    list_rest = rest.trim_start();
+                } else if !list_rest.is_empty() {
+                    return Err(());
+                }
+                items_str = list_rest;
                 items.push(item);
             }
             konst_rest = rest;
-            Constant::List(items.into_boxed_slice())
+            if ty == "array" {
+                Constant::Array(items.into_boxed_slice())
+            } else {
+                Constant::List(items.into_boxed_slice())
+            }
         }
         "pair" => {
             let (first_ty, rest) = lex::constant_type(ty_rest).ok_or(())?;
@@ -130,11 +116,11 @@ fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Consta
                 return Err(());
             }
 
-            let (konst_str, rest) = lex::group(konst).ok_or(())?;
+            let (konst_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
             konst_rest = rest;
-            let (first, rest) = from_split(first_ty, konst_str, true)?;
-            let rest = rest.strip_prefix(',').map(|s| s.trim_start()).ok_or(())?;
-            let (second, rest) = from_split(second_ty, rest, false)?;
+            let (first, rest) = from_split(first_ty, konst_str)?;
+            let (second, rest) =
+                from_split(second_ty, rest.strip_prefix(',').ok_or(())?.trim_start())?;
             if !rest.is_empty() {
                 return Err(());
             }
@@ -143,10 +129,6 @@ fn from_split<'a>(ty: &str, konst: &'a str, split_comma: bool) -> Result<(Consta
         }
         _ => return Err(()),
     };
-
-    if !ty_rest.is_empty() {
-        return Err(());
-    }
 
     Ok((constant, konst_rest))
 }

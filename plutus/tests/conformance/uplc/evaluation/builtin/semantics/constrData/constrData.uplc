@@ -3,6 +3,6 @@
   [(builtin constrData)
    (con integer 7212)
   ]
-  (con (list data) [B #79d3, List [I 44]])
+  (con (list data) [(B #79d3), (List [I 44])])
  ]
 )

@@ -1,11 +1,22 @@
 use crate::TermType;
 
+// Trim starting whitespace or comments (-- style)
+pub fn trim_start(s: &str) -> &str {
+    let mut trimmed = s.trim_start();
+    while let Some(rest) = trimmed.strip_prefix("--") {
+        if let Some((_, rest)) = rest.split_once('\n') {
+            trimmed = rest.trim_start();
+        } else {
+            return "";
+        }
+    }
+    trimmed
+}
+
 pub fn term(s: &str) -> Option<(&str, &str, TermType)> {
     match s.as_bytes()[0] {
-        b'(' => stripped_group(&s[1..]).map(|(a, b)| (a, b, TermType::Group)),
-        b'[' => s[1..]
-            .split_once(']')
-            .map(|(a, b)| (a, b.trim_start(), TermType::Application)),
+        b'(' => stripped_group::<b'(', b')'>(&s[1..]).map(|(a, b)| (a, b, TermType::Group)),
+        b'[' => stripped_group::<b'[', b']'>(&s[1..]).map(|(a, b)| (a, b, TermType::Application)),
         _ => s
             .split_once(char::is_whitespace)
             .map(|(a, b)| (a, b.trim_start(), TermType::Variable)),
@@ -14,7 +25,7 @@ pub fn term(s: &str) -> Option<(&str, &str, TermType)> {
 
 pub fn constant_type(s: &str) -> Option<(&str, &str)> {
     if s.as_bytes()[0] == b'(' {
-        stripped_group(&s[1..])
+        stripped_group::<b'(', b')'>(&s[1..])
     } else {
         Some(word(s))
     }
@@ -27,18 +38,11 @@ pub fn word(s: &str) -> (&str, &str) {
         .unwrap_or((s, ""))
 }
 
-pub fn list(s: &str) -> Option<(&str, &str)> {
-    if !s.starts_with('[') {
+pub fn group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str, &str)> {
+    if !s.as_bytes().starts_with(&[OPEN]) {
         return None;
     }
-    s[1..].split_once(']').map(|(a, b)| (a.trim(), b.trim_start()))
-}
-
-pub fn group(s: &str) -> Option<(&str, &str)> {
-    if !s.starts_with('(') {
-        return None;
-    }
-    stripped_group(&s[1..])
+    stripped_group::<OPEN, CLOSE>(&s[1..])
 }
 
 pub fn right_term(s: &str) -> Option<(&str, &str)> {
@@ -75,24 +79,101 @@ pub fn right_term(s: &str) -> Option<(&str, &str)> {
 }
 
 /// Parse a group in parentheses, with the first `(` already stripped.
-pub fn stripped_group(s: &str) -> Option<(&str, &str)> {
+pub fn stripped_group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str, &str)> {
     let mut depth = 1;
     for (i, c) in s.as_bytes().iter().enumerate() {
-        match c {
-            b'(' => depth += 1,
-            b')' => {
-                depth -= 1;
-                if depth == 0 {
-                    let rest = &s[i + 1..].trim_start();
-                    let extracted = s[..i].trim();
+        if *c == OPEN {
+            depth += 1
+        } else if *c == CLOSE {
+            depth -= 1;
+            if depth == 0 {
+                let rest = &s[i + 1..].trim_start();
+                let extracted = s[..i].trim();
 
-                    return Some((extracted, rest));
-                }
+                return Some((extracted, rest));
             }
-            _ => {}
         }
     }
     None
+}
+
+pub fn string(s: &str) -> Option<(String, &str)> {
+    let stripped = s.strip_prefix('"')?;
+    let mut string_chars = stripped.char_indices().peekable();
+    let mut string = String::new();
+    let mut escape = false;
+    let last_char = loop {
+        let (i, c) = string_chars.next()?;
+        if escape {
+            match c {
+                'n' => string.push('\n'),
+                'r' => string.push('\r'),
+                't' => string.push('\t'),
+                '\\' => string.push('\\'),
+                'a' => string.push(0x7 as char),
+                'b' => string.push(0x8 as char),
+                'v' => string.push(0xB as char),
+                'f' => string.push(0xC as char),
+                // "\DEL"
+                'D' => {
+                    let full = stripped[i..].get(..3)?;
+                    if full != "DEL" {
+                        return None;
+                    }
+
+                    string.push(0x7F as char);
+                    string_chars.next();
+                    string_chars.next();
+                }
+                '"' => string.push('"'),
+                'x' => {
+                    let hex = stripped.get(i + 1..i + 3)?;
+                    let byte = u8::from_str_radix(hex, 16).ok()?;
+                    string.push(byte as char);
+
+                    string_chars.next();
+                    string_chars.next();
+                }
+                'o' => {
+                    let oct = stripped.get(i + 1..i + 4)?;
+                    let byte = u8::from_str_radix(oct, 8).ok()?;
+                    string.push(byte as char);
+
+                    string_chars.next();
+                    string_chars.next();
+                    string_chars.next();
+                }
+                c if c.is_ascii_digit() => {
+                    let mut num = c.to_digit(10).unwrap();
+                    // Can be up to 5 digits
+                    for _ in 0..5 {
+                        if let Some((_, c)) = string_chars.peek() {
+                            if let Some(digit) = c.to_digit(10) {
+                                num = num * 10 + digit;
+                                string_chars.next();
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    string.push(char::from_u32(num)?);
+                }
+                _ => return None,
+            }
+            escape = false;
+        } else if c == '\\' {
+            escape = true;
+        } else if c == '"' {
+            break i;
+        } else {
+            string.push(c);
+        }
+    };
+
+    // We know last char is 1 byte since it's a `"`
+    Some((string, stripped[last_char + 1..].trim_start()))
 }
 
 #[cfg(test)]
@@ -129,7 +210,8 @@ mod tests {
     #[test]
     fn test_group() {
         for (input, extracted, rest) in GROUP_VECTORS {
-            let (e, r) = super::stripped_group(input).unwrap_or_else(|| panic!("failed to parse: {input}"));
+            let (e, r) = super::stripped_group::<b'(', b')'>(input)
+                .unwrap_or_else(|| panic!("failed to parse: {input}"));
             assert_eq!(e, *extracted, "input: {input}");
             assert_eq!(r, *rest, "input: {input}");
         }
