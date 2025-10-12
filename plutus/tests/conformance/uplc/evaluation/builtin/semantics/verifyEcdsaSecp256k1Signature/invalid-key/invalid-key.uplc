@@ -1,6 +1,3 @@
-
-
-
 (program 1.0.0 [[[(builtin verifyEcdsaSecp256k1Signature)
  (con bytestring #04e253af0766804b869bb1595be9765b534886bbaab8305bf50dbc7f899bfb5f01)]
  (con bytestring #e253af0766804b869bb1595be9765b534886bbaab8305bf50dbc7f899bfb5f01)]

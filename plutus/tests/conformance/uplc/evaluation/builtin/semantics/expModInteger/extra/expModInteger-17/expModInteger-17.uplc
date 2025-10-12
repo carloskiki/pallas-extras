@@ -1,4 +1,3 @@
-
 (program 1.0.0
  [(builtin expModInteger)
   (con integer 6716724038975293475892345238945892345)

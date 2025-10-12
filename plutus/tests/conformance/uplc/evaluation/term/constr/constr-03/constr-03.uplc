@@ -1,4 +1,3 @@
-
 (program 1.1.0
     (constr 1 (con integer 1) (lam x x) (constr 0 (con integer 1)))
 )
