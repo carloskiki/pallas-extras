@@ -53,14 +53,7 @@ impl FromStr for Program {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // We just want to remove initial comments - conformance tests don't have other types of
-        // comments and we don't expect to be parsing uplc programs otherwise.
-        let comments: usize = s
-            .split_inclusive('\n')
-            .map_while(|l| l.starts_with("--").then_some(l.len()))
-            .sum();
-
-        let Some((program, "")) = lex::group::<b'(', b')'>(s[comments..].trim()) else {
+        let Some((program, "")) = lex::group::<b'(', b')'>(s.trim()) else {
             return Err(());
         };
 

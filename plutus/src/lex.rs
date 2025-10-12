@@ -1,18 +1,5 @@
 use crate::TermType;
 
-// Trim starting whitespace or comments (-- style)
-pub fn trim_start(s: &str) -> &str {
-    let mut trimmed = s.trim_start();
-    while let Some(rest) = trimmed.strip_prefix("--") {
-        if let Some((_, rest)) = rest.split_once('\n') {
-            trimmed = rest.trim_start();
-        } else {
-            return "";
-        }
-    }
-    trimmed
-}
-
 pub fn term(s: &str) -> Option<(&str, &str, TermType)> {
     match s.as_bytes()[0] {
         b'(' => stripped_group::<b'(', b')'>(&s[1..]).map(|(a, b)| (a, b, TermType::Group)),
