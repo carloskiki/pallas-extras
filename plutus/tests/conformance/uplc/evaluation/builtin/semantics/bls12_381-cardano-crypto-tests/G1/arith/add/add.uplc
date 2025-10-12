@@ -1,4 +1,4 @@
--- Check that adding two random points in G1 gives the expected result.
+
 (program 1.0.0
  [
   [

@@ -1,4 +1,4 @@
--- Maximum length of DST is 255 bytes: this should be OK
+
 (program 1.0.0
  [
   [

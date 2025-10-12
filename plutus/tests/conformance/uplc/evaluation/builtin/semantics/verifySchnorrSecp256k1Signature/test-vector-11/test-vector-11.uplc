@@ -1,5 +1,5 @@
--- Test vector 11 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
--- Expect False (sig[0:32] is not an X coordinate on the curve)
+
+
 (program 1.0.0
  [
   [

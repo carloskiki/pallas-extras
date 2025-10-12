@@ -1,4 +1,4 @@
--- m = 3842610773*16548071329, e < 0, gcd a m = 1 -> compute inverse power
+
 (program 1.0.0
  [(builtin equalsInteger)
   [(builtin modInteger)

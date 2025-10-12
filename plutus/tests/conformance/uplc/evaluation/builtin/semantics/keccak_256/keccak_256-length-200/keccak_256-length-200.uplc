@@ -1,8 +1,8 @@
--- Test vector (200-bit input) from ShortMsgKAT_256.txt in
--- https://keccak.team/obsolete/KeccakKAT-3.zip.  The Keccak function we're
--- testing here is the version used by Ethereum, which was the Keccak submission
--- in round 3 of the SHA-3 competition.  The final SHA-3 hash function is a
--- modified version of that.
+
+
+
+
+
 (program 1.0.0
  [
   [

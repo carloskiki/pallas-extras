@@ -1,4 +1,4 @@
--- Second argument is empty list => result = zero
+
 (program 1.0.0
  [(builtin bls12_381_G2_equal)
   [(builtin bls12_381_G2_multiScalarMul)

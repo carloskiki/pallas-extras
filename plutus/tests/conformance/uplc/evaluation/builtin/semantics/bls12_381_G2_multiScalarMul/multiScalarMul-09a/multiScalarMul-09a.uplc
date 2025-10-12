@@ -1,4 +1,4 @@
--- Extra entries at end of first list are ignored
+
 (program 1.0.0
  [(builtin bls12_381_G2_equal)
   [(builtin bls12_381_G2_multiScalarMul)

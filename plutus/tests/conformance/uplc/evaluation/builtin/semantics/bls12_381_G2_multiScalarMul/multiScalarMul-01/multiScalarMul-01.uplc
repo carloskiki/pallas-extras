@@ -1,4 +1,4 @@
--- Multi-scalar multiplication is the same as ordinary scalar multiplication for inputs of size 1.
+
 (program 1.0.0
  [(builtin bls12_381_G2_equal)
   [(builtin bls12_381_G2_multiScalarMul)

@@ -1,5 +1,5 @@
--- This value was obtained by hashing 0x0102030405 to G2.  No changes have been
--- made, so uncompression should succeed.
+
+
 (program 1.0.0
  [
   (builtin bls12_381_G2_uncompress)

@@ -1,4 +1,4 @@
--- Taking an array element by index which is out of bounds 
+
 (program 1.1.0 
   [ 
     [ 

@@ -1,4 +1,4 @@
--- Scalar multiplication should be periodic modulo the group size
+
 (program
  1.0.0
  [
