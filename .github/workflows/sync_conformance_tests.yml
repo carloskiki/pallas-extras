@@ -4,7 +4,7 @@ on:
   # Run the workflow every week
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at midnight UTC
-  
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -12,20 +12,17 @@ on:
 env:
   # The repository you want to sync FROM (e.g., 'owner/another-repo')
   REMOTE_REPO: 'IntersectMBO/plutus'
-  
   # The specific directory within that repository you want to sync
   REMOTE_DIR: 'plutus-conformance/test-cases'
-
   # The directory in THIS repository where you want to place the synced content
   LOCAL_DIR: 'plutus/tests/conformance'
-  
   # The branch of the remote repository to check
   REMOTE_BRANCH: 'master'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    
+
     # Permissions needed to check out the repo and push changes
     permissions:
       contents: write
@@ -39,7 +36,7 @@ jobs:
         run: |
           # Use the GitHub CLI to query the API for the latest commit affecting the target directory
           REMOTE_HASH=$(gh api repos/${{ env.REMOTE_REPO }}/commits --jq '.[0].sha' --method GET -f path=${{ env.REMOTE_DIR }} -f sha=${{ env.REMOTE_BRANCH }})
-          
+
           if [ -z "$REMOTE_HASH" ]; then
             echo "Could not fetch remote hash. The path or repository might be incorrect."
             exit 1
@@ -75,33 +72,33 @@ jobs:
         if: steps.check_hashes.outputs.needs_sync == 'true'
         run: |
           echo "Starting sync from ${{ env.REMOTE_REPO }}/${{ env.REMOTE_DIR }}"
-          
+
           # Create a temporary directory for the sparse checkout
           TEMP_CLONE_DIR="temp_clone"
           mkdir -p $TEMP_CLONE_DIR
-          
+
           # Perform sparse checkout
           cd $TEMP_CLONE_DIR
           git init
           git remote add origin https://github.com/${{ env.REMOTE_REPO }}.git
           git config core.sparseCheckout true
-          
+
           # Tell git which directory we want
           echo "${{ env.REMOTE_DIR }}/*" > .git/info/sparse-checkout
-          
+
           # Pull only the required files
           git pull --depth=1 origin ${{ env.REMOTE_BRANCH }}
           cd ..
 
           # Create the local directory if it doesn't exist
           mkdir -p "${{ env.LOCAL_DIR }}"
-          
+
           # Use rsync to copy the contents, deleting files that no longer exist in the source
           rsync -av --delete --exclude=".git" "$TEMP_CLONE_DIR/${{ env.REMOTE_DIR }}/" "${{ env.LOCAL_DIR }}/"
-          
+
           # Store the new hash in the synced directory for the next check
           echo "${{ steps.get_remote_hash.outputs.remote_hash }}" > "${{ env.LOCAL_DIR }}/.last_synced_hash"
-          
+
           # Clean up the temporary clone
           rm -rf $TEMP_CLONE_DIR
           echo "Sync complete."
@@ -110,7 +107,7 @@ jobs:
         if: steps.check_hashes.outputs.needs_sync == 'true'
         run: |
           echo "Searching for and removing comments from .uplc files in ${{ env.LOCAL_DIR }}..."
-          
+
           # Find all files ending in .uplc and process them
           # - The 'find' command locates the files.
           # - '-print0' and 'xargs -0' handle filenames with spaces or special characters safely.
@@ -120,9 +117,9 @@ jobs:
           #   - --.*$ is the pattern: '--' followed by any character (.*) until the end of the line ($).
           #   - // is the replacement (empty, i.e., delete the pattern).
           find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -print0 | xargs -0 sed -i 's/--.*$//'
-          
+
           echo "Comment removal complete."
-          
+
       - name: 7. Commit and push changes
         if: steps.check_hashes.outputs.needs_sync == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
