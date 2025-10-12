@@ -103,19 +103,32 @@ jobs:
           rm -rf $TEMP_CLONE_DIR
           echo "Sync complete."
 
-      - name: 6. Remove comments from .uplc files
+      - name: 6. Remove comments (respecting multi-line strings) from .uplc files
         if: steps.check_hashes.outputs.needs_sync == 'true'
         run: |
-          echo "Searching for and removing comment-only lines from .uplc files in ${{ env.LOCAL_DIR }}..."
+          echo "Removing comments from .uplc files, respecting multi-line double-quoted strings..."
 
-          # Find all files ending in .uplc and process them.
-          # - 'sed -i' edits the files in-place.
-          # - '/^[ \t]*--/d' is the command:
-          #   - ^         matches the beginning of the line.
-          #   - [ \t]* matches zero or more spaces or tabs (optional leading whitespace).
-          #   - --        matches the comment marker.
-          #   - d         deletes any line that matches this pattern.
-          find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -print0 | xargs -0 sed -i '/^[ \t]*--/d'
+          # This awk script handles multi-line strings and escaped quotes.
+          # It processes character by character, toggling in_string only for unescaped quotes.
+          # Comments (--) are removed only when outside strings.
+          find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -print0 | xargs -0 awk -i inplace '
+          BEGIN { in_string = 0 }
+          {
+              result = ""; len = length($0); i = 1;
+              while (i <= len) {
+                  c = substr($0, i, 1);
+                  if (c == "\\" && i < len && substr($0, i+1, 1) == "\"") {
+                      result = result "\\\""; i += 2;
+                  } else if (c == "\"") {
+                      in_string = !in_string; result = result c; i++;
+                  } else if (!in_string && c == "-" && i < len && substr($0, i+1, 1) == "-") {
+                      break;
+                  } else {
+                      result = result c; i++;
+                  }
+              }
+              print result;
+          }'
 
           echo "Comment removal complete."
 
