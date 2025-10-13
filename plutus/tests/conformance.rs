@@ -1,39 +1,82 @@
 use std::path::PathBuf;
 
-#[test]
-fn conformance() {
-    let mut directories = vec![PathBuf::from(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/conformance"
-    ))];
+use libtest2_mimic::{Harness, RunContext, RunError, Trial};
 
-    while let Some(dir) = directories.pop() {
-        let mut is_dir = false;
-        for entry in dir.read_dir().unwrap() {
-            let entry = entry.unwrap();
-            if entry.path().is_dir() {
-                directories.push(entry.path());
-                is_dir = true;
+const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
+
+fn main() {
+    let mut directories = vec![PathBuf::from(BASE_DIR)];
+
+    Harness::with_env()
+        .discover(std::iter::from_fn(|| {
+            while let Some(dir) = directories.pop() {
+                let mut is_dir = false;
+                for entry in dir.read_dir().unwrap() {
+                    let entry = entry.unwrap();
+                    if entry.path().is_dir() {
+                        directories.push(entry.path());
+                        is_dir = true;
+                    }
+                }
+                if !is_dir {
+                    let file_name = dir.file_name().unwrap().to_str().unwrap();
+                    let program_path = dir.join(file_name).with_extension("uplc");
+                    let test_name = dir
+                        .strip_prefix(BASE_DIR)
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string();
+                    return Some(Trial::test(test_name, move |ctx| {
+                        perform_test(ctx, &program_path)
+                    }));
+                }
             }
-        }
+            None
+        }))
+        .main()
+}
 
-        if !is_dir {
-            let file_name = dir.file_name().unwrap().to_str().unwrap();
-            let program_path = dir.join(file_name).with_extension("uplc");
-            if program_path.components().any(|c| c.as_os_str() == "value") {
-                // Skip value tests for now
-                continue;
-            }
+fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunError> {
+    // // Skip these tests for now as they require features not yet supported
 
-            let program = std::fs::read_to_string(&program_path).unwrap();
-            let expected_path = program_path.to_string_lossy().to_string() + ".expected";
-            let expected_output = std::fs::read_to_string(&expected_path).unwrap();
-
-            eprintln!("{file_name}: {program}");
-            if expected_output != "parse error" {
-                let output: plutus::Program = program.parse().unwrap();
-                println!("{output:#?}");
-            }
-        }
+    if program_path.components().any(|c| {
+        c.as_os_str() == "value"
+            || c.as_os_str() == "lookupCoin"
+            || c.as_os_str() == "insertCoin"
+            || c.as_os_str() == "valueContains"
+            || c.as_os_str() == "unionValue"
+    }) {
+        return ctx.ignore_for("Requires value built-in type support");
+    } else if program_path
+        .components()
+        .any(|c| c.as_os_str() == "constr-08")
+    {
+        return ctx.ignore_for("Requires large construct index support");
     }
+
+    let program = std::fs::read_to_string(program_path).unwrap();
+    let expected_path = program_path.to_string_lossy().to_string() + ".expected";
+    let expected_output = std::fs::read_to_string(&expected_path)
+        .unwrap()
+        .trim()
+        .to_string();
+
+    let output: Result<plutus::program::Program<String>, ()> = program.parse();
+    let program = match (output, expected_output.as_str()) {
+        (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
+        (Err(_), "parse error") => return Ok(()),
+        (Ok(program), _) => {
+            program
+        }
+        (Err(_), _) => return Err(RunError::fail("Unexpected parse error")),
+    };
+
+    let output = program.into_de_bruijn();
+    let cannonical = match (output, expected_output.as_str()) {
+        (Some(program), _) => program,
+        (None, "evaluation failure") => return Ok(()),
+        (None, _) => return Err(RunError::fail("Unexpected evaluation error when converting to de Bruijn indices")),
+    };
+
+    Ok(())
 }

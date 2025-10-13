@@ -1,17 +1,18 @@
-use crate::TermType;
+use crate::program::TermType;
 
 pub fn term(s: &str) -> Option<(&str, &str, TermType)> {
     match s.as_bytes()[0] {
         b'(' => stripped_group::<b'(', b')'>(&s[1..]).map(|(a, b)| (a, b, TermType::Group)),
         b'[' => stripped_group::<b'[', b']'>(&s[1..]).map(|(a, b)| (a, b, TermType::Application)),
-        _ => s
-            .split_once(char::is_whitespace)
-            .map(|(a, b)| (a, b.trim_start(), TermType::Variable)),
+        _ => Some({
+            let (a, b) = word(s);
+            (a, b, TermType::Variable)
+        }),
     }
 }
 
 pub fn constant_type(s: &str) -> Option<(&str, &str)> {
-    if s.as_bytes()[0] == b'(' {
+    if s.as_bytes().first() == Some(&b'(') {
         stripped_group::<b'(', b')'>(&s[1..])
     } else {
         Some(word(s))
@@ -20,8 +21,8 @@ pub fn constant_type(s: &str) -> Option<(&str, &str)> {
 
 // Any non-whitespace sequence of characters
 pub fn word(s: &str) -> (&str, &str) {
-    s.split_once(char::is_whitespace)
-        .map(|(a, b)| (a, b.trim_start()))
+    s.find(|c: char| c.is_whitespace() || c == '(')
+        .map(|pos| (&s[..pos], s[pos..].trim_start()))
         .unwrap_or((s, ""))
 }
 

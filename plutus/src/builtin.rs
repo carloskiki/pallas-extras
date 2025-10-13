@@ -25,7 +25,9 @@ pub enum Builtin {
     LessThanByteString,
     LessThanEqualsByteString,
     // Cryptography and hashes
+    #[strum(serialize = "sha2_256")]
     Sha2_256,
+    #[strum(serialize = "sha3_256")]
     Sha3_256,
     #[strum(serialize = "blake2b_256")]
     Blake2b256,

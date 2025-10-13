@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{data::Data, lex};
+use crate::{data::{self, Data}, lex};
 
 #[derive(Debug)]
 pub enum Constant {
@@ -66,9 +66,18 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             Constant::Uint
         }
         "data" => {
-            let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
+            // FIXME: https://github.com/IntersectMBO/plutus/issues/7383
+            // let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
+            let (data, rest) = if konst.starts_with('(') {
+                let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
+                let Some((data, "")) = data::parse_data(data_str) else {
+                    return Err(());
+                };
+                (data, rest)
+            } else {
+                data::parse_data(konst).ok_or(())?
+            };
             konst_rest = rest;
-            let data = Data::from_str(data_str)?;
             Constant::Data(data)
         }
         "bls12_381_G1_element" => {
@@ -90,10 +99,13 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             ))
         }
         "list" | "array" => {
+            let Some((list_ty, "")) = lex::constant_type(ty_rest) else {
+                return Err(());
+            };
             let mut items = Vec::new();
             let (mut items_str, rest) = lex::group::<b'[', b']'>(konst).ok_or(())?;
             while !items_str.is_empty() {
-                let (item, mut list_rest) = from_split(ty_rest, items_str)?;
+                let (item, mut list_rest) = from_split(list_ty, items_str)?;
                 if let Some(rest) = list_rest.strip_prefix(',') {
                     list_rest = rest.trim_start();
                 } else if !list_rest.is_empty() {

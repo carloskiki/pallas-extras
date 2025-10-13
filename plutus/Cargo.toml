@@ -10,3 +10,10 @@ strum = { version = "0.27.2", features = ["derive"] }
 const-hex = "1.16.0"
 minicbor = { workspace = true }
 cbor-util = { path = "../cbor-util" }
+
+[dev-dependencies]
+libtest2-mimic = "0.0.4"
+
+[[test]]
+name = "conformance"
+harness = false

@@ -143,24 +143,11 @@ impl<C> CborLen<C> for Data {
     }
 }
 
-impl FromStr for Data {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_data(s)
-            .and_then(|(data, rest)| {
-                if rest.is_empty() {
-                    Some(data)
-                } else {
-                    None
-                }
-            })
-            .ok_or(())
-    }
-}
-
-fn parse_data(s: &str) -> Option<(Data, &str)> {
-    let (ty, data_str) = lex::word(s);
+pub(crate) fn parse_data(s: &str) -> Option<(Data, &str)> {
+    let (ty, data_str) = s
+        .split_once(char::is_whitespace)
+        .map(|(a, b)| (a, b.trim_start()))
+        .unwrap_or((s, ""));
     let (word_str, mut rest) = data_str
         .find(',')
         .map(|pos| (data_str[..pos].trim_end(), &data_str[pos..]))
@@ -223,7 +210,7 @@ fn data_list(s: &str) -> Option<(Box<[Data]>, &str)> {
         }
         items_str = list_rest;
     }
-    
+
     Some((items.into_boxed_slice(), rest))
 }
 
