@@ -2,6 +2,8 @@ use std::{num::NonZeroU16, str::FromStr};
 
 use crate::{Version, builtin::Builtin, constant::Constant, lex};
 
+mod evaluate;
+
 #[derive(Debug)]
 pub struct Program<T> {
     version: Version,
@@ -120,10 +122,10 @@ impl<T: FromStr> FromStr for Program<T> {
                         stack.push(arg);
                         count += 1;
                     }
-                    
+
                     count = count.saturating_sub(1);
                     let count = NonZeroU16::new(count).ok_or(())?;
-                        
+
                     program.push(Instruction::Application(count));
                 }
 
@@ -154,7 +156,9 @@ impl<T: PartialEq> Program<T> {
                     Instruction::Variable(v) => variables
                         .iter()
                         .rposition(|x| *x == v)
-                        .map(|pos| Instruction::Variable(DeBruijn((variables.len() - 1 - pos) as u16)))
+                        .map(|pos| {
+                            Instruction::Variable(DeBruijn((variables.len() - 1 - pos) as u16))
+                        })
                         .and_then(|var_instr| {
                             decrement_stack(&mut stack, &mut variables).then_some(var_instr)
                         }),
@@ -214,13 +218,6 @@ impl<T: PartialEq> Program<T> {
     }
 }
 
-impl Program<DeBruijn> {
-    pub fn evaluate(&self) {
-        todo!()
-    }
-}
-
-
 fn increment_stack(stack: &mut [(u16, u16)], count: u16) -> bool {
     let Some((term_count, _)) = stack.last_mut() else {
         return false;
@@ -257,6 +254,19 @@ pub enum Instruction<T> {
     // Should we support full u64 determinants?
     Construct { determinant: u16, length: u8 },
     Case { count: u16 },
+}
+
+impl<T> Instruction<T> {
+    pub fn is_value(&self) -> bool {
+        matches!(
+            self,
+            Instruction::Constant(_)
+                | Instruction::Delay
+                | Instruction::Lambda(_)
+                | Instruction::Construct { .. }
+                | Instruction::Builtin(_)
+        )
+    }
 }
 
 /// A De Bruijn index

@@ -1,5 +1,7 @@
 use strum::{EnumString, FromRepr};
 
+use crate::constant::Constant;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, EnumString)]
 #[strum(serialize_all = "camelCase")]
@@ -160,4 +162,23 @@ pub enum Builtin {
     // ValueContains,
     // ValueData,
     // UnValueData,
+}
+
+
+fn add_integer(x: rug::Integer, y: rug::Integer) -> rug::Integer {
+    x + y
+}
+
+fn apply_add_integer(arguments: &[&mut Constant]) -> Option<rug::Integer> {
+    let arg_1 = std::mem::take(match arguments[0] {
+        Constant::Integer(integer) => integer,
+        _ => return None,
+    });
+    let arg_2 = match arguments[1] {
+        Constant::Integer(integer) => integer,
+        _ => return None,
+    };
+
+    Some(add_integer(arg_1, arg_2))
+    
 }
