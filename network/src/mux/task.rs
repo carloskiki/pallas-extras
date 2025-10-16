@@ -100,6 +100,7 @@ where
                     next_message?,
                 ).await?;
             },
+            // TODO: Not cancellation safe!!! might lose some data.
             result = bearer.read_exact(&mut header_buffer).fuse() => {
                 result?;
                 let header = Header::<P>::try_from(header_buffer)?;
