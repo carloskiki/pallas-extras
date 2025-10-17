@@ -2,6 +2,23 @@ use strum::{EnumString, FromRepr};
 
 use crate::constant::Constant;
 
+// Builtin Implementations
+//
+// Take stuff by value, or by shared reference.
+//
+// 
+
+mod integer;
+mod bytestring;
+mod string;
+mod list;
+mod data;
+mod digest;
+mod ed25519;
+mod k256;
+mod bls12_381;
+mod array;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, EnumString)]
 #[strum(serialize_all = "camelCase")]
@@ -164,21 +181,23 @@ pub enum Builtin {
     // UnValueData,
 }
 
-
-fn add_integer(x: rug::Integer, y: rug::Integer) -> rug::Integer {
-    x + y
+pub fn if_then_else(cond: bool, then: u32, else_: u32) -> u32 {
+    if cond { then } else { else_ }
 }
 
-fn apply_add_integer(arguments: &[&mut Constant]) -> Option<rug::Integer> {
-    let arg_1 = std::mem::take(match arguments[0] {
-        Constant::Integer(integer) => integer,
-        _ => return None,
-    });
-    let arg_2 = match arguments[1] {
-        Constant::Integer(integer) => integer,
-        _ => return None,
-    };
+pub fn choose_unit(_: (), then: u32) -> u32 {
+    then
+}
 
-    Some(add_integer(arg_1, arg_2))
-    
+// TODO: do something with the trace.
+pub fn trace(_message: &str, value: u32) -> u32 {
+    value
+}
+
+pub fn first_pair(pair: (Constant, Constant)) -> Constant {
+    pair.0
+}
+
+pub fn second_pair(pair: (Constant, Constant)) -> Constant {
+    pair.1
 }

@@ -5,8 +5,16 @@ edition = "2024"
 
 [dependencies]
 rug = { version = "1.28.0", default-features = false, features = ["integer", "std"] }
+
 bls12_381 = { version = "0.8.0", default-features = false, features = ["pairings"] }
+sha2 = { version = "0.11.0-rc.2", default-features = false, features = ["alloc"] }
+sha3 = { version = "0.11.0-rc.3", default-features = false, features = ["alloc"] }
+blake2 = "0.11.0-rc.2"
+ed25519-dalek = { version = "3.0.0-pre.1", default-features = false, features = ["alloc"] }
+k256 = "0.14.0-pre.11"
+
 strum = { version = "0.27.2", features = ["derive"] }
+
 const-hex = "1.16.0"
 minicbor = { workspace = true }
 cbor-util = { path = "../cbor-util" }

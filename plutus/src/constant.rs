@@ -1,21 +1,27 @@
 use std::str::FromStr;
 
-use crate::{data::{self, Data}, lex};
+use crate::{
+    data::{self, Data},
+    lex,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum Constant {
     Integer(rug::Integer),
-    Bytes(Box<[u8]>),
-    String(Box<str>),
+    Bytes(Vec<u8>),
+    String(String),
+    #[default]
     Uint,
     Boolean(bool),
-    List(Box<[Constant]>),
+    // The list is stored in reverse order for easier `mkCons` operation.
+    List(Vec<Constant>),
     Array(Box<[Constant]>),
     Pair(Box<(Constant, Constant)>),
     Data(Data),
-    BLSG1Element(Box<bls12_381::G1Affine>),
-    BLSG2Element(Box<bls12_381::G2Affine>),
+    BLSG1Element(Box<bls12_381::G1Projective>),
+    BLSG2Element(Box<bls12_381::G2Projective>),
 }
+
 
 impl FromStr for Constant {
     type Err = ();
@@ -45,13 +51,13 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
         "bytestring" => {
             let hex = konst_word.strip_prefix("#").ok_or(())?;
             let bytes = const_hex::decode(hex).map_err(|_| ())?;
-            Constant::Bytes(bytes.into_boxed_slice())
+            Constant::Bytes(bytes)
         }
         "string" => {
             let (string, rest) = lex::string(konst).ok_or(())?;
             konst_rest = rest;
 
-            Constant::String(string.into_boxed_str())
+            Constant::String(string)
         }
 
         "bool" => match konst_word {
@@ -86,7 +92,8 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             Constant::BLSG1Element(Box::new(
                 bls12_381::G1Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
                     .into_option()
-                    .ok_or(())?,
+                    .ok_or(())?
+                    .into(),
             ))
         }
         "bls12_381_G2_element" => {
@@ -95,7 +102,8 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             Constant::BLSG2Element(Box::new(
                 bls12_381::G2Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
                     .into_option()
-                    .ok_or(())?,
+                    .ok_or(())?
+                    .into(),
             ))
         }
         "list" | "array" => {
@@ -118,7 +126,8 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             if ty == "array" {
                 Constant::Array(items.into_boxed_slice())
             } else {
-                Constant::List(items.into_boxed_slice())
+                items.reverse();
+                Constant::List(items)
             }
         }
         "pair" => {
