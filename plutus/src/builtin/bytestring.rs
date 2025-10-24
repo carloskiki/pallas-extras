@@ -1,21 +1,30 @@
-pub fn append(mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
+use macro_rules_attribute::apply;
+use rug::Integer;
+
+use super::builtin;
+
+#[apply(builtin)]
+pub fn append(mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x.extend(y);
     x
 }
 
-pub fn cons_v1(x: &rug::Integer, mut y: Vec<u8>) -> Vec<u8> {
+#[apply(builtin)]
+pub fn cons_v1(x: Integer, mut y: Vec<u8>) -> Vec<u8> {
     let byte = x.to_u8_wrapping();
     y.insert(0, byte);
     y
 }
 
-pub fn cons_v2(x: &rug::Integer, mut y: Vec<u8>) -> Option<Vec<u8>> {
+#[apply(builtin)]
+pub fn cons_v2(x: Integer, mut y: Vec<u8>) -> Option<Vec<u8>> {
     let byte = x.to_u8()?;
     y.insert(0, byte);
     Some(y)
 }
 
-pub fn slice(start: &rug::Integer, end: &rug::Integer, bytes: Vec<u8>) -> Vec<u8> {
+#[apply(builtin)]
+pub fn slice(start: Integer, end: Integer, bytes: Vec<u8>) -> Vec<u8> {
     let (Some(start), Some(end)) = (start.to_usize(), end.to_usize()) else {
         return vec![];
     };
@@ -23,31 +32,37 @@ pub fn slice(start: &rug::Integer, end: &rug::Integer, bytes: Vec<u8>) -> Vec<u8
     bytes.get(start..end).unwrap_or(&[]).to_vec()
 }
 
-pub fn length(bytes: &[u8]) -> rug::Integer {
-    rug::Integer::from(bytes.len())
+#[apply(builtin)]
+pub fn length(bytes: Vec<u8>) -> Integer {
+    Integer::from(bytes.len())
 }
 
-pub fn index(index: &rug::Integer, bytes: &[u8]) -> Option<rug::Integer> {
+#[apply(builtin)]
+pub fn index(index: Integer, bytes: Vec<u8>) -> Option<Integer> {
     let index = index.to_usize()?;
     let byte = *bytes.get(index)?;
-    Some(rug::Integer::from(byte))
+    Some(Integer::from(byte))
 }
 
-pub fn equals(x: &[u8], y: &[u8]) -> bool {
+#[apply(builtin)]
+pub fn equals(x: Vec<u8>, y: Vec<u8>) -> bool {
     x == y
 }
 
-pub fn less_than(x: &[u8], y: &[u8]) -> bool {
+#[apply(builtin)]
+pub fn less_than(x: Vec<u8>, y: Vec<u8>) -> bool {
     x < y
 }
 
-pub fn less_than_or_equal(x: &[u8], y: &[u8]) -> bool {
+#[apply(builtin)]
+pub fn less_than_or_equal(x: Vec<u8>, y: Vec<u8>) -> bool {
     x <= y
 }
 
-pub fn to_integer(big_endian: bool, bytes: &[u8]) -> rug::Integer {
-    rug::Integer::from_digits(
-        bytes,
+#[apply(builtin)]
+pub fn to_integer(big_endian: bool, bytes: Vec<u8>) -> Integer {
+    Integer::from_digits(
+        &bytes,
         if big_endian {
             rug::integer::Order::Msf
         } else {
@@ -56,7 +71,8 @@ pub fn to_integer(big_endian: bool, bytes: &[u8]) -> rug::Integer {
     )
 }
 
-pub fn and(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
+#[apply(builtin)]
+pub fn and(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a &= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -66,7 +82,8 @@ pub fn and(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x
 }
 
-pub fn or(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
+#[apply(builtin)]
+pub fn or(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a |= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -76,7 +93,8 @@ pub fn or(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x
 }
 
-pub fn xor(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
+#[apply(builtin)]
+pub fn xor(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a ^= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -86,12 +104,14 @@ pub fn xor(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x
 }
 
+#[apply(builtin)]
 pub fn complement(mut x: Vec<u8>) -> Vec<u8> {
     x.iter_mut().for_each(|b| *b = !*b);
     x
 }
 
-pub fn shift(mut x: Vec<u8>, by: rug::Integer) -> Vec<u8> {
+#[apply(builtin)]
+pub fn shift(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
     let by = match by.to_isize() {
         Some(n) => n,
         None => {
@@ -122,7 +142,8 @@ pub fn shift(mut x: Vec<u8>, by: rug::Integer) -> Vec<u8> {
     x
 }
 
-pub fn rotate(mut x: Vec<u8>, by: rug::Integer) -> Vec<u8> {
+#[apply(builtin)]
+pub fn rotate(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
     let len_bits = x.len() * 8;
     let by = match by.to_isize() {
         Some(n) => n % (len_bits as isize),
@@ -155,24 +176,27 @@ pub fn rotate(mut x: Vec<u8>, by: rug::Integer) -> Vec<u8> {
     x
 }
 
-pub fn count_set_bits(x: &[u8]) -> rug::Integer {
+#[apply(builtin)]
+pub fn count_set_bits(x: Vec<u8>) -> Integer {
     let count: usize = x.iter().map(|b| b.count_ones() as usize).sum();
-    rug::Integer::from(count)
+    Integer::from(count)
 }
 
-pub fn first_set_bit(x: &[u8]) -> rug::Integer {
+#[apply(builtin)]
+pub fn first_set_bit(x: Vec<u8>) -> Integer {
     let mut index = 0;
     for byte in x.iter().rev() {
         if byte.trailing_zeros() < 8 {
             index += byte.trailing_zeros() as usize;
-            return rug::Integer::from(index);
+            return Integer::from(index);
         }
         index += 8;
     }
-    rug::Integer::from(-1)
+    Integer::from(-1)
 }
 
-pub fn read_bit(x: &[u8], index: &rug::Integer) -> Option<bool> {
+#[apply(builtin)]
+pub fn read_bit(x: Vec<u8>, index: Integer) -> Option<bool> {
     let index = index.to_usize()?;
     let byte_index = index / 8;
     let bit_index = index % 8;
@@ -180,7 +204,8 @@ pub fn read_bit(x: &[u8], index: &rug::Integer) -> Option<bool> {
     Some((byte & (1 << bit_index)) != 0)
 }
 
-pub fn write_bits(mut x: Vec<u8>, indices: &[rug::Integer], bit: bool) -> Option<Vec<u8>> {
+#[apply(builtin)]
+pub fn write_bits(mut x: Vec<u8>, indices: Vec<Integer>, bit: bool) -> Option<Vec<u8>> {
     for index in indices {
         let index = index.to_usize()?;
         let byte_index = index / 8;
@@ -195,7 +220,8 @@ pub fn write_bits(mut x: Vec<u8>, indices: &[rug::Integer], bit: bool) -> Option
     Some(x)
 }
 
-pub fn replicate_byte(count: &rug::Integer, byte: &rug::Integer) -> Option<Vec<u8>> {
+#[apply(builtin)]
+pub fn replicate_byte(count: Integer, byte: Integer) -> Option<Vec<u8>> {
     let byte = byte.to_u8()?;
     let count = count.to_usize()?;
     if count > 8192 {

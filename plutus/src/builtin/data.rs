@@ -1,6 +1,20 @@
-use crate::data::{Construct, Data};
+use macro_rules_attribute::apply;
+use rug::Integer;
 
-pub fn choose(data: &Data, construct: u32, map: u32, list: u32, integer: u32, bytes: u32) -> u32 {
+use crate::{
+    data::{Construct, Data}, ValueIndex
+};
+use super::builtin;
+
+#[apply(builtin)]
+pub fn choose(
+    data: Data,
+    construct: ValueIndex,
+    map: ValueIndex,
+    list: ValueIndex,
+    integer: ValueIndex,
+    bytes: ValueIndex,
+) -> ValueIndex {
     match data {
         Data::Construct(_) => construct,
         Data::Map(_) => map,
@@ -10,57 +24,66 @@ pub fn choose(data: &Data, construct: u32, map: u32, list: u32, integer: u32, by
     }
 }
 
-pub fn construct(tag: &rug::Integer, fields: Vec<Data>) -> Data {
+#[apply(builtin)]
+pub fn construct(tag: Integer, fields: Vec<Data>) -> Data {
     Data::Construct(Construct {
         // We wrap here because this case is quite degenerate.
         // Although the spec strongly suggests using integers that fit in 64 bits,
         // this is not forbidden, although deserialization will fail.
         tag: tag.to_u64_wrapping(),
-        value: fields.into_boxed_slice(),
+        value: fields,
     })
 }
 
+#[apply(builtin)]
 pub fn map(pairs: Vec<(Data, Data)>) -> Data {
-    Data::Map(pairs.into_boxed_slice())
+    Data::Map(pairs)
 }
 
+#[apply(builtin)]
 pub fn list(elements: Vec<Data>) -> Data {
-    Data::List(elements.into_boxed_slice())
+    Data::List(elements)
 }
 
-pub fn integer(i: rug::Integer) -> Data {
+#[apply(builtin)]
+pub fn integer(i: Integer) -> Data {
     Data::Integer(i)
 }
 
+#[apply(builtin)]
 pub fn bytes(b: Vec<u8>) -> Data {
-    Data::Bytes(b.into_boxed_slice())
+    Data::Bytes(b)
 }
 
-pub fn un_construct(data: Data) -> Option<(rug::Integer, Vec<Data>)> {
+#[apply(builtin)]
+pub fn un_construct(data: Data) -> Option<(Integer, Vec<Data>)> {
     if let Data::Construct(Construct { tag, value }) = data {
-        Some((rug::Integer::from(tag), value.into_vec()))
+        Some((Integer::from(tag), value))
     } else {
         None
     }
 }
 
+#[apply(builtin)]
 pub fn un_map(data: Data) -> Option<Vec<(Data, Data)>> {
     if let Data::Map(pairs) = data {
-        Some(pairs.into_vec())
+        Some(pairs)
     } else {
         None
     }
 }
 
+#[apply(builtin)]
 pub fn un_list(data: Data) -> Option<Vec<Data>> {
     if let Data::List(elements) = data {
-        Some(elements.into_vec())
+        Some(elements)
     } else {
         None
     }
 }
 
-pub fn un_integer(data: Data) -> Option<rug::Integer> {
+#[apply(builtin)]
+pub fn un_integer(data: Data) -> Option<Integer> {
     if let Data::Integer(i) = data {
         Some(i)
     } else {
@@ -68,30 +91,36 @@ pub fn un_integer(data: Data) -> Option<rug::Integer> {
     }
 }
 
+#[apply(builtin)]
 pub fn un_bytes(data: Data) -> Option<Vec<u8>> {
     if let Data::Bytes(b) = data {
-        Some(b.into_vec())
+        Some(b)
     } else {
         None
     }
 }
 
-pub fn equals(data1: &Data, data2: &Data) -> bool {
+#[apply(builtin)]
+pub fn equals(data1: Data, data2: Data) -> bool {
     data1 == data2
 }
 
+#[apply(builtin)]
 pub fn mk_pair(first: Data, second: Data) -> (Data, Data) {
     (first, second)
 }
 
-pub fn mk_nil() -> Vec<Data> {
+#[apply(builtin)]
+pub fn mk_nil(_u: ()) -> Vec<Data> {
     Vec::new()
 }
 
-pub fn mk_nil_pair() -> Vec<(Data, Data)> {
+#[apply(builtin)]
+pub fn mk_nil_pair(_u: ()) -> Vec<(Data, Data)> {
     Vec::new()
 }
 
-pub fn serialize(data: &Data) -> Vec<u8> {
+#[apply(builtin)]
+pub fn serialize(data: Data) -> Vec<u8> {
     minicbor::to_vec(data).expect("serialization should not fail")
 }

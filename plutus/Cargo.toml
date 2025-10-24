@@ -12,8 +12,10 @@ sha3 = { version = "0.11.0-rc.3", default-features = false, features = ["alloc"]
 blake2 = "0.11.0-rc.2"
 ed25519-dalek = { version = "3.0.0-pre.1", default-features = false, features = ["alloc"] }
 k256 = "0.14.0-pre.11"
+ripemd = "0.2.0-rc.1"
 
 strum = { version = "0.27.2", features = ["derive"] }
+macro_rules_attribute = "0.2.2"
 
 const-hex = "1.16.0"
 minicbor = { workspace = true }

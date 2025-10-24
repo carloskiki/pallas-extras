@@ -20,14 +20,14 @@ pub fn encode<C, W: en::Write>(
     }
 }
 
-pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Box<[u8]>, de::Error> {
+pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Vec<u8>, de::Error> {
     match d.datatype()? {
         minicbor::data::Type::Bytes => {
             let bytes: &ByteSlice = d.decode()?;
             if bytes.len() > 64 {
                 Err(de::Error::message("byte slice too long for bounded bytes"))
             } else {
-                Ok(Box::from(&**bytes))
+                Ok(bytes.to_vec())
             }
         },
         minicbor::data::Type::BytesIndef => {
@@ -39,7 +39,7 @@ pub fn decode<Ctx>(d: &mut Decoder<'_>, _: &mut Ctx) -> Result<Box<[u8]>, de::Er
                 }
                 bytes.extend_from_slice(slice);
             }
-            Ok(bytes.into_boxed_slice())
+            Ok(bytes)
         },
         t => Err(de::Error::type_mismatch(t).at(d.position()))
     }
@@ -73,7 +73,7 @@ mod tests {
         let ctx = &mut ();
         for len in LENGTHS {
             // Generate Random slice with length `len` using rand
-            let mut bytes = vec![0u8; *len].into_boxed_slice();
+            let mut bytes = vec![0u8; *len];
             rng.fill_bytes(&mut bytes);
 
             super::encode(&bytes, encoder, ctx)?;

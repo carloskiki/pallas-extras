@@ -11,9 +11,9 @@ pub enum Constant {
     Bytes(Vec<u8>),
     String(String),
     #[default]
-    Uint,
+    Unit,
     Boolean(bool),
-    // The list is stored in reverse order for easier `mkCons` operation.
+    // The list is stored in reverse order for faster `mkCons` operation.
     List(Vec<Constant>),
     Array(Box<[Constant]>),
     Pair(Box<(Constant, Constant)>),
@@ -21,7 +21,6 @@ pub enum Constant {
     BLSG1Element(Box<bls12_381::G1Projective>),
     BLSG2Element(Box<bls12_381::G2Projective>),
 }
-
 
 impl FromStr for Constant {
     type Err = ();
@@ -69,7 +68,7 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             if konst_word != "()" {
                 return Err(());
             }
-            Constant::Uint
+            Constant::Unit
         }
         "data" => {
             // FIXME: https://github.com/IntersectMBO/plutus/issues/7383
@@ -152,4 +151,218 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
     };
 
     Ok((constant, konst_rest))
+}
+
+impl From<rug::Integer> for Constant {
+    fn from(value: rug::Integer) -> Self {
+        Constant::Integer(value)
+    }
+}
+
+impl From<Vec<u8>> for Constant {
+    fn from(value: Vec<u8>) -> Self {
+        Constant::Bytes(value)
+    }
+}
+
+impl From<String> for Constant {
+    fn from(value: String) -> Self {
+        Constant::String(value)
+    }
+}
+
+impl From<bool> for Constant {
+    fn from(value: bool) -> Self {
+        Constant::Boolean(value)
+    }
+}
+
+impl From<Data> for Constant {
+    fn from(value: Data) -> Self {
+        Constant::Data(value)
+    }
+}
+
+impl From<bls12_381::G1Projective> for Constant {
+    fn from(value: bls12_381::G1Projective) -> Self {
+        Constant::BLSG1Element(Box::new(value))
+    }
+}
+
+impl From<bls12_381::G2Projective> for Constant {
+    fn from(value: bls12_381::G2Projective) -> Self {
+        Constant::BLSG2Element(Box::new(value))
+    }
+}
+
+impl From<()> for Constant {
+    fn from(_: ()) -> Self {
+        Constant::Unit
+    }
+}
+
+impl<T: Into<Constant>> From<Vec<T>> for Constant {
+    fn from(value: Vec<T>) -> Self {
+        Constant::List(value.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<T: Into<Constant>> From<Box<[T]>> for Constant {
+    fn from(value: Box<[T]>) -> Self {
+        Constant::Array(
+            value
+                .into_vec()
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        )
+    }
+}
+
+impl<T1: Into<Constant>, T2: Into<Constant>> From<(T1, T2)> for Constant {
+    fn from(value: (T1, T2)) -> Self {
+        Constant::Pair(Box::new((value.0.into(), value.1.into())))
+    }
+}
+
+impl TryFrom<Constant> for rug::Integer {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Integer(int) = value {
+            Ok(int)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for Vec<u8> {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Bytes(bytes) = value {
+            Ok(bytes)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for String {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::String(string) = value {
+            Ok(string)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for bool {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Boolean(b) = value {
+            Ok(b)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for Data {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Data(data) = value {
+            Ok(data)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for bls12_381::G1Projective {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::BLSG1Element(p) = value {
+            Ok(*p)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for bls12_381::G2Projective {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::BLSG2Element(p) = value {
+            Ok(*p)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant> for () {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Unit = value {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<T: TryFrom<Constant>> TryFrom<Constant> for Vec<T> {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::List(list) = value {
+            list.into_iter()
+                .map(T::try_from)
+                .collect::<Result<_, _>>()
+                .map_err(|_| ())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<T: TryFrom<Constant>> TryFrom<Constant> for Box<[T]> {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Array(arr) = value {
+            arr.into_vec()
+                .into_iter()
+                .map(T::try_from)
+                .collect::<Result<_, _>>()
+                .map_err(|_| ())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<T1: TryFrom<Constant>, T2: TryFrom<Constant>> TryFrom<Constant> for (T1, T2) {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        if let Constant::Pair(boxed) = value {
+            let first = T1::try_from(boxed.0).map_err(|_| ())?;
+            let second = T2::try_from(boxed.1).map_err(|_| ())?;
+            Ok((first, second))
+        } else {
+            Err(())
+        }
+    }
 }

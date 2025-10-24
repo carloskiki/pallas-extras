@@ -9,7 +9,9 @@ members = [
     "network",
     "vrf",
     "ledger/minicbor-derive",
-    "ledger/sparse-struct", "plutus",
+    "ledger/sparse-struct",
+    "plutus",
+    "plutus/macros",
 ]
 
 [workspace.dependencies]
@@ -52,4 +54,3 @@ curve25519-dalek = { workspace = true }
 rand = "0.8"
 cbor-util = { path = "cbor-util" }
 indicatif = "0.17"
-

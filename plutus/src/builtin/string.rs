@@ -1,16 +1,23 @@
-pub fn append(mut x: String, y: &str) -> String {
-    x.push_str(y);
+use super::builtin;
+use macro_rules_attribute::apply;
+
+#[apply(builtin)]
+pub fn append(mut x: String, y: String) -> String {
+    x.push_str(&y);
     x
 }
 
-pub fn equals(x: &str, y: &str) -> bool {
+#[apply(builtin)]
+pub fn equals(x: String, y: String) -> bool {
     x == y
 }
 
+#[apply(builtin)]
 pub fn encode_utf8(x: String) -> Vec<u8> {
     x.into_bytes()
 }
 
-pub fn decode_utf8(x: &[u8]) -> Option<String> {
-    String::from_utf8(x.to_vec()).ok()
+#[apply(builtin)]
+pub fn decode_utf8(x: Vec<u8>) -> Option<String> {
+    String::from_utf8(x).ok()
 }

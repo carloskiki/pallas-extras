@@ -1,18 +1,26 @@
-use crate::constant::Constant;
+use macro_rules_attribute::apply;
 
-pub fn choose(list: &[Constant], empty: u32, then: u32) -> u32 {
+use crate::{constant::Constant, ValueIndex};
+use super::builtin;
+
+#[apply(builtin)]
+pub fn choose(list: Vec<Constant>, empty: ValueIndex, then: ValueIndex) -> ValueIndex {
     if list.is_empty() { empty } else { then }
 }
 
+// TODO: Ensure same type for head and tail.
+#[apply(builtin)]
 pub fn mk_cons(head: Constant, mut tail: Vec<Constant>) -> Vec<Constant> {
     tail.push(head);
     tail
 }
 
+#[apply(builtin)]
 pub fn head(mut list: Vec<Constant>) -> Option<Constant> {
     list.pop()
 }
 
+#[apply(builtin)]
 pub fn tail(mut list: Vec<Constant>) -> Option<Vec<Constant>> {
     if list.is_empty() {
         None
@@ -22,11 +30,13 @@ pub fn tail(mut list: Vec<Constant>) -> Option<Vec<Constant>> {
     }
 }
 
-pub fn null(list: &[Constant]) -> bool {
+#[apply(builtin)]
+pub fn null(list: Vec<Constant>) -> bool {
     list.is_empty()
 }
 
-pub fn drop(count: &rug::Integer, mut list: Vec<Constant>) -> Vec<Constant> {
+#[apply(builtin)]
+pub fn drop(count: rug::Integer, mut list: Vec<Constant>) -> Vec<Constant> {
     if count.is_negative() {
         return list;
     }
@@ -36,6 +46,7 @@ pub fn drop(count: &rug::Integer, mut list: Vec<Constant>) -> Vec<Constant> {
     list
 }
 
+#[apply(builtin)]
 pub fn to_array(mut list: Vec<Constant>) -> Vec<Constant> {
     list.reverse();
     list

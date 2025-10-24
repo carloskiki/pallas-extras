@@ -2,7 +2,7 @@ use minicbor::{CborLen, Decoder, Encoder, decode as de, encode as en};
 
 #[allow(clippy::borrowed_box)]
 pub fn encode<C, W: en::Write, T: en::Encode<C>, U: en::Encode<C>>(
-    value: &Box<[(T, U)]>,
+    value: &[(T, U)],
     e: &mut Encoder<W>,
     ctx: &mut C,
 ) -> Result<(), en::Error<W::Error>> {
@@ -17,11 +17,11 @@ pub fn encode<C, W: en::Write, T: en::Encode<C>, U: en::Encode<C>>(
 pub fn decode<'a, T: de::Decode<'a, Ctx>, U: de::Decode<'a, Ctx>, Ctx>(
     d: &mut Decoder<'a>,
     ctx: &mut Ctx,
-) -> Result<Box<[(T, U)]>, de::Error> {
-    d.map_iter_with(ctx)?.collect::<Result<Box<[(T, U)]>, _>>()
+) -> Result<Vec<(T, U)>, de::Error> {
+    d.map_iter_with(ctx)?.collect::<Result<Vec<(T, U)>, _>>()
 }
 
-pub fn nil<K, V>() -> Option<Box<[(K, V)]>> {
+pub fn nil<K, V>() -> Option<Vec<(K, V)>> {
     Some(Default::default())
 }
 
@@ -32,7 +32,7 @@ pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
 
 #[allow(clippy::borrowed_box)]
 pub fn cbor_len<Ctx, K: CborLen<Ctx>, V: CborLen<Ctx>>(
-    val: &Box<[(K, V)]>,
+    val: &[(K, V)],
     ctx: &mut Ctx,
 ) -> usize {
     val.len().cbor_len(ctx)
@@ -51,7 +51,7 @@ pub mod key_bytes {
 
     #[allow(clippy::borrowed_box)]
     pub fn encode<C, W: en::Write, T: bytes::EncodeBytes<C>, U: en::Encode<C>>(
-        value: &Box<[(T, U)]>,
+        value: &[(T, U)],
         e: &mut Encoder<W>,
         ctx: &mut C,
     ) -> Result<(), en::Error<W::Error>> {
@@ -66,7 +66,7 @@ pub mod key_bytes {
     pub fn decode<'a, T: bytes::DecodeBytes<'a, Ctx>, U: de::Decode<'a, Ctx>, Ctx>(
         d: &mut Decoder<'a>,
         ctx: &mut Ctx,
-    ) -> Result<Box<[(T, U)]>, de::Error> {
+    ) -> Result<Vec<(T, U)>, de::Error> {
         let mut map_len = d.map()?;
         let mut container = Vec::with_capacity(map_len.unwrap_or(0) as usize);
         while map_len.is_none_or(|l| l != 0) && d.datatype()? != minicbor::data::Type::Break {
@@ -83,21 +83,21 @@ pub mod key_bytes {
             d.skip()?;
         }
 
-        Ok(container.into_boxed_slice())
+        Ok(container)
     }
 
-    pub fn nil<K, V>() -> Option<Box<[(K, V)]>> {
+    pub fn nil<K, V>() -> Option<Vec<(K, V)>> {
         Some(Default::default())
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn is_nil<K, V>(v: &Box<[(K, V)]>) -> bool {
+    pub fn is_nil<K, V>(v: &[(K, V)]) -> bool {
         v.is_empty()
     }
 
     #[allow(clippy::borrowed_box)]
     pub fn cbor_len<C, K: CborLenBytes<C>, V: CborLen<C>>(
-        value: &Box<[(K, V)]>,
+        value: &[(K, V)],
         ctx: &mut C,
     ) -> usize {
         value.len().cbor_len(ctx)

@@ -8,7 +8,7 @@ mod evaluate;
 pub struct Program<T> {
     version: Version,
     constants: Vec<Constant>,
-    program: Vec<Instruction<T>>,
+    pub(crate) program: Vec<Instruction<T>>,
 }
 
 /// Type of term parsed
@@ -67,7 +67,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         }
                         "con" => {
                             constants.push(Constant::from_str(rest)?);
-                            let index = (constants.len() - 1) as u16;
+                            let index = (constants.len() - 1) as u32;
                             program.push(Instruction::Constant(index));
                         }
                         "force" => {
@@ -85,7 +85,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         "constr" if version.minor > 0 => {
                             let (index_str, mut rest) = lex::word(rest);
                             let determinant: u16 = index_str.parse().map_err(|_| ())?;
-                            let mut count = 0u8;
+                            let mut count = 0u32;
                             while !rest.is_empty() {
                                 let (prefix, arg) = lex::right_term(rest).ok_or(())?;
                                 rest = prefix;
@@ -98,7 +98,7 @@ impl<T: FromStr> FromStr for Program<T> {
                             });
                         }
                         "case" if version.minor > 0 => {
-                            let mut count = 0u16;
+                            let mut count = 0u32;
                             let mut rest = rest;
                             while !rest.is_empty() {
                                 let (prefix, arg) = lex::right_term(rest).ok_or(())?;
@@ -114,7 +114,7 @@ impl<T: FromStr> FromStr for Program<T> {
                     }
                 }
                 (content, TermType::Application) => {
-                    let mut count: u16 = 0;
+                    let mut count = 0usize;
                     let mut rest = content;
                     while !rest.is_empty() {
                         let (prefix, arg) = lex::right_term(rest).ok_or(())?;
@@ -124,9 +124,13 @@ impl<T: FromStr> FromStr for Program<T> {
                     }
 
                     count = count.saturating_sub(1);
-                    let count = NonZeroU16::new(count).ok_or(())?;
+                    if count == 0 {
+                        return Err(());
+                    }
 
-                    program.push(Instruction::Application(count));
+                    for _ in 0..count {
+                        program.push(Instruction::Application);
+                    }
                 }
 
                 (var, TermType::Variable) => {
@@ -157,7 +161,7 @@ impl<T: PartialEq> Program<T> {
                         .iter()
                         .rposition(|x| *x == v)
                         .map(|pos| {
-                            Instruction::Variable(DeBruijn((variables.len() - 1 - pos) as u16))
+                            Instruction::Variable(DeBruijn((variables.len() - 1 - pos) as u32))
                         })
                         .and_then(|var_instr| {
                             decrement_stack(&mut stack, &mut variables).then_some(var_instr)
@@ -174,11 +178,11 @@ impl<T: PartialEq> Program<T> {
                         variables.push(v);
                         stack.last_mut().map(|(depth, _)| {
                             *depth += 1;
-                            Instruction::Lambda(DeBruijn(0u16))
+                            Instruction::Lambda(DeBruijn(0u32))
                         })
                     }
-                    Instruction::Application(a) => {
-                        increment_stack(&mut stack, a.into()).then_some(Instruction::Application(a))
+                    Instruction::Application => {
+                        increment_stack(&mut stack, 1).then_some(Instruction::Application)
                     }
 
                     Instruction::Case { count: len } => {
@@ -189,12 +193,10 @@ impl<T: PartialEq> Program<T> {
                         length: len,
                     } => {
                         if len > 0 {
-                            increment_stack(&mut stack, len as u16 - 1).then_some(
-                                Instruction::Construct {
-                                    determinant,
-                                    length: len,
-                                },
-                            )
+                            increment_stack(&mut stack, len - 1).then_some(Instruction::Construct {
+                                determinant,
+                                length: len,
+                            })
                         } else {
                             decrement_stack(&mut stack, &mut variables).then_some(
                                 Instruction::Construct {
@@ -218,7 +220,7 @@ impl<T: PartialEq> Program<T> {
     }
 }
 
-fn increment_stack(stack: &mut [(u16, u16)], count: u16) -> bool {
+fn increment_stack(stack: &mut [(u32, u32)], count: u32) -> bool {
     let Some((term_count, _)) = stack.last_mut() else {
         return false;
     };
@@ -226,7 +228,7 @@ fn increment_stack(stack: &mut [(u16, u16)], count: u16) -> bool {
     true
 }
 
-fn decrement_stack<T>(stack: &mut Vec<(u16, u16)>, variables: &mut Vec<T>) -> bool {
+fn decrement_stack<T>(stack: &mut Vec<(u32, u32)>, variables: &mut Vec<T>) -> bool {
     if let Some((depth, var_count)) = stack.last_mut() {
         if *depth > 0 {
             *depth -= 1;
@@ -245,15 +247,15 @@ pub enum Instruction<T> {
     Variable(T),
     Delay,
     Lambda(T),
-    Application(NonZeroU16),
+    Application,
     // Index into the constants pool
-    Constant(u16),
+    Constant(u32),
     Force,
     Error,
     Builtin(Builtin),
     // Should we support full u64 determinants?
-    Construct { determinant: u16, length: u8 },
-    Case { count: u16 },
+    Construct { determinant: u16, length: u32 },
+    Case { count: u32 },
 }
 
 impl<T> Instruction<T> {
@@ -271,12 +273,10 @@ impl<T> Instruction<T> {
 
 /// A De Bruijn index
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeBruijn(u16);
+pub struct DeBruijn(u32);
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU16;
-
     use crate::program::DeBruijn;
 
     #[test]
@@ -289,7 +289,7 @@ mod tests {
             vec![
                 super::Instruction::Lambda(DeBruijn(0)),
                 super::Instruction::Lambda(DeBruijn(0)),
-                super::Instruction::Application(NonZeroU16::new(1).unwrap()),
+                super::Instruction::Application,
                 super::Instruction::Variable(DeBruijn(1)),
                 super::Instruction::Variable(DeBruijn(0)),
             ]

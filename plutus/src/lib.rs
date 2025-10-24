@@ -4,6 +4,7 @@ mod builtin;
 mod constant;
 mod data;
 mod lex;
+mod cek;
 pub mod program;
 
 #[derive(Debug)]
@@ -47,3 +48,12 @@ pub enum BuiltinType {
     BLSMlResult,
     Array,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct TermIndex(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ConstantIndex(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ValueIndex(u32);

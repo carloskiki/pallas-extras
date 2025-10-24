@@ -1,10 +1,14 @@
 use crate::constant::Constant;
+use super::builtin;
+use macro_rules_attribute::apply;
 
-pub fn length(arr: &[Constant]) -> rug::Integer {
+#[apply(builtin)]
+pub fn length(arr: Box<[Constant]>) -> rug::Integer {
     rug::Integer::from(arr.len())
 }
 
-pub fn index(index: &rug::Integer, mut arr: Vec<Constant>) -> Option<Constant> {
+#[apply(builtin)]
+pub fn index(index: rug::Integer, mut arr: Box<[Constant]>) -> Option<Constant> {
     let index = index.to_usize()?;
     arr.get_mut(index).map(std::mem::take)
 }

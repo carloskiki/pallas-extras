@@ -7,9 +7,9 @@ use crate::lex;
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum Data {
-    Map(Box<[(Data, Data)]>),
-    List(Box<[Data]>),
-    Bytes(Box<[u8]>),
+    Map(Vec<(Data, Data)>),
+    List(Vec<Data>),
+    Bytes(Vec<u8>),
     Integer(rug::Integer),
     Construct(Construct),
 }
@@ -69,7 +69,7 @@ impl<C> Decode<'_, C> for Data {
                 Ok(Self::Bytes(cbor_util::bounded_bytes::decode(d, ctx)?))
             }
             minicbor::data::Type::Array | minicbor::data::Type::ArrayIndef => {
-                Ok(Self::List(cbor_util::boxed_slice::decode(d, ctx)?))
+                Ok(Self::List(d.decode()?))
             }
             minicbor::data::Type::Map | minicbor::data::Type::MapIndef => {
                 Ok(Self::Map(cbor_util::list_as_map::decode(d, ctx)?))
@@ -156,7 +156,7 @@ pub(crate) fn parse_data(s: &str) -> Option<(Data, &str)> {
         "B" => {
             let hex = word_str.strip_prefix("#")?;
             let bytes = const_hex::decode(hex).ok()?;
-            Data::Bytes(bytes.into_boxed_slice())
+            Data::Bytes(bytes)
         }
         "I" => {
             let int = rug::Integer::from_str_radix(word_str, 10).ok()?;
@@ -182,7 +182,7 @@ pub(crate) fn parse_data(s: &str) -> Option<(Data, &str)> {
                 items.push((key, value));
             }
 
-            Data::Map(items.into_boxed_slice())
+            Data::Map(items)
         }
         "Constr" => {
             let (tag_str, tag_rest) = data_str.split_once(char::is_whitespace)?;
@@ -197,7 +197,7 @@ pub(crate) fn parse_data(s: &str) -> Option<(Data, &str)> {
     Some((data, rest))
 }
 
-fn data_list(s: &str) -> Option<(Box<[Data]>, &str)> {
+fn data_list(s: &str) -> Option<(Vec<Data>, &str)> {
     let (mut items_str, rest) = lex::group::<b'[', b']'>(s)?;
     let mut items = Vec::new();
     while !items_str.is_empty() {
@@ -211,13 +211,13 @@ fn data_list(s: &str) -> Option<(Box<[Data]>, &str)> {
         items_str = list_rest;
     }
 
-    Some((items.into_boxed_slice(), rest))
+    Some((items, rest))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Construct {
     pub tag: u64,
-    pub value: Box<[Data]>,
+    pub value: Vec<Data>,
 }
 
 impl<C> Encode<C> for Construct {
@@ -249,8 +249,8 @@ impl<C> Decode<'_, C> for Construct {
                 struct Inner {
                     #[n(0)]
                     tag: u64,
-                    #[cbor(n(1), with = "cbor_util::boxed_slice")]
-                    value: Box<[Data]>,
+                    #[cbor(n(1))]
+                    value: Vec<Data>,
                 }
                 let Inner { tag, value } = d.decode()?;
                 Ok(Self { tag, value })
@@ -258,11 +258,11 @@ impl<C> Decode<'_, C> for Construct {
 
             121..=127 => Ok(Construct {
                 tag: tag - 121,
-                value: cbor_util::boxed_slice::decode(d, ctx)?,
+                value: d.decode_with(ctx)?,
             }),
             1280..=1400 => Ok(Construct {
                 tag: tag - 1280 + 7,
-                value: cbor_util::boxed_slice::decode(d, ctx)?,
+                value: d.decode_with(ctx)?,
             }),
             t => Err(
                 minicbor::decode::Error::tag_mismatch(minicbor::data::Tag::new(t)).at(d.position()),
