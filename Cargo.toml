@@ -11,7 +11,6 @@ members = [
     "ledger/minicbor-derive",
     "ledger/sparse-struct",
     "plutus",
-    "plutus/macros",
 ]
 
 [workspace.dependencies]
