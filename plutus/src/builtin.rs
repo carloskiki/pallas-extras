@@ -1,4 +1,4 @@
-use crate::{ValueIndex, constant::Constant};
+use crate::{cek::Value, constant::Constant, ValueIndex};
 use macro_rules_attribute::apply;
 use strum::{EnumString, FromRepr};
 
@@ -185,7 +185,7 @@ pub enum Builtin {
 }
 
 impl Builtin {
-    pub fn polymorphic_count(&self) -> u8 {
+    pub fn quantifiers(&self) -> u8 {
         match self {
             Builtin::IfThenElse
             | Builtin::ChooseUnit
@@ -202,6 +202,251 @@ impl Builtin {
             Builtin::FstPair | Builtin::SndPair | Builtin::ChooseList => 2,
             _ => 0,
         }
+    }
+
+    pub fn arity(&self) -> u8 {
+        match self {
+            // Integers
+            Builtin::AddInteger => 2,
+            Builtin::SubtractInteger => 2,
+            Builtin::MultiplyInteger => 2,
+            Builtin::DivideInteger => 2,
+            Builtin::QuotientInteger => 2,
+            Builtin::RemainderInteger => 2,
+            Builtin::ModInteger => 2,
+            Builtin::EqualsInteger => 2,
+            Builtin::LessThanInteger => 2,
+            Builtin::LessThanEqualsInteger => 2,
+            Builtin::ExpModInteger => 3,
+            
+            // Bytestrings
+            Builtin::AppendByteString => 2,
+            Builtin::ConsByteString => 2,
+            Builtin::SliceByteString => 3,
+            Builtin::LengthOfByteString => 1,
+            Builtin::IndexByteString => 2,
+            Builtin::EqualsByteString => 2,
+            Builtin::LessThanByteString => 2,
+            Builtin::LessThanEqualsByteString => 2,
+            Builtin::AndByteString => 3,
+            Builtin::OrByteString => 3,
+            Builtin::XorByteString => 3,
+            Builtin::ComplementByteString => 1,
+            Builtin::ReadBit => 2,
+            Builtin::WriteBits => 3,
+            Builtin::ReplicateByte => 2,
+            Builtin::ShiftByteString => 2,
+            Builtin::RotateByteString => 2,
+            Builtin::CountSetBits => 1,
+            Builtin::FindFirstSetBit => 1,
+            Builtin::IntegerToByteString => 3,
+            Builtin::ByteStringToInteger => 2,
+            
+            // Cryptography and hashes
+            Builtin::Sha2_256 => 1,
+            Builtin::Sha3_256 => 1,
+            Builtin::Blake2b256 => 1,
+            Builtin::Blake2b224 => 1,
+            Builtin::Keccak256 => 1,
+            Builtin::Ripemd160 => 1,
+            Builtin::VerifyEd25519Signature => 3,
+            Builtin::VerifyEcdsaSecp256k1Signature => 3,
+            Builtin::VerifySchnorrSecp256k1Signature => 3,
+            
+            // Strings
+            Builtin::AppendString => 2,
+            Builtin::EqualsString => 2,
+            Builtin::EncodeUtf8 => 1,
+            Builtin::DecodeUtf8 => 1,
+            
+            // Bool
+            Builtin::IfThenElse => 3,
+            Builtin::ChooseUnit => 2,
+            Builtin::Trace => 2,
+            Builtin::FstPair => 1,
+            Builtin::SndPair => 1,
+            
+            // Lists
+            Builtin::ChooseList => 3,
+            Builtin::MkCons => 2,
+            Builtin::HeadList => 1,
+            Builtin::TailList => 1,
+            Builtin::NullList => 1,
+            Builtin::DropList => 2,
+            
+            // Data
+            Builtin::ChooseData => 6,
+            Builtin::ConstrData => 2,
+            Builtin::MapData => 1,
+            Builtin::ListData => 1,
+            Builtin::IData => 1,
+            Builtin::BData => 1,
+            Builtin::UnConstrData => 1,
+            Builtin::UnMapData => 1,
+            Builtin::UnListData => 1,
+            Builtin::UnIData => 1,
+            Builtin::UnBData => 1,
+            Builtin::EqualsData => 2,
+            Builtin::SerialiseData => 1,
+            Builtin::MkPairData => 2,
+            Builtin::MkNilData => 1,
+            Builtin::MkNilPairData => 1,
+            
+            // BLS12_381 operations
+            Builtin::BlsG1Add => 2,
+            Builtin::BlsG1Neg => 1,
+            Builtin::BlsG1ScalarMul => 2,
+            Builtin::BlsG1Equal => 2,
+            Builtin::BlsG1HashToGroup => 2,
+            Builtin::BlsG1Compress => 1,
+            Builtin::BlsG1Uncompress => 1,
+            Builtin::BlsG2Add => 2,
+            Builtin::BlsG2Neg => 1,
+            Builtin::BlsG2ScalarMul => 2,
+            Builtin::BlsG2Equal => 2,
+            Builtin::BlsG2HashToGroup => 2,
+            Builtin::BlsG2Compress => 1,
+            Builtin::BlsG2Uncompress => 1,
+            Builtin::BlsMillerLoop => 2,
+            Builtin::BlsMulMlResult => 2,
+            Builtin::BlsFinalVerify => 2,
+            Builtin::BlsG1MultiScalarMul => 2,
+            Builtin::BlsG2MultiScalarMul => 2,
+            
+            // Arrays
+            Builtin::LengthOfArray => 1,
+            Builtin::ListToArray => 1,
+            Builtin::IndexArray => 2,
+        }
+    }
+
+    pub fn apply(
+        self,
+        args: &mut Vec<Value>,
+        constants: &mut [Constant],
+    ) -> Option<Value> {
+        let function = match self {
+            // Integers
+            Builtin::AddInteger => integer::add,
+            Builtin::SubtractInteger => integer::subtract,
+            Builtin::MultiplyInteger => integer::multiply,
+            Builtin::DivideInteger => integer::divide,
+            Builtin::QuotientInteger => integer::quotient,
+            Builtin::RemainderInteger => integer::remainder,
+            Builtin::ModInteger => integer::modulo,
+            Builtin::EqualsInteger => integer::equals,
+            Builtin::LessThanInteger => integer::less_than,
+            Builtin::LessThanEqualsInteger => integer::less_than_or_equal,
+            Builtin::ExpModInteger => integer::exp_mod,
+            
+            // Bytestrings
+            Builtin::AppendByteString => bytestring::append,
+            Builtin::ConsByteString => bytestring::cons_v2,
+            Builtin::SliceByteString => bytestring::slice,
+            Builtin::LengthOfByteString => bytestring::length,
+            Builtin::IndexByteString => bytestring::index,
+            Builtin::EqualsByteString => bytestring::equals,
+            Builtin::LessThanByteString => bytestring::less_than,
+            Builtin::LessThanEqualsByteString => bytestring::less_than_or_equal,
+            Builtin::AndByteString => bytestring::and,
+            Builtin::OrByteString => bytestring::or,
+            Builtin::XorByteString => bytestring::xor,
+            Builtin::ComplementByteString => bytestring::complement,
+            Builtin::ReadBit => bytestring::read_bit,
+            Builtin::WriteBits => bytestring::write_bits,
+            Builtin::ReplicateByte => bytestring::replicate_byte,
+            Builtin::ShiftByteString => bytestring::shift,
+            Builtin::RotateByteString => bytestring::rotate,
+            Builtin::CountSetBits => bytestring::count_set_bits,
+            Builtin::FindFirstSetBit => bytestring::first_set_bit,
+            Builtin::IntegerToByteString => integer::to_bytes,
+            Builtin::ByteStringToInteger => bytestring::to_integer,
+            
+            // Cryptography and hashes
+            Builtin::Sha2_256 => digest::sha2_256,
+            Builtin::Sha3_256 => digest::sha3_256,
+            Builtin::Blake2b256 => digest::blake2b256,
+            Builtin::Blake2b224 => digest::blake2b224,
+            Builtin::Keccak256 => digest::keccak256,
+            Builtin::Ripemd160 => digest::ripemd160,
+            Builtin::VerifyEd25519Signature => ed25519::verify,
+            Builtin::VerifyEcdsaSecp256k1Signature => k256::verify_ecdsa,
+            Builtin::VerifySchnorrSecp256k1Signature => k256::verify_schnorr,
+            
+            // Strings
+            Builtin::AppendString => string::append,
+            Builtin::EqualsString => string::equals,
+            Builtin::EncodeUtf8 => string::encode_utf8,
+            Builtin::DecodeUtf8 => string::decode_utf8,
+            
+            // Bool
+            Builtin::IfThenElse => if_then_else,
+            
+            // Unit
+            Builtin::ChooseUnit => choose_unit,
+            
+            // Tracing
+            Builtin::Trace => trace,
+            
+            // Pairs
+            Builtin::FstPair => first_pair,
+            Builtin::SndPair => second_pair,
+            
+            // Lists
+            Builtin::ChooseList => list::choose,
+            Builtin::MkCons => list::mk_cons,
+            Builtin::HeadList => list::head,
+            Builtin::TailList => list::tail,
+            Builtin::NullList => list::null,
+            Builtin::DropList => list::drop,
+            
+            // Data
+            Builtin::ChooseData => data::choose,
+            Builtin::ConstrData => data::construct,
+            Builtin::MapData => data::map,
+            Builtin::ListData => data::list,
+            Builtin::IData => data::integer,
+            Builtin::BData => data::bytes,
+            Builtin::UnConstrData => data::un_construct,
+            Builtin::UnMapData => data::un_map,
+            Builtin::UnListData => data::un_list,
+            Builtin::UnIData => data::un_integer,
+            Builtin::UnBData => data::un_bytes,
+            Builtin::EqualsData => data::equals,
+            Builtin::SerialiseData => data::serialize,
+            Builtin::MkPairData => data::mk_pair,
+            Builtin::MkNilData => data::mk_nil,
+            Builtin::MkNilPairData => data::mk_nil_pair,
+            
+            // BLS12_381 operations
+            Builtin::BlsG1Add => bls12_381::g1_add,
+            Builtin::BlsG1Neg => bls12_381::g1_neg,
+            Builtin::BlsG1ScalarMul => bls12_381::g1_scalar_mul,
+            Builtin::BlsG1Equal => bls12_381::g1_equals,
+            Builtin::BlsG1HashToGroup => todo!(),
+            Builtin::BlsG1Compress => bls12_381::g1_compress,
+            Builtin::BlsG1Uncompress => bls12_381::g1_uncompress,
+            Builtin::BlsG2Add => bls12_381::g2_add,
+            Builtin::BlsG2Neg => bls12_381::g2_neg,
+            Builtin::BlsG2ScalarMul => bls12_381::g2_scalar_mul,
+            Builtin::BlsG2Equal => bls12_381::g2_equals,
+            Builtin::BlsG2HashToGroup => todo!(),
+            Builtin::BlsG2Compress => bls12_381::g2_compress,
+            Builtin::BlsG2Uncompress => bls12_381::g2_uncompress,
+            Builtin::BlsMillerLoop => todo!(),
+            Builtin::BlsMulMlResult => todo!(),
+            Builtin::BlsFinalVerify => todo!(),
+            Builtin::BlsG1MultiScalarMul => todo!(),
+            Builtin::BlsG2MultiScalarMul => todo!(),
+            
+            // Arrays
+            Builtin::LengthOfArray => array::length,
+            Builtin::ListToArray => list::to_array,
+            Builtin::IndexArray => array::index,
+        };
+        
+
+        function(args, constants)
     }
 }
 
@@ -234,7 +479,7 @@ pub fn second_pair(pair: (Constant, Constant)) -> Constant {
 macro_rules! builtin {
     (pub fn $name:ident ( $($args:tt)+ ) -> $($rest:tt)+) => {
         #[allow(unused_mut)]
-        pub fn $name (mut args: Vec<$crate::cek::Value>, constants: &mut [$crate::constant::Constant]) -> Option<$crate::cek::Value> {
+        pub fn $name (args: &mut Vec<$crate::cek::Value>, constants: &mut [$crate::constant::Constant]) -> Option<$crate::cek::Value> {
             let mut __index = 0u32;
             builtin!(@unwrap ( $($args)+ ) __index, constants, args);
 

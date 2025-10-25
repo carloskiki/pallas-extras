@@ -1,4 +1,4 @@
-use std::{num::NonZeroU16, str::FromStr};
+use std::str::FromStr;
 
 use crate::{Version, builtin::Builtin, constant::Constant, lex};
 
@@ -7,7 +7,7 @@ mod evaluate;
 #[derive(Debug)]
 pub struct Program<T> {
     version: Version,
-    constants: Vec<Constant>,
+    pub(crate) constants: Vec<Constant>,
     pub(crate) program: Vec<Instruction<T>>,
 }
 
@@ -85,7 +85,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         "constr" if version.minor > 0 => {
                             let (index_str, mut rest) = lex::word(rest);
                             let determinant: u16 = index_str.parse().map_err(|_| ())?;
-                            let mut count = 0u32;
+                            let mut count = 0u16;
                             while !rest.is_empty() {
                                 let (prefix, arg) = lex::right_term(rest).ok_or(())?;
                                 rest = prefix;
@@ -193,7 +193,7 @@ impl<T: PartialEq> Program<T> {
                         length: len,
                     } => {
                         if len > 0 {
-                            increment_stack(&mut stack, len - 1).then_some(Instruction::Construct {
+                            increment_stack(&mut stack, len as u32 - 1).then_some(Instruction::Construct {
                                 determinant,
                                 length: len,
                             })
@@ -254,8 +254,8 @@ pub enum Instruction<T> {
     Error,
     Builtin(Builtin),
     // Should we support full u64 determinants?
-    Construct { determinant: u16, length: u32 },
-    Case { count: u32 },
+    Construct { determinant: u16, length: u16 },
+    Case { count: u16 },
 }
 
 impl<T> Instruction<T> {
