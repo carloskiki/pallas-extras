@@ -2,19 +2,19 @@ use macro_rules_attribute::apply;
 use rug::Integer;
 
 use crate::{
-    data::{Construct, Data}, ValueIndex
+    data::{Construct, Data}, program::evaluate::Value,
 };
 use super::builtin;
 
 #[apply(builtin)]
 pub fn choose(
     data: Data,
-    construct: ValueIndex,
-    map: ValueIndex,
-    list: ValueIndex,
-    integer: ValueIndex,
-    bytes: ValueIndex,
-) -> ValueIndex {
+    construct: Value,
+    map: Value,
+    list: Value,
+    integer: Value,
+    bytes: Value,
+) -> Value {
     match data {
         Data::Construct(_) => construct,
         Data::Map(_) => map,

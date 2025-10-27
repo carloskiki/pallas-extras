@@ -1,10 +1,10 @@
 use macro_rules_attribute::apply;
 
-use crate::{constant::Constant, ValueIndex};
+use crate::{constant::Constant, program::evaluate::Value};
 use super::builtin;
 
 #[apply(builtin)]
-pub fn choose(list: Vec<Constant>, empty: ValueIndex, then: ValueIndex) -> ValueIndex {
+pub fn choose(list: Vec<Constant>, empty: Value, then: Value) -> Value {
     if list.is_empty() { empty } else { then }
 }
 

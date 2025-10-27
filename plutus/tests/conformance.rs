@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use libtest2_mimic::{Harness, RunContext, RunError, Trial};
+use plutus::program::Program;
 
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
 
@@ -26,6 +27,12 @@ fn main() {
                         .unwrap()
                         .to_string_lossy()
                         .to_string();
+
+                    // Filter for dbg
+                    // if test_name != "uplc/evaluation/example/churchSucc" {
+                    //     continue;
+                    // }
+                    
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
                     }));
@@ -37,8 +44,7 @@ fn main() {
 }
 
 fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunError> {
-    // // Skip these tests for now as they require features not yet supported
-
+    // Skip these tests for now as they require features not yet supported (not yet in the spec)
     if program_path.components().any(|c| {
         c.as_os_str() == "value"
             || c.as_os_str() == "lookupCoin"
@@ -61,8 +67,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         .trim()
         .to_string();
 
-    let output: Result<plutus::program::Program<String>, ()> = program.parse();
-    let program = match (output, expected_output.as_str()) {
+    let program: Program<String> = match (program.parse(), expected_output.as_str()) {
         (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
         (Err(_), "parse error") => return Ok(()),
         (Ok(program), _) => {
@@ -70,12 +75,16 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         }
         (Err(_), _) => return Err(RunError::fail("Unexpected parse error")),
     };
-
-    let output = program.into_de_bruijn();
-    let cannonical = match (output, expected_output.as_str()) {
+    let cannonical = match (program.into_de_bruijn(), expected_output.as_str()) {
         (Some(program), _) => program,
         (None, "evaluation failure") => return Ok(()),
         (None, _) => return Err(RunError::fail("Unexpected evaluation error when converting to de Bruijn indices")),
+    };
+    let output =  match (cannonical.evaluate(), expected_output.as_str()) {
+        (Some(_), "evaluation failure") => return Err(RunError::fail("Expected evaluation failure")),
+        (None, "evaluation failure") => return Ok(()),
+        (Some(p), _) => p,
+        (None, _) => return Err(RunError::fail("Unexpected evaluation failure")),
     };
 
     Ok(())

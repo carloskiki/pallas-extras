@@ -1,23 +1,14 @@
 use std::str::FromStr;
 
-use crate::{Version, builtin::Builtin, constant::Constant, lex};
+use crate::{builtin::Builtin, constant::Constant, lex, ConstantIndex, DeBruijn, Version};
 
-mod evaluate;
+pub(crate) mod evaluate;
 
 #[derive(Debug)]
 pub struct Program<T> {
     version: Version,
     pub(crate) constants: Vec<Constant>,
     pub(crate) program: Vec<Instruction<T>>,
-}
-
-/// Type of term parsed
-///
-/// That can be a group in parens, an application (brackets), or a variable (any identifier).
-pub(crate) enum TermType {
-    Group,
-    Application,
-    Variable,
 }
 
 impl<T: FromStr> FromStr for Program<T> {
@@ -68,7 +59,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         "con" => {
                             constants.push(Constant::from_str(rest)?);
                             let index = (constants.len() - 1) as u32;
-                            program.push(Instruction::Constant(index));
+                            program.push(Instruction::Constant(ConstantIndex(index)));
                         }
                         "force" => {
                             program.push(Instruction::Force);
@@ -84,7 +75,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         }
                         "constr" if version.minor > 0 => {
                             let (index_str, mut rest) = lex::word(rest);
-                            let determinant: u16 = index_str.parse().map_err(|_| ())?;
+                            let determinant: u32 = index_str.parse().map_err(|_| ())?;
                             let mut count = 0u16;
                             while !rest.is_empty() {
                                 let (prefix, arg) = lex::right_term(rest).ok_or(())?;
@@ -242,6 +233,12 @@ fn decrement_stack<T>(stack: &mut Vec<(u32, u32)>, variables: &mut Vec<T>) -> bo
     }
 }
 
+impl Program<DeBruijn> {
+    pub fn evaluate(self) -> Option<Self> {
+        evaluate::run(self)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Instruction<T> {
     Variable(T),
@@ -249,13 +246,13 @@ pub enum Instruction<T> {
     Lambda(T),
     Application,
     // Index into the constants pool
-    Constant(u32),
+    Constant(ConstantIndex),
     Force,
     Error,
     Builtin(Builtin),
     // Should we support full u64 determinants?
-    Construct { determinant: u16, length: u16 },
-    Case { count: u16 },
+    Construct { determinant: u32, length: u16 },
+    Case { count: u32 },
 }
 
 impl<T> Instruction<T> {
@@ -271,13 +268,19 @@ impl<T> Instruction<T> {
     }
 }
 
-/// A De Bruijn index
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeBruijn(u32);
+/// Type of term parsed
+///
+/// That can be a group in parens, an application (brackets), or a variable (any identifier).
+pub(crate) enum TermType {
+    Group,
+    Application,
+    Variable,
+}
+
 
 #[cfg(test)]
 mod tests {
-    use crate::program::DeBruijn;
+    use crate::DeBruijn;
 
     #[test]
     fn de_bruijn() {

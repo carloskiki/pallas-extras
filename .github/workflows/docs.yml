@@ -1,0 +1,102 @@
+# This workflow builds the Rust documentation for your workspace
+# and deploys it to GitHub Pages.
+
+name: Rust Docs
+
+on:
+  # Run on pushes to the main branch
+  push:
+    branches: [main]
+  # Allow you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Set permissions for the GITHUB_TOKEN
+permissions:
+  contents: read      # To check out the repository
+  pages: write         # To deploy to GitHub Pages
+  id-token: write      # To authenticate with GitHub Pages
+
+# Configure concurrency to ensure only one deployment runs at a time
+concurrency:
+  group: "pages" # Group by 'pages' to avoid multiple concurrent deployments
+  cancel-in-progress: true # Cancel any in-progress runs on new pushes
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        # This action installs the Rust toolchain (e.g., stable, nightly)
+        # You can change `stable` to `nightly` if your docs need it.
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Configure cache for Rust dependencies
+        # This speeds up the build by caching `target` and `cargo` directories
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup GitHub Pages
+        # This action configures the Pages environment
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Clean previous docs
+        # Clean old docs to ensure a fresh build
+        run: cargo clean --doc
+
+      - name: Build documentation
+        # `--workspace` ensures all crates in the workspace are included
+        # `--no-deps` skips building docs for dependencies, making it much faster
+        run: cargo doc --workspace --no-deps
+
+      # --- CUSTOMIZATION: REDIRECT ---
+      # By default, the root `index.html` will be a list of crates
+      # in your workspace.
+      #
+      # If you want the root page to redirect to a specific crate's docs
+      # (e.g., your main library), uncomment the step below and replace
+      # `YOUR_CRATE_NAME` with the name of your crate.
+      #
+      # - name: Add redirect to main crate
+      #   run: |
+      #     echo '<meta http-equiv="refresh" content="0;url=YOUR_CRATE_NAME/index.html">' > target/doc/index.html
+      # -------------------------------
+
+      - name: Remove .lock file
+        # The .lock file can interfere with the artifact upload
+        run: rm -f target/doc/.lock
+
+      - name: Upload documentation artifact
+        # This packages the `target/doc` directory and uploads it
+        # for the `deploy` job to use.
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/doc
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # This job depends on the `build` job completing successfully
+    needs: build
+
+    # Grant permissions for the deployment
+    permissions:
+      pages: write      # To deploy to GitHub Pages
+      id-token: write   # To authenticate with GitHub Pages
+
+    # Define the deployment environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # Get the URL from the deploy step
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        # This action automatically downloads the artifact from the `build` job
+        # and deploys it to your Pages site.

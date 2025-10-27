@@ -1,4 +1,4 @@
-use crate::{cek::Value, constant::Constant, ValueIndex};
+use crate::{constant::Constant, program::evaluate::Value};
 use macro_rules_attribute::apply;
 use strum::{EnumString, FromRepr};
 
@@ -322,7 +322,7 @@ impl Builtin {
 
     pub fn apply(
         self,
-        args: &mut Vec<Value>,
+        args: Vec<Value>,
         constants: &mut [Constant],
     ) -> Option<Value> {
         let function = match self {
@@ -451,18 +451,18 @@ impl Builtin {
 }
 
 #[apply(builtin)]
-pub fn if_then_else(cond: bool, then: ValueIndex, else_: ValueIndex) -> ValueIndex {
+pub fn if_then_else(cond: bool, then: Value, else_: Value) -> Value {
     if cond { then } else { else_ }
 }
 
 #[apply(builtin)]
-pub fn choose_unit(_u: (), then: ValueIndex) -> ValueIndex {
+pub fn choose_unit(_u: (), then: Value) -> Value {
     then
 }
 
 // TODO: do something with the trace.
 #[apply(builtin)]
-pub fn trace(_message: String, value: ValueIndex) -> ValueIndex {
+pub fn trace(_message: String, value: Value) -> Value {
     value
 }
 
@@ -479,62 +479,60 @@ pub fn second_pair(pair: (Constant, Constant)) -> Constant {
 macro_rules! builtin {
     (pub fn $name:ident ( $($args:tt)+ ) -> $($rest:tt)+) => {
         #[allow(unused_mut)]
-        pub fn $name (args: &mut Vec<$crate::cek::Value>, constants: &mut [$crate::constant::Constant]) -> Option<$crate::cek::Value> {
-            let mut __index = 0u32;
-            builtin!(@unwrap ( $($args)+ ) __index, constants, args);
+        pub fn $name (args: Vec<$crate::program::evaluate::Value>, constants: &mut [$crate::constant::Constant]) -> Option<$crate::program::evaluate::Value> {
+            #[allow(unused_variables)]
+            let $crate::program::evaluate::Value::Constant(const_index) = args[0] else {
+                unreachable!("Invariant violation: expected the first argument to builtin to be a constant");
+            };
+            
+            let mut __iter = args.into_iter();
+            builtin!(@unwrap ( $($args)+ ) __iter, constants, args);
 
-            builtin!(@result $($rest)+; constants, args);
+            builtin!(@result $($rest)+; constants, const_index);
         }
     };
 
-    (@unwrap ($arg_name:ident: ValueIndex $(, $($rest:tt)*)? ) $index:ident, $constants:ident, $args:ident) => {
-        let $arg_name = ValueIndex($index);
-        $index += 1;
-        builtin!(@unwrap ($($($rest)*)?) $index, $constants, $args)
+    (@unwrap ($arg_name:ident: Value $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
+        let $arg_name = $iter.next().expect("builtin has the enough arguments");
+        builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args)
     };
     
-    (@unwrap (mut $arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $index:ident, $constants:ident, $args:ident) => {
-        builtin!(@unwrap ($arg_name: $arg_ty $(, $($rest)*)?) $index, $constants, $args);
+    (@unwrap (mut $arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
+        builtin!(@unwrap ($arg_name: $arg_ty $(, $($rest)*)?) $iter, $constants, $args);
     };
 
-    (@unwrap ($arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $index:ident, $constants:ident, $args:ident) => {
+    (@unwrap ($arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
         let mut $arg_name: $arg_ty = {
-            let $crate::cek::Value::Constant(constant_index) = &$args[$index as usize] else {
+            let $crate::program::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has the enough arguments") else {
                 return None;
             };
             std::mem::take(&mut $constants[constant_index.0 as usize]).try_into().ok()?
         };
-        $index += 1;
-        builtin!(@unwrap ($($($rest)*)?) $index, $constants, $args);
+        builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args);
     };
 
-    (@unwrap () $index:ident, $constants:ident, $args:ident) => {};
+    (@unwrap () $iter:ident, $constants:ident, $args:ident) => {};
 
-    (@result ValueIndex $block:block; $constants:ident, $args:ident) => {
+    (@result Value $block:block; $constants:ident, $args:ident) => {
         #[allow(clippy::redundant_closure_call)]
-        let result: $crate::ValueIndex = (|| $block)();
-        return Some($args.swap_remove(result.0 as usize));
+        return Some((|| $block)());
     };
 
-    (@result Option<$ret:ty> $block:block; $constants:ident, $args:ident) => {{
+    (@result Option<$ret:ty> $block:block; $constants:ident, $const_index:ident) => {{
         #[allow(clippy::redundant_closure_call)]
         let result: $ret = (|| $block)()?;
-        builtin!(@wrap $ret; $constants, $args, result);
+        builtin!(@wrap $ret; $constants, $const_index, result);
     }};
 
-    (@result $ret:ty $block:block; $constants:ident, $args:ident) => {{
+    (@result $ret:ty $block:block; $constants:ident, $const_index:ident) => {{
         #[allow(clippy::redundant_closure_call)]
         let result: $ret = (|| $block)();
-        builtin!(@wrap $ret; $constants, $args, result);
+        builtin!(@wrap $ret; $constants, $const_index, result);
     }};
 
-    (@wrap $ret:ty; $constants:ident, $args:ident, $result:ident) => {
-        let $crate::cek::Value::Constant(const_index) = $args[0] else {
-            panic!("Invariant violation: expected the first argument to builtin to be a constant");
-        };
-
-        $constants[const_index.0 as usize] = $result.into();
-        return Some($crate::cek::Value::Constant(const_index));
+    (@wrap $ret:ty; $constants:ident, $const_index:ident, $result:ident) => {
+        $constants[$const_index.0 as usize] = $result.into();
+        return Some($crate::program::evaluate::Value::Constant($const_index));
     }
 }
 use builtin;

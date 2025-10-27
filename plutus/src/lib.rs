@@ -4,8 +4,17 @@ mod builtin;
 mod constant;
 mod data;
 mod lex;
-mod cek;
 pub mod program;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct TermIndex(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ConstantIndex(u32);
+
+/// A De Bruijn index
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DeBruijn(u32);
 
 #[derive(Debug)]
 pub struct Version {
@@ -32,28 +41,3 @@ impl FromStr for Version {
         })
     }
 }
-
-pub enum BuiltinType {
-    Integer,
-    Bytes,
-    String,
-    Unit,
-    Boolean,
-    List,
-    Pair = 0b0110,
-    // TypeApplication = 0b0111, Probably only for decoding
-    Data = 0b1000,
-    BLSG1Element,
-    BLSG2Element,
-    BLSMlResult,
-    Array,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct TermIndex(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ConstantIndex(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct ValueIndex(u32);
