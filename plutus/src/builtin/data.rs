@@ -25,7 +25,8 @@ pub fn choose(
 }
 
 #[apply(builtin)]
-pub fn construct(tag: Integer, fields: Vec<Data>) -> Data {
+pub fn construct(tag: Integer, mut fields: Vec<Data>) -> Data {
+    fields.reverse();
     Data::Construct(Construct {
         // We wrap here because this case is quite degenerate.
         // Although the spec strongly suggests using integers that fit in 64 bits,
@@ -36,12 +37,14 @@ pub fn construct(tag: Integer, fields: Vec<Data>) -> Data {
 }
 
 #[apply(builtin)]
-pub fn map(pairs: Vec<(Data, Data)>) -> Data {
+pub fn map(mut pairs: Vec<(Data, Data)>) -> Data {
+    pairs.reverse();
     Data::Map(pairs)
 }
 
 #[apply(builtin)]
-pub fn list(elements: Vec<Data>) -> Data {
+pub fn list(mut elements: Vec<Data>) -> Data {
+    elements.reverse();
     Data::List(elements)
 }
 
@@ -57,7 +60,8 @@ pub fn bytes(b: Vec<u8>) -> Data {
 
 #[apply(builtin)]
 pub fn un_construct(data: Data) -> Option<(Integer, Vec<Data>)> {
-    if let Data::Construct(Construct { tag, value }) = data {
+    if let Data::Construct(Construct { tag, mut value }) = data {
+        value.reverse();
         Some((Integer::from(tag), value))
     } else {
         None
@@ -66,7 +70,8 @@ pub fn un_construct(data: Data) -> Option<(Integer, Vec<Data>)> {
 
 #[apply(builtin)]
 pub fn un_map(data: Data) -> Option<Vec<(Data, Data)>> {
-    if let Data::Map(pairs) = data {
+    if let Data::Map(mut pairs) = data {
+        pairs.reverse();
         Some(pairs)
     } else {
         None
@@ -75,7 +80,8 @@ pub fn un_map(data: Data) -> Option<Vec<(Data, Data)>> {
 
 #[apply(builtin)]
 pub fn un_list(data: Data) -> Option<Vec<Data>> {
-    if let Data::List(elements) = data {
+    if let Data::List(mut elements) = data {
+        elements.reverse();
         Some(elements)
     } else {
         None

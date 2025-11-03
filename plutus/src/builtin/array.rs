@@ -8,7 +8,7 @@ pub fn length(arr: Box<[Constant]>) -> rug::Integer {
 }
 
 #[apply(builtin)]
-pub fn index(index: rug::Integer, mut arr: Box<[Constant]>) -> Option<Constant> {
+pub fn index(mut arr: Box<[Constant]>, index: rug::Integer) -> Option<Constant> {
     let index = index.to_usize()?;
     arr.get_mut(index).map(std::mem::take)
 }

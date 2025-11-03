@@ -323,7 +323,7 @@ impl Builtin {
     pub fn apply(
         self,
         args: Vec<Value>,
-        constants: &mut [Constant],
+        constants: &mut Vec<Constant>,
     ) -> Option<Value> {
         let function = match self {
             // Integers
@@ -478,17 +478,17 @@ pub fn second_pair(pair: (Constant, Constant)) -> Constant {
 
 macro_rules! builtin {
     (pub fn $name:ident ( $($args:tt)+ ) -> $($rest:tt)+) => {
-        #[allow(unused_mut)]
-        pub fn $name (args: Vec<$crate::program::evaluate::Value>, constants: &mut [$crate::constant::Constant]) -> Option<$crate::program::evaluate::Value> {
-            #[allow(unused_variables)]
-            let $crate::program::evaluate::Value::Constant(const_index) = args[0] else {
-                unreachable!("Invariant violation: expected the first argument to builtin to be a constant");
-            };
+        #[allow(unused_mut, clippy::ptr_arg)]
+        pub fn $name (args: Vec<$crate::program::evaluate::Value>, constants: &mut Vec<$crate::constant::Constant>) -> Option<$crate::program::evaluate::Value> {
+            // #[allow(unused_variables)]
+            // let $crate::program::evaluate::Value::Constant(const_index) = args[0] else {
+            //     unreachable!("Invariant violation: expected the first argument to builtin to be a constant");
+            // };
             
             let mut __iter = args.into_iter();
             builtin!(@unwrap ( $($args)+ ) __iter, constants, args);
 
-            builtin!(@result $($rest)+; constants, const_index);
+            builtin!(@result $($rest)+; constants);
         }
     };
 
@@ -506,33 +506,34 @@ macro_rules! builtin {
             let $crate::program::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has the enough arguments") else {
                 return None;
             };
-            std::mem::take(&mut $constants[constant_index.0 as usize]).try_into().ok()?
+            (&$constants[constant_index.0 as usize]).clone().try_into().ok()?
         };
         builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args);
     };
 
     (@unwrap () $iter:ident, $constants:ident, $args:ident) => {};
 
-    (@result Value $block:block; $constants:ident, $args:ident) => {
+    (@result Value $block:block; $constants:ident) => {
         #[allow(clippy::redundant_closure_call)]
         return Some((|| $block)());
     };
 
-    (@result Option<$ret:ty> $block:block; $constants:ident, $const_index:ident) => {{
+    (@result Option<$ret:ty> $block:block; $constants:ident) => {{
         #[allow(clippy::redundant_closure_call)]
         let result: $ret = (|| $block)()?;
-        builtin!(@wrap $ret; $constants, $const_index, result);
+        builtin!(@wrap $ret; $constants, result);
     }};
 
-    (@result $ret:ty $block:block; $constants:ident, $const_index:ident) => {{
+    (@result $ret:ty $block:block; $constants:ident) => {{
         #[allow(clippy::redundant_closure_call)]
         let result: $ret = (|| $block)();
-        builtin!(@wrap $ret; $constants, $const_index, result);
+        builtin!(@wrap $ret; $constants, result);
     }};
 
-    (@wrap $ret:ty; $constants:ident, $const_index:ident, $result:ident) => {
-        $constants[$const_index.0 as usize] = $result.into();
-        return Some($crate::program::evaluate::Value::Constant($const_index));
+    (@wrap $ret:ty; $constants:ident, $result:ident) => {
+        let index = $constants.len();
+        $constants.push($result.into());
+        return Some($crate::program::evaluate::Value::Constant($crate::ConstantIndex(index as u32)));
     }
 }
 use builtin;

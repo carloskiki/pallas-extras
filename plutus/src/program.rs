@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{builtin::Builtin, constant::Constant, lex, ConstantIndex, DeBruijn, Version};
+use crate::{ConstantIndex, DeBruijn, Version, builtin::Builtin, constant::Constant, lex};
 
 pub(crate) mod evaluate;
 
@@ -141,66 +141,68 @@ impl<T: PartialEq> Program<T> {
     pub fn into_de_bruijn(self) -> Option<Program<DeBruijn>> {
         let mut variables = Vec::with_capacity(16);
         let mut stack = Vec::with_capacity(32);
-        stack.push((0, 0)); // (term count, variable count)
+        stack.push(1); // (term count, variable count)
 
         self.program
             .into_iter()
             .map(|instr| {
-                match instr {
-                    // Decrease by 1
-                    Instruction::Variable(v) => variables
-                        .iter()
-                        .rposition(|x| *x == v)
-                        .map(|pos| {
-                            Instruction::Variable(DeBruijn((variables.len() - 1 - pos) as u32))
-                        })
-                        .and_then(|var_instr| {
-                            decrement_stack(&mut stack, &mut variables).then_some(var_instr)
-                        }),
-                    Instruction::Error => {
-                        decrement_stack(&mut stack, &mut variables).then_some(Instruction::Error)
+                Some(match instr {
+                    Instruction::Variable(v) => {
+                        let position = variables.iter().rposition(|x| *x == v)?;
+                        decrement_stack(&mut stack, &mut variables);
+                        Instruction::Variable(DeBruijn(position as u32))
                     }
-                    Instruction::Constant(c) => decrement_stack(&mut stack, &mut variables)
-                        .then_some(Instruction::Constant(c)),
-                    Instruction::Builtin(b) => decrement_stack(&mut stack, &mut variables)
-                        .then_some(Instruction::Builtin(b)),
-
+                    Instruction::Error => {
+                        decrement_stack(&mut stack, &mut variables);
+                        Instruction::Error
+                    }
+                    Instruction::Constant(c) => {
+                        decrement_stack(&mut stack, &mut variables);
+                        Instruction::Constant(c)
+                    }
+                    Instruction::Builtin(b) => {
+                        decrement_stack(&mut stack, &mut variables);
+                        Instruction::Builtin(b)
+                    }
                     Instruction::Lambda(v) => {
+                        let index = variables.len();
                         variables.push(v);
-                        stack.last_mut().map(|(depth, _)| {
-                            *depth += 1;
-                            Instruction::Lambda(DeBruijn(0u32))
-                        })
+                        *stack.last_mut().expect("stack is not empty") -= 1;
+                        stack.push(1);
+
+                        Instruction::Lambda(DeBruijn(index as u32))
                     }
                     Instruction::Application => {
-                        increment_stack(&mut stack, 1).then_some(Instruction::Application)
+                        increment_stack(&mut stack, 1);
+                        Instruction::Application
                     }
 
                     Instruction::Case { count: len } => {
-                        increment_stack(&mut stack, len).then_some(Instruction::Case { count: len })
+                        increment_stack(&mut stack, len);
+                        Instruction::Case { count: len }
                     }
                     Instruction::Construct {
                         determinant,
                         length: len,
                     } => {
                         if len > 0 {
-                            increment_stack(&mut stack, len as u32 - 1).then_some(Instruction::Construct {
+                            increment_stack(&mut stack, len as u32 - 1);
+                            Instruction::Construct {
                                 determinant,
                                 length: len,
-                            })
+                            }
                         } else {
-                            decrement_stack(&mut stack, &mut variables).then_some(
-                                Instruction::Construct {
-                                    determinant,
-                                    length: len,
-                                },
-                            )
+                            decrement_stack(&mut stack, &mut variables);
+                            Instruction::Construct {
+                                determinant,
+                                length: len,
+                            }
                         }
                     }
 
-                    Instruction::Delay => Some(Instruction::Delay),
-                    Instruction::Force => Some(Instruction::Force),
-                }
+                    Instruction::Delay => Instruction::Delay,
+                    Instruction::Force => Instruction::Force,
+                })
             })
             .collect::<Option<Vec<_>>>()
             .map(|program| Program {
@@ -211,25 +213,52 @@ impl<T: PartialEq> Program<T> {
     }
 }
 
-fn increment_stack(stack: &mut [(u32, u32)], count: u32) -> bool {
-    let Some((term_count, _)) = stack.last_mut() else {
-        return false;
-    };
-    *term_count += count;
-    true
+fn increment_stack(stack: &mut [u32], count: u32) {
+    *stack.last_mut().expect("stack is not empty") += count;
 }
 
-fn decrement_stack<T>(stack: &mut Vec<(u32, u32)>, variables: &mut Vec<T>) -> bool {
-    if let Some((depth, var_count)) = stack.last_mut() {
-        if *depth > 0 {
-            *depth -= 1;
-        } else {
-            variables.truncate(variables.len() - *var_count as usize);
-            stack.pop();
-        }
-        true
-    } else {
-        false
+fn decrement_stack<T>(stack: &mut Vec<u32>, variables: &mut Vec<T>) {
+    *stack.last_mut().expect("stack is not empty") -= 1;
+    while let Some(0) = stack.last() {
+        stack.pop();
+        variables.pop();
+    }
+}
+
+impl<T, U> PartialEq<Program<T>> for Program<U>
+where
+    U: PartialEq<T>,
+{
+    fn eq(&self, other: &Program<T>) -> bool {
+        self.program
+            .iter()
+            .zip(other.program.iter())
+            .all(|(a, b)| match (a, b) {
+                (Instruction::Variable(a), Instruction::Variable(b)) => a == b,
+                (Instruction::Lambda(a), Instruction::Lambda(b)) => a == b,
+                (Instruction::Builtin(a), Instruction::Builtin(b)) => a == b,
+                (Instruction::Constant(a), Instruction::Constant(b)) => {
+                    self.constants[a.0 as usize] == other.constants[b.0 as usize]
+                }
+                (Instruction::Delay, Instruction::Delay) => true,
+                (Instruction::Application, Instruction::Application) => true,
+                (Instruction::Force, Instruction::Force) => true,
+                (Instruction::Error, Instruction::Error) => true,
+                (
+                    Instruction::Construct {
+                        determinant: a_det,
+                        length: a_len,
+                    },
+                    Instruction::Construct {
+                        determinant: b_det,
+                        length: b_len,
+                    },
+                ) => a_det == b_det && a_len == b_len,
+                (Instruction::Case { count: a_count }, Instruction::Case { count: b_count }) => {
+                    a_count == b_count
+                }
+                _ => false,
+            })
     }
 }
 
@@ -239,7 +268,7 @@ impl Program<DeBruijn> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Instruction<T> {
     Variable(T),
     Delay,
@@ -255,19 +284,6 @@ pub enum Instruction<T> {
     Case { count: u32 },
 }
 
-impl<T> Instruction<T> {
-    pub fn is_value(&self) -> bool {
-        matches!(
-            self,
-            Instruction::Constant(_)
-                | Instruction::Delay
-                | Instruction::Lambda(_)
-                | Instruction::Construct { .. }
-                | Instruction::Builtin(_)
-        )
-    }
-}
-
 /// Type of term parsed
 ///
 /// That can be a group in parens, an application (brackets), or a variable (any identifier).
@@ -276,7 +292,6 @@ pub(crate) enum TermType {
     Application,
     Variable,
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -291,10 +306,10 @@ mod tests {
             de_bruijn.program,
             vec![
                 super::Instruction::Lambda(DeBruijn(0)),
-                super::Instruction::Lambda(DeBruijn(0)),
+                super::Instruction::Lambda(DeBruijn(1)),
                 super::Instruction::Application,
-                super::Instruction::Variable(DeBruijn(1)),
                 super::Instruction::Variable(DeBruijn(0)),
+                super::Instruction::Variable(DeBruijn(1)),
             ]
         );
     }

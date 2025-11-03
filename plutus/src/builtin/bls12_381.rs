@@ -1,4 +1,4 @@
-use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, Scalar};
+use blstrs::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, Scalar};
 use macro_rules_attribute::apply;
 use rug::ops::RemRounding;
 
@@ -31,7 +31,7 @@ pub fn g1_scalar_mul(scalar: rug::Integer, p: G1Projective) -> G1Projective {
     ));
     let mut scalar_bytes = [0; 32];
     integer.write_digits(&mut scalar_bytes, rug::integer::Order::Lsf);
-    let scalar = Scalar::from_bytes(&scalar_bytes).expect("scalar is valid");
+    let scalar = Scalar::from_bytes_le(&scalar_bytes).expect("scalar is valid");
     p * scalar
 }
 
@@ -41,8 +41,11 @@ pub fn g1_equals(p: G1Projective, q: G1Projective) -> bool {
 }
 
 #[apply(builtin)]
-pub fn g1_hash_to_group(_msg: Vec<u8>, _domain: Vec<u8>) -> G1Projective {
-    todo!()
+pub fn g1_hash_to_group(msg: Vec<u8>, domain: Vec<u8>) -> Option<G1Projective> {
+    if domain.len() > 255 {
+        return None;
+    }
+    Some(blstrs::G1Projective::hash_to_curve(&msg, &domain, &[]))
 }
 
 #[apply(builtin)]
@@ -76,7 +79,7 @@ pub fn g2_scalar_mul(scalar: rug::Integer, p: G2Projective) -> G2Projective {
     ));
     let mut scalar_bytes = [0; 32];
     integer.write_digits(&mut scalar_bytes, rug::integer::Order::Lsf);
-    let scalar = Scalar::from_bytes(&scalar_bytes).expect("scalar is valid");
+    let scalar = Scalar::from_bytes_le(&scalar_bytes).expect("scalar is valid");
     p * scalar
 }
 
@@ -86,8 +89,11 @@ pub fn g2_equals(p: G2Projective, q: G2Projective) -> bool {
 }
 
 #[apply(builtin)]
-pub fn g2_hash_to_group(_msg: Vec<u8>, _domain: Vec<u8>) -> G2Projective {
-    todo!()
+pub fn g2_hash_to_group(msg: Vec<u8>, domain: Vec<u8>) -> Option<G2Projective> {
+    if domain.len() > 255 {
+        return None;
+    }
+    Some(blstrs::G2Projective::hash_to_curve(&msg, &domain, &[]))
 }
 
 #[apply(builtin)]

@@ -38,6 +38,7 @@ impl Value {
             },
             Builtin {
                 builtin: Builtin,
+                force_count: u8,
                 args: Vec<DischargeValue>,
             },
         }
@@ -60,14 +61,19 @@ impl Value {
                         determinant,
                         values: values.into_iter().map(DischargeValue::from).collect(),
                     },
-                    Value::Builtin { builtin, args, .. } => DischargeValue::Builtin {
+                    Value::Builtin {
                         builtin,
+                        args,
+                        polymorphism,
+                    } => DischargeValue::Builtin {
+                        builtin,
+                        force_count: builtin.quantifiers() - polymorphism,
                         args: args.into_iter().map(DischargeValue::from).collect(),
                     },
                 }
             }
         }
-        
+
         let mut value_stack = vec![DischargeValue::from(self)];
         let mut instructions = Vec::new();
         while let Some(value) = value_stack.pop() {
@@ -78,25 +84,32 @@ impl Value {
                 DischargeValue::Term {
                     term,
                     environment,
-                    remaining,
+                    mut remaining,
                 } => {
-                    // TODO: this is wrong
-                    let mut remaining = remaining;
                     let mut index = term.0 as usize;
                     while remaining > 0 {
                         match program.program[index] {
-                            Instruction::Delay | Instruction::Lambda(_) | Instruction::Force => {}
-                            Instruction::Variable(_)
-                            | Instruction::Constant(_)
+                            Instruction::Delay | Instruction::Force | Instruction::Lambda(_) => {}
+                            Instruction::Variable(DeBruijn(var)) => {
+                                remaining -= 1;
+                                if let Some(value) = environment.get(var as usize).cloned() {
+                                    value_stack.push(DischargeValue::Term {
+                                        term: TermIndex(index as u32 + 1),
+                                        remaining,
+                                        environment,
+                                    });
+                                    value_stack.push(DischargeValue::from(value));
+                                    break;
+                                }
+                            }
+                            Instruction::Constant(_)
                             | Instruction::Error
-                            | Instruction::Builtin(_) => {
+                            | Instruction::Builtin(_) |
+                            Instruction::Construct { length: 0, .. } => {
                                 remaining -= 1;
                             }
                             Instruction::Application => {
                                 remaining += 1;
-                            }
-                            Instruction::Construct { length: 0, .. } => {
-                                remaining -= 1;
                             }
                             Instruction::Construct { length, .. } => {
                                 remaining += length as u32 - 1;
@@ -105,19 +118,8 @@ impl Value {
                                 remaining += count;
                             }
                         }
-                        if let Instruction::Variable(var) = program.program[index] {
-                            let value = environment[environment.len() - var.0 as usize].clone();
-                            value_stack.push(DischargeValue::Term {
-                                term: TermIndex(index as u32 + 1),
-                                remaining,
-                                environment,
-                            });
-                            value_stack.push(DischargeValue::from(value));
-                            break;
-                        } else {
-                            index += 1;
-                            instructions.push(program.program[term.0 as usize]);
-                        }
+                        instructions.push(program.program[index]);
+                        index += 1;
                     }
                 }
                 DischargeValue::Construct {
@@ -130,8 +132,16 @@ impl Value {
                     });
                     value_stack.extend(values.into_iter().rev());
                 }
-                DischargeValue::Builtin { builtin, args, .. } => {
+                DischargeValue::Builtin {
+                    builtin,
+                    args,
+                    force_count,
+                } => {
                     instructions.extend(std::iter::repeat_n(Instruction::Application, args.len()));
+                    instructions.extend(std::iter::repeat_n(
+                        Instruction::Force,
+                        force_count as usize,
+                    ));
                     instructions.push(Instruction::Builtin(builtin));
                     value_stack.extend(args.into_iter().rev());
                 }
@@ -148,18 +158,26 @@ pub enum Frame {
     ApplyRightValue(Value),
     ApplyLeftTerm {
         environment: Vec<Value>,
+        next: TermIndex,
     },
     Construct {
         remaining: u16,
         determinant: u32,
-        environment_len: u32,
+        environment_len: u16,
         environment_and_values: Vec<Value>,
     },
     Case {
         count: u32,
+        next: TermIndex,
         environment: Vec<Value>,
     },
 }
+
+// Some ideas to make this faster:
+// - Find a way to avoid cloning the environment so much. We can probably use prefixes for this,
+// and only clone some of the time if we need to pop of the env.
+// - Find a way to not store `next` and not `skip_terms` so much.
+// - Don't clone constants all the time, only clone if they come from the environment.
 
 pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
     let mut stack = Vec::new();
@@ -168,9 +186,10 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
 
     loop {
         let mut ret = match program.program[index] {
-            Instruction::Variable(var) => {
-                environment.get(environment.len() - var.0 as usize)?.clone()
-            }
+            Instruction::Variable(var) => environment
+                .get(var.0 as usize)
+                .expect("variable exists")
+                .clone(),
             Instruction::Delay => Value::Delay {
                 term: TermIndex(index as u32),
                 environment,
@@ -180,10 +199,11 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 environment,
             },
             Instruction::Application => {
+                index += 1;
                 stack.push(Frame::ApplyLeftTerm {
                     environment: environment.clone(),
+                    next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                 });
-                index += 1;
                 continue;
             }
             Instruction::Constant(constant_index) => Value::Constant(constant_index),
@@ -207,7 +227,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 if length != 0 {
                     stack.push(Frame::Construct {
                         remaining: length - 1,
-                        environment_len: environment.len() as u32,
+                        environment_len: environment.len() as u16,
                         environment_and_values: environment.clone(),
                         determinant,
                     });
@@ -221,11 +241,12 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 }
             }
             Instruction::Case { count } => {
+                index += 1;
                 stack.push(Frame::Case {
                     count,
                     environment: environment.clone(),
+                    next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                 });
-                index += 1;
                 continue;
             }
         };
@@ -233,7 +254,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
         environment = loop {
             break match (stack.pop(), ret) {
                 (Some(Frame::Force), Value::Delay { term, environment }) => {
-                    index = term.0 as usize;
+                    index = term.0 as usize + 1;
                     environment
                 }
                 (
@@ -252,9 +273,9 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                     continue;
                 }
 
-                (Some(Frame::ApplyLeftTerm { environment }), value) => {
+                (Some(Frame::ApplyLeftTerm { environment, next }), value) => {
                     stack.push(Frame::ApplyRightValue(value));
-                    index += 1;
+                    index = next.0 as usize;
                     environment
                 }
                 (
@@ -272,7 +293,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                     },
                 ) => {
                     environment.push(value);
-                    index = term.0 as usize;
+                    index = term.0 as usize + 1;
                     environment
                 }
                 (
@@ -331,18 +352,22 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                         environment_len,
                         environment_and_values,
                     });
-                    index += 1;
+                    index = skip_terms(&program.program, index, 1);
                     environment
                 }
                 (
-                    Some(Frame::Case { count, environment }),
+                    Some(Frame::Case {
+                        count,
+                        environment,
+                        next,
+                    }),
                     Value::Construct {
                         determinant,
                         values,
                     },
                 ) if determinant < count => {
-                    index = skip_terms(&program.program, index, determinant);
-                    stack.extend(values.into_iter().map(Frame::ApplyLeftValue));
+                    stack.extend(values.into_iter().map(Frame::ApplyLeftValue).rev());
+                    index = skip_terms(&program.program, next.0 as usize, determinant);
                     environment
                 }
                 (None, value) => {

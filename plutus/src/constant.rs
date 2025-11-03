@@ -5,7 +5,7 @@ use crate::{
     lex,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum Constant {
     Integer(rug::Integer),
     Bytes(Vec<u8>),
@@ -14,12 +14,13 @@ pub enum Constant {
     Unit,
     Boolean(bool),
     // The list is stored in reverse order for faster `mkCons` operation.
+    // TODO: the list needs to know its type even without any elements!
     List(Vec<Constant>),
     Array(Box<[Constant]>),
     Pair(Box<(Constant, Constant)>),
     Data(Data),
-    BLSG1Element(Box<bls12_381::G1Projective>),
-    BLSG2Element(Box<bls12_381::G2Projective>),
+    BLSG1Element(Box<blstrs::G1Projective>),
+    BLSG2Element(Box<blstrs::G2Projective>),
 }
 
 impl FromStr for Constant {
@@ -89,7 +90,7 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             let hex = konst_word.strip_prefix("0x").ok_or(())?;
             let bytes = const_hex::decode(hex).map_err(|_| ())?;
             Constant::BLSG1Element(Box::new(
-                bls12_381::G1Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
+                blstrs::G1Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
                     .into_option()
                     .ok_or(())?
                     .into(),
@@ -99,7 +100,7 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
             let hex = konst_word.strip_prefix("0x").ok_or(())?;
             let bytes = const_hex::decode(hex).map_err(|_| ())?;
             Constant::BLSG2Element(Box::new(
-                bls12_381::G2Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
+                blstrs::G2Affine::from_compressed(&bytes.try_into().map_err(|_| ())?)
                     .into_option()
                     .ok_or(())?
                     .into(),
@@ -183,14 +184,14 @@ impl From<Data> for Constant {
     }
 }
 
-impl From<bls12_381::G1Projective> for Constant {
-    fn from(value: bls12_381::G1Projective) -> Self {
+impl From<blstrs::G1Projective> for Constant {
+    fn from(value: blstrs::G1Projective) -> Self {
         Constant::BLSG1Element(Box::new(value))
     }
 }
 
-impl From<bls12_381::G2Projective> for Constant {
-    fn from(value: bls12_381::G2Projective) -> Self {
+impl From<blstrs::G2Projective> for Constant {
+    fn from(value: blstrs::G2Projective) -> Self {
         Constant::BLSG2Element(Box::new(value))
     }
 }
@@ -286,7 +287,7 @@ impl TryFrom<Constant> for Data {
     }
 }
 
-impl TryFrom<Constant> for bls12_381::G1Projective {
+impl TryFrom<Constant> for blstrs::G1Projective {
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {
@@ -298,7 +299,7 @@ impl TryFrom<Constant> for bls12_381::G1Projective {
     }
 }
 
-impl TryFrom<Constant> for bls12_381::G2Projective {
+impl TryFrom<Constant> for blstrs::G2Projective {
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {

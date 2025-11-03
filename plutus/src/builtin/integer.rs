@@ -94,5 +94,9 @@ pub fn exp_mod(
     exponent: rug::Integer,
     modulus: rug::Integer,
 ) -> Option<rug::Integer> {
+    if modulus.cmp0() != std::cmp::Ordering::Greater {
+        return None;
+    }
+    
     base.pow_mod(&exponent, &modulus).ok()
 }

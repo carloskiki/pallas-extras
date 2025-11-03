@@ -14,7 +14,7 @@ struct ConstantIndex(u32);
 
 /// A De Bruijn index
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeBruijn(u32);
+pub struct DeBruijn(pub u32);
 
 #[derive(Debug)]
 pub struct Version {
