@@ -1,7 +1,10 @@
 use macro_rules_attribute::apply;
 
 use super::builtin;
-use crate::{constant::Constant, program::evaluate::Value};
+use crate::{
+    constant::{Array, Constant, List},
+    program::evaluate::Value,
+};
 
 #[apply(builtin)]
 pub fn choose(list: Vec<Constant>, empty: Value, then: Value) -> Value {
@@ -13,30 +16,53 @@ pub fn choose(list: Vec<Constant>, empty: Value, then: Value) -> Value {
 // have to ensure that the types are correct. So this is "failing" in our implementation, whereas
 // the spec does not define this as failing.
 #[apply(builtin)]
-pub fn mk_cons(head: Constant, mut tail: Vec<Constant>) -> Option<Vec<Constant>> {
-    // We know that all elements in the list are of the same type.
-    if let Some(last) = tail.last()
-        && std::mem::discriminant(&head) != std::mem::discriminant(last)
-    {
-        return None;
+pub fn mk_cons(head: Constant, mut tail: List) -> Option<List> {
+    Some(match &mut tail.elements {
+        Ok(contains) => {
+            if std::mem::discriminant(&head) != std::mem::discriminant(&contains[0]) {
+                return None;
+            }
+
+            contains.push(head);
+            tail
+        }
+        Err(ty) => {
+            if std::mem::discriminant(&head) != std::mem::discriminant(ty) {
+                return None;
+            }
+            tail.elements = Ok(vec![head]);
+            tail
+        }
+    })
+}
+
+#[apply(builtin)]
+pub fn head(mut list: List) -> Option<Constant> {
+    match &mut list.elements {
+        Ok(contains) => Some(
+            contains
+                .pop()
+                .expect("non-empty list invariant should hold"),
+        ),
+        Err(_) => None,
     }
-
-    tail.push(head);
-    Some(tail)
 }
 
 #[apply(builtin)]
-pub fn head(mut list: Vec<Constant>) -> Option<Constant> {
-    list.pop()
-}
+pub fn tail(list: List) -> Option<List> {
+    match list.elements {
+        Ok(mut list) => {
+            let elem = list.pop().expect("non-empty list invariant should hold");
 
-#[apply(builtin)]
-pub fn tail(mut list: Vec<Constant>) -> Option<Vec<Constant>> {
-    if list.is_empty() {
-        None
-    } else {
-        list.truncate(list.len() - 1);
-        Some(list)
+            Some(List {
+                elements: if list.is_empty() {
+                    Err(Box::new(elem))
+                } else {
+                    Ok(list)
+                },
+            })
+        }
+        Err(_) => None,
     }
 }
 
@@ -46,18 +72,34 @@ pub fn null(list: Vec<Constant>) -> bool {
 }
 
 #[apply(builtin)]
-pub fn drop(count: rug::Integer, mut list: Vec<Constant>) -> Vec<Constant> {
-    if count.is_negative() {
-        return list;
-    }
-
-    count.to_usize_wrapping();
-    list.truncate(list.len().saturating_sub(count.to_usize_wrapping()));
-    list
+pub fn drop(count: rug::Integer, list: List) -> List {
+    if count.is_positive()
+        && let Ok(mut contains) = list.elements
+    {
+        let count = count.to_usize_wrapping();
+        if contains.len() > count {
+            contains.truncate(contains.len() - count);
+            return List {
+                elements: Ok(contains),
+            };
+        } else {
+            return List {
+                elements: Err(Box::new(contains[0].clone())),
+            };
+        }
+    };
+    return list;
 }
 
 #[apply(builtin)]
-pub fn to_array(mut list: Vec<Constant>) -> Box<[Constant]> {
-    list.reverse();
-    list.into_boxed_slice()
+pub fn to_array(list: List) -> Array {
+    Array {
+        elements: match list.elements {
+            Ok(mut elements) => {
+                elements.reverse();
+                Ok(elements.into_boxed_slice())
+            }
+            Err(e) => Err(e),
+        },
+    }
 }

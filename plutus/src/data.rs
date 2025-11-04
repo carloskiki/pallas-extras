@@ -14,6 +14,12 @@ pub enum Data {
     Construct(Construct),
 }
 
+impl Default for Data {
+    fn default() -> Self {
+        Data::Integer(Default::default())
+    }
+}
+
 impl<C> Encode<C> for Data {
     fn encode<W: minicbor::encode::Write>(
         &self,

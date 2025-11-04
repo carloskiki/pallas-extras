@@ -29,7 +29,7 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    // if test_name != "uplc/evaluation/example/NatRoundTrip" {
+                    // if test_name != "uplc/evaluation/builtin/semantics/dropList/dropList-05" {
                     //     continue;
                     // }
                     
@@ -52,12 +52,6 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "valueContains"
             || c.as_os_str() == "unionValue"
             || c.as_os_str() == "constant-case"
-            || c.as_os_str() == "bls12_381_G2_multiScalarMul"
-            || c.as_os_str() == "bls12_381_millerLoop"
-            || c.as_os_str() == "bls12_381_G2_hashToGroup"
-            || c.as_os_str() == "bls12_381_G1_multiScalarMul"
-            || c.as_os_str() == "bls12_381_G1_hashToGroup"
-            || c.as_os_str() == "bls12_381-cardano-crypto-tests"
     }) {
         return ctx.ignore_for("Requires value built-in type support");
     } else if program_path
@@ -97,6 +91,9 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
     let expected_program: Program<ExpectedVariable> = expected_output.parse()
         .map_err(|_| RunError::fail("Failed to parse expected output"))?;
 
+    // dbg!("Expected: {:?}", &expected_program);
+    // dbg!("Output: {:?}", &output);
+    
     if expected_program != output.into_de_bruijn().unwrap() {
         return Err(RunError::fail("Output program does not match expected program"));
     }

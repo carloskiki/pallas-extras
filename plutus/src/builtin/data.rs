@@ -1,10 +1,12 @@
 use macro_rules_attribute::apply;
 use rug::Integer;
 
-use crate::{
-    data::{Construct, Data}, program::evaluate::Value,
-};
 use super::builtin;
+use crate::{
+    constant::{Constant, List},
+    data::{Construct, Data},
+    program::evaluate::Value,
+};
 
 #[apply(builtin)]
 pub fn choose(
@@ -26,7 +28,6 @@ pub fn choose(
 
 #[apply(builtin)]
 pub fn construct(tag: Integer, mut fields: Vec<Data>) -> Data {
-    fields.reverse();
     Data::Construct(Construct {
         // We wrap here because this case is quite degenerate.
         // Although the spec strongly suggests using integers that fit in 64 bits,
@@ -38,13 +39,11 @@ pub fn construct(tag: Integer, mut fields: Vec<Data>) -> Data {
 
 #[apply(builtin)]
 pub fn map(mut pairs: Vec<(Data, Data)>) -> Data {
-    pairs.reverse();
     Data::Map(pairs)
 }
 
 #[apply(builtin)]
 pub fn list(mut elements: Vec<Data>) -> Data {
-    elements.reverse();
     Data::List(elements)
 }
 
@@ -61,7 +60,6 @@ pub fn bytes(b: Vec<u8>) -> Data {
 #[apply(builtin)]
 pub fn un_construct(data: Data) -> Option<(Integer, Vec<Data>)> {
     if let Data::Construct(Construct { tag, mut value }) = data {
-        value.reverse();
         Some((Integer::from(tag), value))
     } else {
         None
@@ -70,8 +68,7 @@ pub fn un_construct(data: Data) -> Option<(Integer, Vec<Data>)> {
 
 #[apply(builtin)]
 pub fn un_map(data: Data) -> Option<Vec<(Data, Data)>> {
-    if let Data::Map(mut pairs) = data {
-        pairs.reverse();
+    if let Data::Map(pairs) = data {
         Some(pairs)
     } else {
         None
@@ -81,7 +78,6 @@ pub fn un_map(data: Data) -> Option<Vec<(Data, Data)>> {
 #[apply(builtin)]
 pub fn un_list(data: Data) -> Option<Vec<Data>> {
     if let Data::List(mut elements) = data {
-        elements.reverse();
         Some(elements)
     } else {
         None
@@ -117,13 +113,16 @@ pub fn mk_pair(first: Data, second: Data) -> (Data, Data) {
 }
 
 #[apply(builtin)]
-pub fn mk_nil(_u: ()) -> Vec<Data> {
-    Vec::new()
+pub fn mk_nil(_u: ()) -> List {
+    List::empty(Constant::Data(Default::default()))
 }
 
 #[apply(builtin)]
-pub fn mk_nil_pair(_u: ()) -> Vec<(Data, Data)> {
-    Vec::new()
+pub fn mk_nil_pair(_u: ()) -> List {
+    List::empty(Constant::Pair(Box::new((
+        Constant::Data(Default::default()),
+        Constant::Data(Default::default()),
+    ))))
 }
 
 #[apply(builtin)]

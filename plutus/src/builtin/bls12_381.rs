@@ -1,4 +1,4 @@
-use blstrs::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, Scalar};
+use blstrs::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, MillerLoopResult, Scalar};
 use macro_rules_attribute::apply;
 use rug::ops::RemRounding;
 
@@ -109,28 +109,96 @@ pub fn g2_uncompress(bytes: Vec<u8>) -> Option<G2Projective> {
     Some(G2Projective::from(affine))
 }
 
-pub fn miller_loop(p: G1Projective, q: G2Projective) -> Gt {
-    todo!()
+#[apply(builtin)]
+pub fn miller_loop(p: G1Projective, q: G2Projective) -> MillerLoopResult {
+    blstrs::miller_loop(&p.into(), &q.into())
 }
 
-pub fn mul_ml_result(a: Gt, b: Gt) -> Gt {
-    todo!()
+#[apply(builtin)]
+pub fn mul_ml_result(a: MillerLoopResult, b: MillerLoopResult) -> MillerLoopResult {
+    // Weird, `blstrs`'s `add` implementation on MillerLoopResult is actually multiplication...
+    a + b
 }
 
-pub fn final_verify(ml_result: Gt, target: Gt) -> bool {
-    todo!()
+#[apply(builtin)]
+pub fn final_verify(ml_result: MillerLoopResult, target: MillerLoopResult) -> bool {
+    ml_result.final_verify(&target)
 }
 
+#[apply(builtin)]
 pub fn g1_multi_scalar_mul(
     scalars: Vec<rug::Integer>,
     points: Vec<G1Projective>,
-) -> Option<G1Projective> {
-    todo!()
+) -> G1Projective {
+    let count = scalars.len().min(points.len());
+    if count == 0 {
+        return <G1Projective as k256::elliptic_curve::Group>::identity();
+    }
+    
+    let mut bytes: Vec<u8> = vec![0; scalars.len() * 32];
+    scalars
+        .iter()
+        .take(count)
+        .enumerate()
+        .for_each(|(i, scalar)| {
+            let integer = scalar.rem_floor(rug::Integer::from_digits(
+                &SCALAR_MODULUS,
+                rug::integer::Order::Lsf,
+            ));
+
+            integer.write_digits(&mut bytes[i * 32..(i + 1) * 32], rug::integer::Order::Lsf);
+        });
+
+    // Safety:(blstrs) the `G1Projective` struct in blstrs is `repr(transparent)` over
+    // `blst::blst_p1`.
+    let points: &[blst::blst_p1] = unsafe {
+        std::slice::from_raw_parts(
+            points.as_ptr() as *const blst::blst_p1,
+            count,
+        )
+    };
+    let points = blst::p1_affines::from(points);
+    
+    // Safety:(blstrs) the return type of `mult` is `blst::blst_p1` which is
+    // `repr(transparent)` over `G1Projective`.
+    unsafe { std::mem::transmute(points.mult(&bytes, 255)) }
 }
 
+#[apply(builtin)]
 pub fn g2_multi_scalar_mul(
     scalars: Vec<rug::Integer>,
     points: Vec<G2Projective>,
-) -> Option<G2Projective> {
-    todo!()
+) -> G2Projective {
+    let count = scalars.len().min(points.len());
+    if count == 0 {
+        return <G2Projective as k256::elliptic_curve::Group>::identity();
+    }
+    
+    let mut bytes: Vec<u8> = vec![0; scalars.len() * 32];
+    scalars
+        .iter()
+        .take(count)
+        .enumerate()
+        .for_each(|(i, scalar)| {
+            let integer = scalar.rem_floor(rug::Integer::from_digits(
+                &SCALAR_MODULUS,
+                rug::integer::Order::Lsf,
+            ));
+
+            integer.write_digits(&mut bytes[i * 32..(i + 1) * 32], rug::integer::Order::Lsf);
+        });
+
+    // Safety:(blstrs) the `G2Projective` struct in blstrs is `repr(transparent)` over
+    // `blst::blst_p2`.
+    let points: &[blst::blst_p2] = unsafe {
+        std::slice::from_raw_parts(
+            points.as_ptr() as *const blst::blst_p2,
+            count,
+        )
+    };
+    let points = blst::p2_affines::from(points);
+    
+    // Safety:(blstrs) the return type of `mult` is `blst::blst_p2` which is
+    // `repr(transparent)` over `G2Projective`.
+    unsafe { std::mem::transmute(points.mult(&bytes, 255)) }
 }

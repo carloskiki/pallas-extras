@@ -15,7 +15,11 @@ sha3 = { version = "0.11.0-rc.3", default-features = false, features = ["alloc"]
 blake2 = "0.11.0-rc.2"
 ed25519-dalek = { version = "3.0.0-pre.1", default-features = false, features = ["alloc"] }
 k256 = "0.14.0-pre.11"
-blstrs = "0.7" # TODO: Upgrade to 0.8 pre if possible
+
+# Be careful updating this dependency, some unsafe code depdends on its internal details.
+# See code with `Safety:(blstrs)` comments.
+blstrs = { git = "https://github.com/carloskiki/blstrs", default-features = false }
+blst = { version = "0.3" }
 ripemd = "0.2.0-rc.1"
 
 strum = { version = "0.27.2", features = ["derive"] }

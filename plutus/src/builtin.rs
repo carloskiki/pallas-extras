@@ -423,21 +423,21 @@ impl Builtin {
             Builtin::BlsG1Neg => bls12_381::g1_neg,
             Builtin::BlsG1ScalarMul => bls12_381::g1_scalar_mul,
             Builtin::BlsG1Equal => bls12_381::g1_equals,
-            Builtin::BlsG1HashToGroup => todo!(),
+            Builtin::BlsG1HashToGroup => bls12_381::g1_hash_to_group,
             Builtin::BlsG1Compress => bls12_381::g1_compress,
             Builtin::BlsG1Uncompress => bls12_381::g1_uncompress,
             Builtin::BlsG2Add => bls12_381::g2_add,
             Builtin::BlsG2Neg => bls12_381::g2_neg,
             Builtin::BlsG2ScalarMul => bls12_381::g2_scalar_mul,
             Builtin::BlsG2Equal => bls12_381::g2_equals,
-            Builtin::BlsG2HashToGroup => todo!(),
+            Builtin::BlsG2HashToGroup => bls12_381::g2_hash_to_group,
             Builtin::BlsG2Compress => bls12_381::g2_compress,
             Builtin::BlsG2Uncompress => bls12_381::g2_uncompress,
-            Builtin::BlsMillerLoop => todo!(),
-            Builtin::BlsMulMlResult => todo!(),
-            Builtin::BlsFinalVerify => todo!(),
-            Builtin::BlsG1MultiScalarMul => todo!(),
-            Builtin::BlsG2MultiScalarMul => todo!(),
+            Builtin::BlsMillerLoop => bls12_381::miller_loop,
+            Builtin::BlsMulMlResult => bls12_381::mul_ml_result,
+            Builtin::BlsFinalVerify => bls12_381::final_verify,
+            Builtin::BlsG1MultiScalarMul => bls12_381::g1_multi_scalar_mul,
+            Builtin::BlsG2MultiScalarMul => bls12_381::g2_multi_scalar_mul,
             
             // Arrays
             Builtin::LengthOfArray => array::length,
@@ -493,7 +493,7 @@ macro_rules! builtin {
     };
 
     (@unwrap ($arg_name:ident: Value $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
-        let $arg_name = $iter.next().expect("builtin has the enough arguments");
+        let $arg_name: Value = $iter.next().expect("builtin has the enough arguments");
         builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args)
     };
     
