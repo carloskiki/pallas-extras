@@ -1,4 +1,4 @@
-use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::{ffi::c_ulong, io::{Error, ErrorKind, Read, Result, Write}};
 
 use rug::Integer;
 
@@ -22,36 +22,35 @@ impl Decode for Integer {
     }
 }
 
-impl Encode for [u64] {
+impl Encode for [c_ulong] {
     /// LEB128 encoding of the words. The provided words are in little endian order.
     fn encode<W: Write>(&self, writer: &mut W) -> Result<()> {
-        let mut words = self.iter().copied();
         let mut count = 0;
         let mut word = 0;
-        let mut to_read: u32 = 0;
-        loop {
+        let mut to_read = 0;
+        while to_read != 7 || count != self.len() {
             let mut byte = (word & 0x7F) as u8;
             word >>= 7;
-
+            
             if to_read <= 7 {
+                word = self[count];
                 count += 1;
                 let shift = 7 - to_read;
-                match words.next() {
-                    Some(0) | None => return writer.write_all(&[byte]),
-                    Some(w) => word = w,
-                }
                 byte <<= shift;
                 byte |= word as u8 & ((1 << shift) - 1);
                 word >>= shift;
                 to_read = if count != self.len() {
-                    u64::BITS - shift
+                    c_ulong::BITS - shift
                 } else {
-                    u64::BITS - word.leading_zeros()
+                    c_ulong::BITS - word.leading_zeros()
                 };
             }
 
-            writer.write_all(&[byte | 0x80])?;
+            let not_last_byte = (to_read != 0 || count != self.len()) as u8;
+            writer.write_all(&[byte | (not_last_byte) << 7])?;
         }
+        
+        Ok(())
     }
 }
 
