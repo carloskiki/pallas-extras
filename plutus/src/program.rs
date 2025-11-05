@@ -266,6 +266,14 @@ impl Program<DeBruijn> {
     pub fn evaluate(self) -> Option<Self> {
         evaluate::run(self)
     }
+
+    pub fn from_flat(bytes: &[u8]) -> Option<Self> {
+        todo!()
+    }
+
+    pub fn to_flat(&self) -> Vec<u8> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]

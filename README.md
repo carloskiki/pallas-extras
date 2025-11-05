@@ -13,3 +13,6 @@ are developed and experimented with, and then merged into `pallas` once mature e
 - [`kes`](kes): A fully generic KES implementation based on the [MMM paper](kes/MMM-paper.pdf).
 - [`bip32`](bip32): A BIP32 implementation based on the [Ed25519 BIP32 paper](bip32/Ed25519-BIP32.pdf).
 - [`bip39`](bip39): A BIP39 implementation that minimizes the amount of dependencies.
+
+
+## TODOs
