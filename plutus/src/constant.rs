@@ -22,78 +22,96 @@ pub enum Constant {
 }
 
 impl Constant {
-    fn default_for_type(ty: &str) -> Option<Self> {
-        let (main_ty, mut rest) = lex::word(ty);
+    pub fn type_of(&self) -> Type {
+        match self {
+            Constant::Integer(_) => Type::Integer,
+            Constant::Bytes(_) => Type::Bytes,
+            Constant::String(_) => Type::String,
+            Constant::Unit => Type::Unit,
+            Constant::Boolean(_) => Type::Boolean,
+            Constant::List(list) => {
+                let element_type = match &list.elements {
+                    Ok(elems) => elems[0].type_of(),
+                    Err(elem_type) => elem_type.clone(),
+                };
+                Type::List(Box::new(element_type))
+            }
+            Constant::Array(array) => {
+                let element_type = match &array.elements {
+                    Ok(elems) => elems[0].type_of(),
+                    Err(elem_type) => elem_type.clone(),
+                };
+                Type::Array(Box::new(element_type))
+            }
+            Constant::Pair(boxed) => {
+                let first_type = boxed.0.type_of();
+                let second_type = boxed.1.type_of();
+                Type::Pair(Box::new((first_type, second_type)))
+            }
+            Constant::Data(_) => Type::Data,
+            Constant::BLSG1Element(_) => Type::BLSG1Element,
+            Constant::BLSG2Element(_) => Type::BLSG2Element,
+            Constant::MillerLoopResult(_) => Type::MillerLoopResult,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    Integer,
+    Bytes,
+    String,
+    Unit,
+    Boolean,
+    List(Box<Type>),
+    Pair(Box<(Type, Type)>),
+    Data,
+    BLSG1Element,
+    BLSG2Element,
+    MillerLoopResult,
+    Array(Box<Type>),
+}
+
+impl FromStr for Type {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (main_ty, mut rest) = lex::word(s);
 
         let ret = match main_ty {
-            "integer" => Constant::Integer(Default::default()),
-            "bytestring" => Constant::Bytes(Default::default()),
-            "string" => Constant::String(Default::default()),
-            "bool" => Constant::Boolean(Default::default()),
-            "unit" => Constant::Unit,
-            "data" => Constant::Data(Default::default()),
-            "bls12_381_G1_element" => Constant::BLSG1Element(Box::new(
-                <blstrs::G1Projective as k256::elliptic_curve::Group>::identity(),
-            )),
-            "bls12_381_G2_element" => Constant::BLSG2Element(Box::new(
-                <blstrs::G2Projective as k256::elliptic_curve::Group>::identity(),
-            )),
+            "integer" => Type::Integer,
+            "bytestring" => Type::Bytes,
+            "string" => Type::String,
+            "bool" => Type::Boolean,
+            "unit" => Type::Unit,
+            "data" => Type::Data,
+            "bls12_381_G1_element" => Type::BLSG1Element,
+            "bls12_381_G2_element" => Type::BLSG2Element,
             "list" | "array" => {
-                let (element_ty, new_rest) = lex::constant_type(rest)?;
+                let (element_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
                 rest = new_rest;
 
-                let element_const = Constant::default_for_type(element_ty)?;
+                let element_const = Type::from_str(element_ty)?;
                 if main_ty == "array" {
-                    Constant::Array(Array::empty(element_const))
+                    Type::Array(Box::new(element_const))
                 } else {
-                    Constant::List(List::empty(element_const))
+                    Type::List(Box::new(element_const))
                 }
             }
             "pair" => {
-                let (first_ty, new_rest) = lex::constant_type(rest)?;
-                let (second_ty, new_rest) = lex::constant_type(new_rest)?;
+                let (first_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
+                let (second_ty, new_rest) = lex::constant_type(new_rest).ok_or(())?;
                 rest = new_rest;
 
-                let first_const = Constant::default_for_type(first_ty)?;
-                let second_const = Constant::default_for_type(second_ty)?;
-                Constant::Pair(Box::new((first_const, second_const)))
+                let first_const = Type::from_str(first_ty)?;
+                let second_const = Type::from_str(second_ty)?;
+                Type::Pair(Box::new((first_const, second_const)))
             }
 
-            _ => return None,
+            _ => return Err(()),
         };
 
-        if !rest.is_empty() { None } else { Some(ret) }
-    }
-
-    pub fn default_from(&self) -> Self {
-        match self {
-            Constant::Integer(_) => Constant::Integer(Default::default()),
-            Constant::Bytes(_) => Constant::Bytes(Default::default()),
-            Constant::String(_) => Constant::String(Default::default()),
-            Constant::Unit => Constant::Unit,
-            Constant::Boolean(_) => Constant::Boolean(Default::default()),
-            Constant::List(list) => Constant::List(match &list.elements {
-                Ok(elems) => List {
-                    elements: Err(Box::new(elems[0].default_from())),
-                },
-                Err(_) => list.clone(),
-            }),
-            Constant::Array(arr) => Constant::Array(match &arr.elements {
-                Ok(elems) => Array {
-                    elements: Err(Box::new(elems[0].default_from())),
-                },
-                Err(_) => arr.clone(),
-            }),
-            Constant::Pair(p) => Constant::Pair(Box::new((p.0.default_from(), p.1.default_from()))),
-            Constant::Data(_) => Constant::Data(Default::default()),
-            Constant::BLSG1Element(_) => Constant::BLSG1Element(Box::new(
-                <blstrs::G1Projective as k256::elliptic_curve::Group>::identity(),
-            )),
-            Constant::BLSG2Element(_) => Constant::BLSG2Element(Box::new(
-                <blstrs::G2Projective as k256::elliptic_curve::Group>::identity(),
-            )),
-            Constant::MillerLoopResult(_) => Constant::MillerLoopResult(Box::default()),
-        }
+        if !rest.is_empty() { Err(()) } else { Ok(ret) }
     }
 }
 
@@ -197,17 +215,11 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ()> {
                 items.push(item);
             }
             konst_rest = rest;
-            if items.is_empty() {
-                Constant::default_for_type(ty).ok_or(())?
-            } else if ty_start == "array" {
-                Constant::Array(Array {
-                    elements: Ok(items.into_boxed_slice()),
-                })
+            let list_type = Type::from_str(list_ty)?;
+            if ty_start == "array" {
+                Constant::Array(Array::from_boxed_ty(items.into_boxed_slice(), list_type))
             } else {
-                items.reverse();
-                Constant::List(List {
-                    elements: Ok(items),
-                })
+                Constant::List(List::from_vec_ty(items, list_type))
             }
         }
         "pair" => {
@@ -297,7 +309,7 @@ impl From<List> for Constant {
 impl<T: Into<Constant> + Default> From<Vec<T>> for Constant {
     fn from(value: Vec<T>) -> Self {
         Constant::List(if value.is_empty() {
-            List::empty(T::default().into())
+            List::empty(T::default().into().type_of())
         } else {
             let mut elements: Vec<Constant> = value.into_iter().map(Into::into).collect();
             elements.reverse();
@@ -505,7 +517,7 @@ impl<T1: TryFrom<Constant>, T2: TryFrom<Constant>> TryFrom<Constant> for (T1, T2
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct List {
     /// Elements are stored in reverse order for efficient `cons` operation.
     ///
@@ -514,22 +526,26 @@ pub struct List {
     /// INVARIANTS:
     /// - If `Ok`, the list has at least one element.
     /// - All elements in the list have the same type.
-    pub elements: Result<Vec<Constant>, Box<Constant>>,
+    pub elements: Result<Vec<Constant>, Type>,
 }
 
 impl List {
-    pub fn empty(element_type: Constant) -> Self {
+    pub fn empty(element_type: Type) -> Self {
         Self {
-            elements: Err(Box::new(element_type)),
+            elements: Err(element_type),
         }
     }
-}
 
-impl<U: Into<Constant> + Default> FromIterator<U> for List {
-    fn from_iter<T: IntoIterator<Item = U>>(iter: T) -> Self {
-        let mut elements: Vec<Constant> = iter.into_iter().map(Into::into).collect();
+    pub fn iter(&self) -> impl Iterator<Item = &Constant> {
+        match &self.elements {
+            Ok(elems) => elems.iter().rev(),
+            Err(_) => [].iter().rev(),
+        }
+    }
+
+    pub fn from_vec_ty(mut elements: Vec<Constant>, element_type: Type) -> Self {
         if elements.is_empty() {
-            Self::empty(U::default().into())
+            Self::empty(element_type)
         } else {
             elements.reverse();
             Self {
@@ -539,28 +555,49 @@ impl<U: Into<Constant> + Default> FromIterator<U> for List {
     }
 }
 
-impl PartialEq for List {
-    fn eq(&self, other: &Self) -> bool {
-        match (&self.elements, &other.elements) {
-            (Ok(a), Ok(b)) => a == b,
-            (Err(a), Err(b)) => std::mem::discriminant(&**a) == std::mem::discriminant(b),
-            _ => false,
+impl<U: Into<Constant> + Default> FromIterator<U> for List {
+    fn from_iter<T: IntoIterator<Item = U>>(iter: T) -> Self {
+        let mut elements: Vec<Constant> = iter.into_iter().map(Into::into).collect();
+        if elements.is_empty() {
+            Self::empty(U::default().into().type_of())
+        } else {
+            elements.reverse();
+            Self {
+                elements: Ok(elements),
+            }
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Array {
     /// INVARIANTS:
     /// - If `Ok`, the array has at least one element.
     /// - All elements in the array have the same type.
-    pub elements: Result<Box<[Constant]>, Box<Constant>>,
+    pub elements: Result<Box<[Constant]>, Type>,
 }
 
 impl Array {
-    pub fn empty(element_type: Constant) -> Self {
+    pub fn empty(element_type: Type) -> Self {
         Self {
-            elements: Err(Box::new(element_type)),
+            elements: Err(element_type),
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Constant> {
+        match &self.elements {
+            Ok(elems) => elems.iter(),
+            Err(_) => [].iter(),
+        }
+    }
+
+    pub fn from_boxed_ty(elements: Box<[Constant]>, element_type: Type) -> Self {
+        if elements.is_empty() {
+            Self::empty(element_type)
+        } else {
+            Self {
+                elements: Ok(elements),
+            }
         }
     }
 }
@@ -569,21 +606,11 @@ impl<U: Into<Constant> + Default> FromIterator<U> for Array {
     fn from_iter<T: IntoIterator<Item = U>>(iter: T) -> Self {
         let elements: Vec<Constant> = iter.into_iter().map(Into::into).collect();
         if elements.is_empty() {
-            Self::empty(U::default().into())
+            Self::empty(U::default().into().type_of())
         } else {
             Self {
                 elements: Ok(elements.into_boxed_slice()),
             }
-        }
-    }
-}
-
-impl PartialEq for Array {
-    fn eq(&self, other: &Self) -> bool {
-        match (&self.elements, &other.elements) {
-            (Ok(a), Ok(b)) => a == b,
-            (Err(a), Err(b)) => std::mem::discriminant(&**a) == std::mem::discriminant(b),
-            _ => false,
         }
     }
 }

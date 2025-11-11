@@ -6,7 +6,7 @@ pub(crate) mod evaluate;
 
 #[derive(Debug)]
 pub struct Program<T> {
-    version: Version,
+    pub version: Version,
     pub(crate) constants: Vec<Constant>,
     pub(crate) program: Vec<Instruction<T>>,
 }
@@ -289,7 +289,7 @@ pub enum Instruction<T> {
     Builtin(Builtin),
     // Should we support full u64 determinants?
     Construct { determinant: u32, length: u16 },
-    Case { count: u32 },
+    Case { count: u16 },
 }
 
 /// Type of term parsed
