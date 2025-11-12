@@ -170,5 +170,3 @@ jobs:
           file_pattern: "${{ env.LOCAL_DIR }}/**"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
-
-```
