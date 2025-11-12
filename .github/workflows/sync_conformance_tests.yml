@@ -219,15 +219,35 @@ jobs:
                 echo "Found $input_uplc"
                 echo "Found $input_expected"
                 
-                # Run the conversion for the main file
-                echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
-                uplc convert -i "$input_uplc" -o "$output_flat" --of flat
+                # Check for "parse error" in the expected file
+                if grep -q "parse error" "$input_expected"; then
+                  echo "Skipping $dirname: 'parse error' found in $input_expected."
                 
-                # Run the conversion for the expected file
-                echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" --of flat"
-                uplc convert -i "$input_expected" -o "$output_expected" --of flat
+                # Check for "evaluation failure" in the expected file
+                elif grep -q "evaluation failure" "$input_expected"; then
+                  echo "Processing $dirname: 'evaluation failure' found. Converting main file only."
+                  
+                  # Run the conversion for the main file
+                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" -of flat"
+                  uplc convert -i "$input_uplc" -o "$output_flat" -of flat
+                  
+                  echo "Conversion complete for $dirname (main file only)."
                 
-                echo "Conversion complete for $dirname."
+                # No special conditions, process both files
+                else
+                  echo "Processing $dirname: No special conditions found. Converting both files."
+                  
+                  # Run the conversion for the main file
+                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" -of flat"
+                  uplc convert -i "$input_uplc" -o "$output_flat" -of flat
+                  
+                  # Run the conversion for the expected file
+                  echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" -of flat"
+                  uplc convert -i "$input_expected" -o "$output_expected" -of flat
+                  
+                  echo "Conversion complete for $dirname."
+                fi
+
               else
                 echo "Warning: Skipping $dir. Could not find expected files:"
                 [ ! -f "$input_uplc" ] && echo "  Missing: $input_uplc"
