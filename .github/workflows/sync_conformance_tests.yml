@@ -170,30 +170,52 @@ jobs:
         run: |
           TARGET_DIR="${{ env.LOCAL_DIR }}"
           echo "Starting processing in $TARGET_DIR..."
+
           find "$TARGET_DIR" -type d | while read -r dir; do
+            # Check if this directory is a leaf (contains no subdirectories)
             if [ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -type d)" ]; then
+              
               dirname=$(basename "$dir")
               echo "--- Processing leaf directory: $dirname ---"
+
+              # Define file paths
               input_uplc="$dir/$dirname.uplc"
               input_expected="$dir/$dirname.uplc.expected"
               output_flat="$dir/$dirname.flat"
               output_expected="$dir/$dirname.flat.expected"
+
+              # Check if the required input files exist
               if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
+                
+                # Check for "parse error" or "evaluation failure" in the expected file
                 if grep -q "parse error" "$input_expected"; then
-                  echo "Skipping $dirname: 'parse error' found."
+                  echo "Skipping $dirname: 'parse error' found in expected file."
                 elif grep -q "evaluation failure" "$input_expected"; then
-                  echo "Processing $dirname: 'evaluation failure' found. Converting main file only."
-                  uplc convert -i "$input_uplc" -o "$output_flat" --of flat
+                  echo "Skipping $dirname: 'evaluation failure' found in expected file."
+                
+                # No special conditions, process both files
                 else
-                  echo "Processing $dirname: Converting both files."
+                  echo "Processing $dirname: No special conditions found. Converting both files."
+                  
+                  # Run the conversion for the main file
+                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
                   uplc convert -i "$input_uplc" -o "$output_flat" --of flat
+                  
+                  # Run the conversion for the expected file
+                  echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" --of flat"
                   uplc convert -i "$input_expected" -o "$output_expected" --of flat
+                  
+                  echo "Conversion complete for $dirname."
                 fi
+
               else
-                echo "Warning: Skipping $dir. Missing expected files."
+                echo "Warning: Skipping $dir. Could not find expected files:"
+                [ ! -f "$input_uplc" ] && echo "  Missing: $input_uplc"
+                [ ! -f "$input_expected" ] && echo "  Missing: $input_expected"
               fi
             fi
           done
+          
           echo "--- Processing finished ---"
 
       - name: 12. Commit and push changes
