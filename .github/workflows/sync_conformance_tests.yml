@@ -184,29 +184,15 @@ jobs:
               output_flat="$dir/$dirname.flat"
               output_expected="$dir/$dirname.flat.expected"
 
-              # Check if the required input files exist
+              # Check if the required input files exist before attempting conversion
               if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
+                echo "Attempting to convert files for $dirname..."
                 
-                # Check for "parse error" or "evaluation failure" in the expected file
-                if grep -q "parse error" "$input_expected"; then
-                  echo "Skipping $dirname: 'parse error' found in expected file."
-                elif grep -q "evaluation failure" "$input_expected"; then
-                  echo "Skipping $dirname: 'evaluation failure' found in expected file."
+                # Attempt to convert the main file. If it fails, continue anyway.
+                uplc convert -i "$input_uplc" -o "$output_flat" --of flat || echo "Conversion failed for $input_uplc, continuing..."
                 
-                # No special conditions, process both files
-                else
-                  echo "Processing $dirname: No special conditions found. Converting both files."
-                  
-                  # Run the conversion for the main file
-                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
-                  uplc convert -i "$input_uplc" -o "$output_flat" --of flat
-                  
-                  # Run the conversion for the expected file
-                  echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" --of flat"
-                  uplc convert -i "$input_expected" -o "$output_expected" --of flat
-                  
-                  echo "Conversion complete for $dirname."
-                fi
+                # Attempt to convert the expected file. If it fails, continue anyway.
+                uplc convert -i "$input_expected" -o "$output_expected" --of flat || echo "Conversion failed for $input_expected, continuing..."
 
               else
                 echo "Warning: Skipping $dir. Could not find expected files:"
