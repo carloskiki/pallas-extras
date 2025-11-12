@@ -134,13 +134,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 5. Add uplc to PATH and verify
+      - name: 5. Add uplc to PATH
         run: |
           echo "${{ runner.tool_cache }}/uplc" >> $GITHUB_PATH
-          echo "uplc binary found at: $(which uplc)"
+
+      - name: 6. Verify uplc installation
+        run: |
+          echo "Verifying uplc installation..."
           uplc --version
 
-      - name: 6. Generate flat UPLC files
+      - name: 7. Generate flat UPLC files
         run: |
           TARGET_DIR="${{ env.LOCAL_DIR }}"
           echo "Starting processing in $TARGET_DIR..."
@@ -163,7 +166,7 @@ jobs:
           done
           echo "--- Processing finished ---"
 
-      - name: 7. Commit and push changes
+      - name: 8. Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(conformance): Sync tests from ${{ env.REMOTE_REPO }}@${{ needs.check.outputs.remote_tag }}"
