@@ -5,26 +5,23 @@ on:
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at midnight UTC
 
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # Environment variables for easy configuration
 env:
   REMOTE_REPO: 'IntersectMBO/plutus'
-  # The specific directory for conformance test cases
   REMOTE_DIR: 'plutus-conformance/test-cases'
-  # The directory in THIS repository
   LOCAL_DIR: 'plutus/tests/conformance'
-  # Filename to store the last synced release tag
   SYNC_TAG_FILE: '.last_synced_tag'
 
 jobs:
-  sync:
-    name: Sync Conformance Test Cases
+  check:
+    name: Check for new release
     runs-on: ubuntu-latest
-
-    # Permissions needed to check out the repo and push changes
-    permissions:
-      contents: write
+    outputs:
+      needs_sync: ${{ steps.check_tags.outputs.needs_sync }}
+      remote_tag: ${{ steps.get_remote_tag.outputs.remote_tag }}
 
     steps:
       - name: 1. Checkout current repository
@@ -34,14 +31,11 @@ jobs:
         id: get_remote_tag
         run: |
           echo "Fetching latest release tag from ${{ env.REMOTE_REPO }}..."
-          # Use the GitHub CLI to get the tag name of the latest release
           REMOTE_TAG=$(gh release view --repo ${{ env.REMOTE_REPO }} --json tagName --jq '.tagName')
-
           if [ -z "$REMOTE_TAG" ]; then
-            echo "Could not fetch the latest release tag. Please check the repository name."
+            echo "Could not fetch the latest release tag."
             exit 1
           fi
-
           echo "Latest remote release tag is $REMOTE_TAG"
           echo "remote_tag=$REMOTE_TAG" >> $GITHUB_OUTPUT
         env:
@@ -51,7 +45,6 @@ jobs:
         id: get_local_tag
         run: |
           TAG_FILE="${{ env.LOCAL_DIR }}/${{ env.SYNC_TAG_FILE }}"
-          # Check if the tag file exists. If not, set tag to an empty string to force an update.
           if [ -f "$TAG_FILE" ]; then
             LOCAL_TAG=$(cat "$TAG_FILE")
             echo "Last synced tag is $LOCAL_TAG"
@@ -63,52 +56,54 @@ jobs:
 
       - name: 4. Compare tags and decide to sync
         id: check_tags
-        if: steps.get_remote_tag.outputs.remote_tag != steps.get_local_tag.outputs.local_tag
         run: |
-          echo "Tags do not match (Remote: ${{ steps.get_remote_tag.outputs.remote_tag }}, Local: ${{ steps.get_local_tag.outputs.local_tag }}). Proceeding with sync."
-          echo "needs_sync=true" >> $GITHUB_OUTPUT
+          if [ "${{ steps.get_remote_tag.outputs.remote_tag }}" != "${{ steps.get_local_tag.outputs.local_tag }}" ]; then
+            echo "Tags do not match. A sync is required."
+            echo "needs_sync=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tags match. No sync needed."
+            echo "needs_sync=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: 5. Sync the directory if needed
-        if: steps.check_tags.outputs.needs_sync == 'true'
+  sync:
+    name: Sync and Process Conformance Tests
+    runs-on: ubuntu-latest
+    needs: check
+    if: needs.check.outputs.needs_sync == 'true'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: 2. Sync the directory
         run: |
-          echo "Starting sync from ${{ env.REMOTE_REPO }}@${{ steps.get_remote_tag.outputs.remote_tag }}"
+          REMOTE_TAG="${{ needs.check.outputs.remote_tag }}"
+          echo "Starting sync from ${{ env.REMOTE_REPO }}@$REMOTE_TAG"
 
-          # Create a temporary directory for the sparse checkout
           TEMP_CLONE_DIR="temp_clone"
           mkdir -p $TEMP_CLONE_DIR
 
-          # Perform sparse checkout
           cd $TEMP_CLONE_DIR
           git init
           git remote add origin https://github.com/${{ env.REMOTE_REPO }}.git
           git config core.sparseCheckout true
-
-          # Tell git which directory we want
           echo "${{ env.REMOTE_DIR }}/*" > .git/info/sparse-checkout
-
-          # Fetch the specific tag and checkout only that
-          git fetch --depth=1 origin tags/${{ steps.get_remote_tag.outputs.remote_tag }}
+          git fetch --depth=1 origin tags/$REMOTE_TAG
           git checkout FETCH_HEAD
-
           cd ..
 
-          # Ensure the local directory exists
           mkdir -p "${{ env.LOCAL_DIR }}"
-
-          # Use rsync to copy the contents, deleting files that no longer exist in the source
           rsync -av --delete --exclude=".git" "$TEMP_CLONE_DIR/${{ env.REMOTE_DIR }}/" "${{ env.LOCAL_DIR }}/"
-
-          # Store the new release tag in the synced directory for the next check
-          echo "${{ steps.get_remote_tag.outputs.remote_tag }}" > "${{ env.LOCAL_DIR }}/${{ env.SYNC_TAG_FILE }}"
-
-          # Clean up the temporary clone
+          echo "$REMOTE_TAG" > "${{ env.LOCAL_DIR }}/${{ env.SYNC_TAG_FILE }}"
           rm -rf $TEMP_CLONE_DIR
           echo "Sync complete."
 
-      - name: 6. Remove comments from .uplc files
-        if: steps.check_tags.outputs.needs_sync == 'true'
+      - name: 3. Remove comments from .uplc files
         run: |
-          echo "Removing comments from .uplc files, respecting multi-line double-quoted strings..."
+          echo "Removing comments from .uplc files..."
           find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -exec python3 -c '
           import sys
           with open(sys.argv[1], "r+") as f:
@@ -129,86 +124,51 @@ jobs:
           ' {} \;
           echo "Comment removal complete."
 
-      - name: 7. Cache uplc binary
-        id: cache-uplc
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.tool_cache }}/uplc/uplc
-          key: ${{ runner.os }}-uplc-${{ steps.get_remote_tag.outputs.remote_tag }}
-          restore-keys: |
-            ${{ runner.os }}-uplc-
-
-      - name: 8. Download uplc binary (if not cached)
-        if: steps.cache-uplc.outputs.cache-hit != 'true'
+      - name: 4. Download uplc binary
         run: |
-          echo "Cache miss. Downloading new uplc binary for release ${{ steps.get_remote_tag.outputs.remote_tag }}..."
-          DOWNLOAD_URL=$(gh release view ${{ steps.get_remote_tag.outputs.remote_tag }} --repo ${{ env.REMOTE_REPO }} --json assets --jq '.assets[] | select(.name | test("^uplc-x86_64-linux")) | .url' | head -n 1)
-
-          if [ -z "$DOWNLOAD_URL" ]; then
-            echo "Error: Could not find a matching uplc binary in release ${{ steps.get_remote_tag.outputs.remote_tag }}."
-            exit 1
-          fi
-
-          echo "Downloading from $DOWNLOAD_URL"
+          REMOTE_TAG="${{ needs.check.outputs.remote_tag }}"
+          echo "Downloading new uplc binary for release $REMOTE_TAG..."
           mkdir -p ${{ runner.tool_cache }}/uplc
-          gh release download ${{ steps.get_remote_tag.outputs.remote_tag }} --repo ${{ env.REMOTE_REPO }} --pattern 'uplc-x86_64-linux*' --output ${{ runner.tool_cache }}/uplc/uplc
+          gh release download $REMOTE_TAG --repo ${{ env.REMOTE_REPO }} --pattern 'uplc-x86_64-linux*' --output ${{ runner.tool_cache }}/uplc/uplc
           chmod +x ${{ runner.tool_cache }}/uplc/uplc
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 9. Add uplc to PATH
+      - name: 5. Add uplc to PATH and verify
         run: |
           echo "${{ runner.tool_cache }}/uplc" >> $GITHUB_PATH
-
-      - name: 10. Verify uplc installation
-        run: |
           echo "uplc binary found at: $(which uplc)"
           uplc --version
 
-      - name: 11. Generate flat UPLC files
-        if: steps.check_tags.outputs.needs_sync == 'true'
+      - name: 6. Generate flat UPLC files
         run: |
           TARGET_DIR="${{ env.LOCAL_DIR }}"
           echo "Starting processing in $TARGET_DIR..."
-
           find "$TARGET_DIR" -type d | while read -r dir; do
-            # Check if this directory is a leaf (contains no subdirectories)
             if [ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -type d)" ]; then
-              
               dirname=$(basename "$dir")
               echo "--- Processing leaf directory: $dirname ---"
-
-              # Define file paths
               input_uplc="$dir/$dirname.uplc"
               input_expected="$dir/$dirname.uplc.expected"
               output_flat="$dir/$dirname.flat"
               output_expected="$dir/$dirname.flat.expected"
-
-              # Check if the required input files exist before attempting conversion
               if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
                 echo "Attempting to convert files for $dirname..."
-                
-                # Attempt to convert the main file. If it fails, continue anyway.
                 uplc convert -i "$input_uplc" -o "$output_flat" --of flat || echo "Conversion failed for $input_uplc, continuing..."
-                
-                # Attempt to convert the expected file. If it fails, continue anyway.
                 uplc convert -i "$input_expected" -o "$output_expected" --of flat || echo "Conversion failed for $input_expected, continuing..."
-
               else
-                echo "Warning: Skipping $dir. Could not find expected files:"
-                [ ! -f "$input_uplc" ] && echo "  Missing: $input_uplc"
-                [ ! -f "$input_expected" ] && echo "  Missing: $input_expected"
+                echo "Warning: Skipping $dir. Missing expected files."
               fi
             fi
           done
-          
           echo "--- Processing finished ---"
 
-      - name: 12. Commit and push changes
-        if: steps.check_tags.outputs.needs_sync == 'true'
+      - name: 7. Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore(conformance): Sync tests from ${{ env.REMOTE_REPO }}@${{ steps.get_remote_tag.outputs.remote_tag }}"
+          commit_message: "chore(conformance): Sync tests from ${{ env.REMOTE_REPO }}@${{ needs.check.outputs.remote_tag }}"
           file_pattern: "${{ env.LOCAL_DIR }}/**"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+
+```
