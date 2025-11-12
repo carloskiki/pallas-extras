@@ -21,6 +21,7 @@ env:
 
 jobs:
   sync:
+    name: Sync Conformance Test Cases
     runs-on: ubuntu-latest
 
     # Permissions needed to check out the repo and push changes
@@ -133,7 +134,111 @@ jobs:
 
           echo "Comment removal complete."
 
-      - name: 7. Commit and push changes
+          
+      - name: 7. Get latest uplc release tag
+        id: get-release
+        shell: bash
+        run: |
+          # Fetch the latest release data and extract the tag name
+          LATEST_TAG=$(curl -sL https://api.github.com/repos/IntersectMBO/plutus/releases/latest | jq -r .tag_name)
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: 8. Cache uplc binary
+        id: cache-uplc
+        uses: actions/cache@v4
+        with:
+          # Cache the binary in the runner's tool cache
+          path: ${{ runner.tool_cache }}/uplc/uplc
+          # The key invalidates when the latest release tag changes
+          key: ${{ runner.os }}-uplc-${{ steps.get-release.outputs.tag }}
+          restore-keys: |
+            ${{ runner.os }}-uplc-
+
+      - name: 9. Download uplc binary (if not cached)
+        if: steps.cache-uplc.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "Cache miss. Downloading new uplc binary..."
+          
+          # Find the download URL for the asset that *starts with* 'uplc-x86_64-linux'
+          # This handles variations like 'uplc-x86_64-linux-ghc96' or 'uplc-x86_64-linux'
+          DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/IntersectMBO/plutus/releases/latest | \
+                         jq -r '.assets[] | select(.name | test("^uplc-x86_64-linux")) | .browser_download_url' | \
+                         head -n 1) # Take the first match
+
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "Error: Could not find a matching uplc binary in the latest release."
+            exit 1
+          fi
+          
+          echo "Downloading from $DOWNLOAD_URL"
+          mkdir -p ${{ runner.tool_cache }}/uplc
+          curl -L "$DOWNLOAD_URL" -o ${{ runner.tool_cache }}/uplc/uplc
+          chmod +x ${{ runner.tool_cache }}/uplc/uplc
+
+      - name: 10. Add uplc to PATH
+        shell: bash
+        run: |
+          echo "${{ runner.tool_cache }}/uplc" >> $GITHUB_PATH
+
+      - name: 11. Verify uplc installation
+        shell: bash
+        run: |
+          echo "uplc binary found at: $(which uplc)"
+          uplc --version
+
+      - name: 12. Generate flat UPLC files
+        shell: bash
+        run: |
+          TARGET_DIR="plutus/tests/conformance"
+          
+          if [ ! -d "$TARGET_DIR" ]; then
+            echo "Error: Directory $TARGET_DIR does not exist."
+            exit 1
+          fi
+
+          echo "Starting processing in $TARGET_DIR..."
+          
+          # Find all directories within the target directory
+          find "$TARGET_DIR" -type d | while read -r dir; do
+            
+            # Check if this directory is a leaf (contains no subdirectories)
+            if [ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -type d)" ]; then
+              
+              dirname=$(basename "$dir")
+              echo "--- Processing leaf directory: $dirname ---"
+
+              # Define file paths based on the directory name
+              input_uplc="$dir/$dirname.uplc"
+              input_expected="$dir/$dirname.uplc.expected"
+              output_flat="$dir/$dirname.flat"
+              output_expected="$dir/$dirname.flat.expected"
+
+              # Check if the required input files exist
+              if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
+                echo "Found $input_uplc"
+                echo "Found $input_expected"
+                
+                # Run the conversion for the main file
+                echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" -of flat"
+                uplc convert -i "$input_uplc" -o "$output_flat" -of flat
+                
+                # Run the conversion for the expected file
+                echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" -of flat"
+                uplc convert -i "$input_expected" -o "$output_expected" -of flat
+                
+                echo "Conversion complete for $dirname."
+              else
+                echo "Warning: Skipping $dir. Could not find expected files:"
+                [ ! -f "$input_uplc" ] && echo "  Missing: $input_uplc"
+                [ ! -f "$input_expected" ] && echo "  Missing: $input_expected"
+              fi
+            fi
+          done
+          
+          echo "--- Processing finished ---"
+
+      - name: 13. Commit and push changes
         if: steps.check_hashes.outputs.needs_sync == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
