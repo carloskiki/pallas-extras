@@ -220,12 +220,12 @@ jobs:
                 echo "Found $input_expected"
                 
                 # Run the conversion for the main file
-                echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" -of flat"
-                uplc convert -i "$input_uplc" -o "$output_flat" -of flat
+                echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
+                uplc convert -i "$input_uplc" -o "$output_flat" --of flat
                 
                 # Run the conversion for the expected file
-                echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" -of flat"
-                uplc convert -i "$input_expected" -o "$output_expected" -of flat
+                echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" --of flat"
+                uplc convert -i "$input_expected" -o "$output_expected" --of flat
                 
                 echo "Conversion complete for $dirname."
               else
