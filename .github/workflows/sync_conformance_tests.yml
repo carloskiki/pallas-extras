@@ -5,19 +5,17 @@ on:
   schedule:
     - cron: '0 0 * * 0' # Every Sunday at midnight UTC
 
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Environment variables to make configuration easy
+# Environment variables for easy configuration
 env:
-  # The repository you want to sync FROM (e.g., 'owner/another-repo')
   REMOTE_REPO: 'IntersectMBO/plutus'
-  # The specific directory within that repository you want to sync
+  # The specific directory for conformance test cases
   REMOTE_DIR: 'plutus-conformance/test-cases'
-  # The directory in THIS repository where you want to place the synced content
+  # The directory in THIS repository
   LOCAL_DIR: 'plutus/tests/conformance'
-  # The branch of the remote repository to check
-  REMOTE_BRANCH: 'master'
+  # Filename to store the last synced release tag
+  SYNC_TAG_FILE: '.last_synced_tag'
 
 jobs:
   sync:
@@ -32,47 +30,48 @@ jobs:
       - name: 1. Checkout current repository
         uses: actions/checkout@v4
 
-      - name: 2. Get latest commit hash from remote directory
-        id: get_remote_hash
+      - name: 2. Get latest release tag from remote repo
+        id: get_remote_tag
         run: |
-          # Use the GitHub CLI to query the API for the latest commit affecting the target directory
-          REMOTE_HASH=$(gh api repos/${{ env.REMOTE_REPO }}/commits --jq '.[0].sha' --method GET -f path=${{ env.REMOTE_DIR }} -f sha=${{ env.REMOTE_BRANCH }})
+          echo "Fetching latest release tag from ${{ env.REMOTE_REPO }}..."
+          # Use the GitHub CLI to get the tag name of the latest release
+          REMOTE_TAG=$(gh release view --repo ${{ env.REMOTE_REPO }} --json tagName --jq '.tagName')
 
-          if [ -z "$REMOTE_HASH" ]; then
-            echo "Could not fetch remote hash. The path or repository might be incorrect."
+          if [ -z "$REMOTE_TAG" ]; then
+            echo "Could not fetch the latest release tag. Please check the repository name."
             exit 1
           fi
 
-          echo "Latest remote hash for '${{ env.REMOTE_DIR }}' is $REMOTE_HASH"
-          echo "remote_hash=$REMOTE_HASH" >> $GITHUB_OUTPUT
+          echo "Latest remote release tag is $REMOTE_TAG"
+          echo "remote_tag=$REMOTE_TAG" >> $GITHUB_OUTPUT
         env:
-          # The GITHUB_TOKEN is automatically provided by GitHub Actions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 3. Get last synced commit hash
-        id: get_local_hash
+      - name: 3. Get last synced release tag
+        id: get_local_tag
         run: |
-          # Check if the hash file exists. If not, set hash to an empty string to force an update.
-          if [ -f "${{ env.LOCAL_DIR }}/.last_synced_hash" ]; then
-            LOCAL_HASH=$(cat "${{ env.LOCAL_DIR }}/.last_synced_hash")
-            echo "Last synced hash is $LOCAL_HASH"
+          TAG_FILE="${{ env.LOCAL_DIR }}/${{ env.SYNC_TAG_FILE }}"
+          # Check if the tag file exists. If not, set tag to an empty string to force an update.
+          if [ -f "$TAG_FILE" ]; then
+            LOCAL_TAG=$(cat "$TAG_FILE")
+            echo "Last synced tag is $LOCAL_TAG"
           else
-            LOCAL_HASH=""
-            echo "No local hash file found. Will perform initial sync."
+            LOCAL_TAG=""
+            echo "No local tag file found. Will perform initial sync."
           fi
-          echo "local_hash=$LOCAL_HASH" >> $GITHUB_OUTPUT
+          echo "local_tag=$LOCAL_TAG" >> $GITHUB_OUTPUT
 
-      - name: 4. Compare hashes and decide to sync
-        id: check_hashes
-        if: steps.get_remote_hash.outputs.remote_hash != steps.get_local_hash.outputs.local_hash
+      - name: 4. Compare tags and decide to sync
+        id: check_tags
+        if: steps.get_remote_tag.outputs.remote_tag != steps.get_local_tag.outputs.local_tag
         run: |
-          echo "Hashes do not match. Proceeding with sync."
+          echo "Tags do not match (Remote: ${{ steps.get_remote_tag.outputs.remote_tag }}, Local: ${{ steps.get_local_tag.outputs.local_tag }}). Proceeding with sync."
           echo "needs_sync=true" >> $GITHUB_OUTPUT
 
       - name: 5. Sync the directory if needed
-        if: steps.check_hashes.outputs.needs_sync == 'true'
+        if: steps.check_tags.outputs.needs_sync == 'true'
         run: |
-          echo "Starting sync from ${{ env.REMOTE_REPO }}/${{ env.REMOTE_DIR }}"
+          echo "Starting sync from ${{ env.REMOTE_REPO }}@${{ steps.get_remote_tag.outputs.remote_tag }}"
 
           # Create a temporary directory for the sparse checkout
           TEMP_CLONE_DIR="temp_clone"
@@ -87,183 +86,121 @@ jobs:
           # Tell git which directory we want
           echo "${{ env.REMOTE_DIR }}/*" > .git/info/sparse-checkout
 
-          # Pull only the required files
-          git pull --depth=1 origin ${{ env.REMOTE_BRANCH }}
+          # Fetch the specific tag and checkout only that
+          git fetch --depth=1 origin tags/${{ steps.get_remote_tag.outputs.remote_tag }}
+          git checkout FETCH_HEAD
+
           cd ..
 
-          # Create the local directory if it doesn't exist
+          # Ensure the local directory exists
           mkdir -p "${{ env.LOCAL_DIR }}"
 
           # Use rsync to copy the contents, deleting files that no longer exist in the source
           rsync -av --delete --exclude=".git" "$TEMP_CLONE_DIR/${{ env.REMOTE_DIR }}/" "${{ env.LOCAL_DIR }}/"
 
-          # Store the new hash in the synced directory for the next check
-          echo "${{ steps.get_remote_hash.outputs.remote_hash }}" > "${{ env.LOCAL_DIR }}/.last_synced_hash"
+          # Store the new release tag in the synced directory for the next check
+          echo "${{ steps.get_remote_tag.outputs.remote_tag }}" > "${{ env.LOCAL_DIR }}/${{ env.SYNC_TAG_FILE }}"
 
           # Clean up the temporary clone
           rm -rf $TEMP_CLONE_DIR
           echo "Sync complete."
 
-      - name: 6. Remove comments (respecting multi-line strings) from .uplc files
-        if: steps.check_hashes.outputs.needs_sync == 'true'
+      - name: 6. Remove comments from .uplc files
+        if: steps.check_tags.outputs.needs_sync == 'true'
         run: |
           echo "Removing comments from .uplc files, respecting multi-line double-quoted strings..."
-
-
           find "${{ env.LOCAL_DIR }}" -type f -name "*.uplc" -exec python3 -c '
           import sys
-          with open(sys.argv[1]) as f:
+          with open(sys.argv[1], "r+") as f:
               content = f.read()
-          result, in_string, i = [], False, 0
-          while i < len(content):
-              if content[i:i+2] == "\\\\":
-                  result.append(content[i:i+2]); i += 2
-              elif content[i:i+2] == "\\\"":
-                  result.append(content[i:i+2]); i += 2
-              elif content[i] == "\"":
-                  in_string = not in_string; result.append(content[i]); i += 1
-              elif not in_string and content[i:i+2] == "--":
-                  i = content.find("\n", i)
-                  if i == -1: break
-                  result.append("\n"); i += 1
-              else:
-                  result.append(content[i]); i += 1
-          with open(sys.argv[1], "w") as f:
+              f.seek(0)
+              result, in_string, i = [], False, 0
+              while i < len(content):
+                  if content[i:i+2] == "\\\\": result.append(content[i:i+2]); i += 2
+                  elif content[i:i+2] == "\\\"": result.append(content[i:i+2]); i += 2
+                  elif content[i] == "\"": in_string = not in_string; result.append(content[i]); i += 1
+                  elif not in_string and content[i:i+2] == "--":
+                      i = content.find("\n", i)
+                      if i == -1: break
+                      result.append("\n"); i += 1
+                  else: result.append(content[i]); i += 1
               f.write("".join(result))
+              f.truncate()
           ' {} \;
-
           echo "Comment removal complete."
 
-          
-      - name: 7. Get latest uplc release tag
-        id: get-release
-        shell: bash
-        run: |
-          # Fetch the latest release data and extract the tag name
-          LATEST_TAG=$(curl -sL https://api.github.com/repos/IntersectMBO/plutus/releases/latest | jq -r .tag_name)
-          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-
-      - name: 8. Cache uplc binary
+      - name: 7. Cache uplc binary
         id: cache-uplc
         uses: actions/cache@v4
         with:
-          # Cache the binary in the runner's tool cache
           path: ${{ runner.tool_cache }}/uplc/uplc
-          # The key invalidates when the latest release tag changes
-          key: ${{ runner.os }}-uplc-${{ steps.get-release.outputs.tag }}
+          key: ${{ runner.os }}-uplc-${{ steps.get_remote_tag.outputs.remote_tag }}
           restore-keys: |
             ${{ runner.os }}-uplc-
 
-      - name: 9. Download uplc binary (if not cached)
+      - name: 8. Download uplc binary (if not cached)
         if: steps.cache-uplc.outputs.cache-hit != 'true'
-        shell: bash
         run: |
-          echo "Cache miss. Downloading new uplc binary..."
-          
-          # Find the download URL for the asset that *starts with* 'uplc-x86_64-linux'
-          # This handles variations like 'uplc-x86_64-linux-ghc96' or 'uplc-x86_64-linux'
-          DOWNLOAD_URL=$(curl -sL https://api.github.com/repos/IntersectMBO/plutus/releases/latest | \
-                         jq -r '.assets[] | select(.name | test("^uplc-x86_64-linux")) | .browser_download_url' | \
-                         head -n 1) # Take the first match
+          echo "Cache miss. Downloading new uplc binary for release ${{ steps.get_remote_tag.outputs.remote_tag }}..."
+          DOWNLOAD_URL=$(gh release view ${{ steps.get_remote_tag.outputs.remote_tag }} --repo ${{ env.REMOTE_REPO }} --json assets --jq '.assets[] | select(.name | test("^uplc-x86_64-linux")) | .url' | head -n 1)
 
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "Error: Could not find a matching uplc binary in the latest release."
+            echo "Error: Could not find a matching uplc binary in release ${{ steps.get_remote_tag.outputs.remote_tag }}."
             exit 1
           fi
-          
+
           echo "Downloading from $DOWNLOAD_URL"
           mkdir -p ${{ runner.tool_cache }}/uplc
-          curl -L "$DOWNLOAD_URL" -o ${{ runner.tool_cache }}/uplc/uplc
+          gh release download ${{ steps.get_remote_tag.outputs.remote_tag }} --repo ${{ env.REMOTE_REPO }} --pattern 'uplc-x86_64-linux*' --output ${{ runner.tool_cache }}/uplc/uplc
           chmod +x ${{ runner.tool_cache }}/uplc/uplc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 10. Add uplc to PATH
-        shell: bash
+      - name: 9. Add uplc to PATH
         run: |
           echo "${{ runner.tool_cache }}/uplc" >> $GITHUB_PATH
 
-      - name: 11. Verify uplc installation
-        shell: bash
+      - name: 10. Verify uplc installation
         run: |
           echo "uplc binary found at: $(which uplc)"
           uplc --version
 
-      - name: 12. Generate flat UPLC files
-        shell: bash
+      - name: 11. Generate flat UPLC files
+        if: steps.check_tags.outputs.needs_sync == 'true'
         run: |
-          TARGET_DIR="plutus/tests/conformance"
-          
-          if [ ! -d "$TARGET_DIR" ]; then
-            echo "Error: Directory $TARGET_DIR does not exist."
-            exit 1
-          fi
-
+          TARGET_DIR="${{ env.LOCAL_DIR }}"
           echo "Starting processing in $TARGET_DIR..."
-          
-          # Find all directories within the target directory
           find "$TARGET_DIR" -type d | while read -r dir; do
-            
-            # Check if this directory is a leaf (contains no subdirectories)
             if [ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -type d)" ]; then
-              
               dirname=$(basename "$dir")
               echo "--- Processing leaf directory: $dirname ---"
-
-              # Define file paths based on the directory name
               input_uplc="$dir/$dirname.uplc"
               input_expected="$dir/$dirname.uplc.expected"
               output_flat="$dir/$dirname.flat"
               output_expected="$dir/$dirname.flat.expected"
-
-              # Check if the required input files exist
               if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
-                echo "Found $input_uplc"
-                echo "Found $input_expected"
-                
-                # Check for "parse error" in the expected file
                 if grep -q "parse error" "$input_expected"; then
-                  echo "Skipping $dirname: 'parse error' found in $input_expected."
-                
-                # Check for "evaluation failure" in the expected file
+                  echo "Skipping $dirname: 'parse error' found."
                 elif grep -q "evaluation failure" "$input_expected"; then
                   echo "Processing $dirname: 'evaluation failure' found. Converting main file only."
-                  
-                  # Run the conversion for the main file
-                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
                   uplc convert -i "$input_uplc" -o "$output_flat" --of flat
-                  
-                  echo "Conversion complete for $dirname (main file only)."
-                
-                # No special conditions, process both files
                 else
-                  echo "Processing $dirname: No special conditions found. Converting both files."
-                  
-                  # Run the conversion for the main file
-                  echo "Running: uplc convert -i \"$input_uplc\" -o \"$output_flat\" --of flat"
+                  echo "Processing $dirname: Converting both files."
                   uplc convert -i "$input_uplc" -o "$output_flat" --of flat
-                  
-                  # Run the conversion for the expected file
-                  echo "Running: uplc convert -i \"$input_expected\" -o \"$output_expected\" --of flat"
                   uplc convert -i "$input_expected" -o "$output_expected" --of flat
-                  
-                  echo "Conversion complete for $dirname."
                 fi
-
               else
-                echo "Warning: Skipping $dir. Could not find expected files:"
-                [ ! -f "$input_uplc" ] && echo "  Missing: $input_uplc"
-                [ ! -f "$input_expected" ] && echo "  Missing: $input_expected"
+                echo "Warning: Skipping $dir. Missing expected files."
               fi
             fi
           done
-          
           echo "--- Processing finished ---"
 
-      - name: 13. Commit and push changes
-        if: steps.check_hashes.outputs.needs_sync == 'true'
+      - name: 12. Commit and push changes
+        if: steps.check_tags.outputs.needs_sync == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: Sync updates for ${{ env.LOCAL_DIR }} from ${{ env.REMOTE_REPO }}"
-          file_pattern: "${{ env.LOCAL_DIR }}/**" # Commit only changes within the target directory
-          commit_user_name: "GitHub Actions Bot"
-          commit_user_email: "github-actions[bot]@users.noreply.github.com"
-          commit_author: "GitHub Actions Bot <github-actions[bot]@users.noreply.github.com>"
+          commit_message: "chore(conformance): Sync tests from ${{ env.REMOTE_REPO }}@${{ steps.get_remote_tag.outputs.remote_tag }}"
+          file_pattern: "${{ env.LOCAL_DIR }}/**"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
