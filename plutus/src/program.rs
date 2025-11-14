@@ -97,7 +97,7 @@ impl<T: FromStr> FromStr for Program<T> {
                                 stack.push(arg);
                                 count += 1;
                             }
-                            program.push(Instruction::Case { count: count - 1 });
+                            program.push(Instruction::Case { count: count as u16 - 1 });
                         }
                         _ => {
                             return Err(());
@@ -178,7 +178,7 @@ impl<T: PartialEq> Program<T> {
                     }
 
                     Instruction::Case { count: len } => {
-                        increment_stack(&mut stack, len);
+                        increment_stack(&mut stack, len as u32);
                         Instruction::Case { count: len }
                     }
                     Instruction::Construct {

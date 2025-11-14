@@ -6,7 +6,7 @@ mod builtin;
 mod constant;
 mod data;
 mod lex;
-mod flat;
+pub mod flat;
 pub mod program;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

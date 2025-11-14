@@ -115,7 +115,7 @@ impl Value {
                                 remaining += length as u32 - 1;
                             }
                             Instruction::Case { count } => {
-                                remaining += count;
+                                remaining += count as u32;
                             }
                         }
                         instructions.push(program.program[index]);
@@ -243,7 +243,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
             Instruction::Case { count } => {
                 index += 1;
                 stack.push(Frame::Case {
-                    count,
+                    count: count as u32,
                     environment: environment.clone(),
                     next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                 });
@@ -400,7 +400,7 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u32) -> usiz
                 remaining += length as u32 - 1;
             }
             Instruction::Case { count } => {
-                remaining += count;
+                remaining += count as u32;
             }
         }
         index += 1;

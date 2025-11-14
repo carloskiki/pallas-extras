@@ -3,7 +3,7 @@ use rug::Integer;
 
 use super::builtin;
 use crate::{
-    constant::{Constant, List},
+    constant::List,
     data::{Construct, Data},
     program::evaluate::Value,
 };
@@ -114,14 +114,14 @@ pub fn mk_pair(first: Data, second: Data) -> (Data, Data) {
 
 #[apply(builtin)]
 pub fn mk_nil(_u: ()) -> List {
-    List::empty(Constant::Data(Default::default()))
+    List::empty(crate::constant::Type::Data)
 }
 
 #[apply(builtin)]
 pub fn mk_nil_pair(_u: ()) -> List {
-    List::empty(Constant::Pair(Box::new((
-        Constant::Data(Default::default()),
-        Constant::Data(Default::default()),
+    List::empty(crate::constant::Type::Pair(Box::new((
+        crate::constant::Type::Data,
+        crate::constant::Type::Data,
     ))))
 }
 

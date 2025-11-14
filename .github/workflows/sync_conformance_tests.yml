@@ -152,13 +152,10 @@ jobs:
               dirname=$(basename "$dir")
               echo "--- Processing leaf directory: $dirname ---"
               input_uplc="$dir/$dirname.uplc"
-              input_expected="$dir/$dirname.uplc.expected"
               output_flat="$dir/$dirname.flat"
-              output_expected="$dir/$dirname.flat.expected"
-              if [ -f "$input_uplc" ] && [ -f "$input_expected" ]; then
+              if [ -f "$input_uplc" ]; then
                 echo "Attempting to convert files for $dirname..."
                 uplc convert -i "$input_uplc" -o "$output_flat" --of flat || echo "Conversion failed for $input_uplc, continuing..."
-                uplc convert -i "$input_expected" -o "$output_expected" --of flat || echo "Conversion failed for $input_expected, continuing..."
               else
                 echo "Warning: Skipping $dir. Missing expected files."
               fi

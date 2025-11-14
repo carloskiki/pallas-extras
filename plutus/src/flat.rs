@@ -5,7 +5,6 @@
 use std::{
     convert::Infallible,
     ffi::c_ulong,
-    io::Read,
     num::NonZeroU8,
     ops::{Deref, DerefMut},
 };
@@ -21,11 +20,11 @@ use crate::{
     program::{Instruction, Program},
 };
 
-trait Encode {
+pub trait Encode {
     fn encode(&self, buffer: &mut Buffer);
 }
 
-trait Decode<'a>: Sized {
+pub trait Decode<'a>: Sized {
     fn decode(reader: &mut Reader<'a>) -> Option<Self>;
 }
 
@@ -53,7 +52,7 @@ impl<'a> CleanBuffer<'a> {
     }
 }
 
-struct Buffer {
+pub struct Buffer {
     buf: Vec<u8>,
     partial: u64,
     remaining: NonZeroU8,
@@ -444,6 +443,10 @@ pub struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Self { buf, position: 0 }
+    }
+    
     pub fn read_bits<const COUNT: usize>(&mut self) -> Option<u8> {
         const {
             if COUNT > 8 || COUNT == 0 {
@@ -457,7 +460,7 @@ impl<'a> Reader<'a> {
         self.position += COUNT;
         self.buf
             .get(byte_index)
-            .map(|byte| {
+            .and_then(|byte| {
                 if bit_index >= offset {
                     Some((byte >> (bit_index - offset)) & ((1 << COUNT) - 1))
                 } else {
@@ -467,7 +470,6 @@ impl<'a> Reader<'a> {
                     Some(value & ((1 << COUNT) - 1))
                 }
             })
-            .flatten()
     }
 
     pub fn read_bytes_padded<'b>(&'b mut self) -> Option<impl use<'b> + Iterator<Item = u8>> {
@@ -618,7 +620,7 @@ impl Decode<'_> for Program<DeBruijn> {
         fn decrement(
             stack: &mut Vec<(u16, Option<Frame>)>,
             reader: &mut Reader<'_>,
-            program: &mut Vec<Instruction<DeBruijn>>,
+            program: &mut [Instruction<DeBruijn>],
         ) -> Option<()> {
             let (x, frame) = stack.last_mut().expect("stack is not empty");
             *x -= 1;
@@ -789,8 +791,8 @@ impl Decode<'_> for Data {
 impl<'a> Decode<'a> for Integer {
     fn decode(reader: &mut Reader<'a>) -> Option<Self> {
         let mut integer = Integer::new();
-        #[allow(clippy::unbuffered_bytes)]
-        for byte in reader.read_bits::<8>() {
+        loop {
+            let byte = reader.read_bits::<8>()?;
             integer |= byte & 0x7F;
             if byte & 0x80 == 0 {
                 break;

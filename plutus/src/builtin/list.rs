@@ -27,7 +27,7 @@ pub fn mk_cons(head: Constant, mut tail: List) -> Option<List> {
             tail
         }
         Err(ty) => {
-            if std::mem::discriminant(&head) != std::mem::discriminant(ty) {
+            if &head.type_of() != ty {
                 return None;
             }
             tail.elements = Ok(vec![head]);
@@ -56,7 +56,7 @@ pub fn tail(list: List) -> Option<List> {
 
             Some(List {
                 elements: if list.is_empty() {
-                    Err(Box::new(elem))
+                    Err(elem.type_of())
                 } else {
                     Ok(list)
                 },
@@ -84,7 +84,7 @@ pub fn drop(count: rug::Integer, list: List) -> List {
             };
         } else {
             return List {
-                elements: Err(Box::new(contains[0].clone())),
+                elements: Err(contains[0].type_of()),
             };
         }
     };

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use libtest2_mimic::{Harness, RunContext, RunError, Trial};
-use plutus::{program::Program, DeBruijn};
+use plutus::{DeBruijn, program::Program};
 
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
 
@@ -32,7 +32,7 @@ fn main() {
                     // if test_name != "uplc/evaluation/builtin/semantics/dropList/dropList-05" {
                     //     continue;
                     // }
-                    
+
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
                     }));
@@ -52,6 +52,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "valueContains"
             || c.as_os_str() == "unionValue"
             || c.as_os_str() == "constant-case"
+            || c.as_os_str() == "scaleValue"
     }) {
         return ctx.ignore_for("Requires value built-in type support");
     } else if program_path
@@ -71,31 +72,48 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
     let program: Program<String> = match (program.parse(), expected_output.as_str()) {
         (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
         (Err(_), "parse error") => return Ok(()),
-        (Ok(program), _) => {
-            program
-        }
+        (Ok(program), _) => program,
         (Err(_), _) => return Err(RunError::fail("Unexpected parse error")),
     };
-    let cannonical = match (program.into_de_bruijn(), expected_output.as_str()) {
+    let program_debruijn = match (program.into_de_bruijn(), expected_output.as_str()) {
         (Some(program), _) => program,
         (None, "evaluation failure") => return Ok(()),
-        (None, _) => return Err(RunError::fail("Unexpected evaluation error when converting to de Bruijn indices")),
+        (None, _) => {
+            return Err(RunError::fail(
+                "Unexpected evaluation error when converting to de Bruijn indices",
+            ));
+        }
     };
-    
-    let output =  match (cannonical.evaluate(), expected_output.as_str()) {
-        (Some(_), "evaluation failure") => return Err(RunError::fail("Expected evaluation failure")),
+
+    let flat_path = program_path.with_extension("flat");
+    if let Ok(flat) = std::fs::read(&flat_path) {
+        let Some(program_from_flat) = Program::from_flat(&flat) else {
+            return Err(RunError::fail("Failed to parse flat program"));
+        };
+        let flat_from_program = program_debruijn.to_flat();
+        if program_from_flat != program_debruijn || flat_from_program != flat {
+            return Err(RunError::fail(
+                "Flat program does not match original program",
+            ));
+        }
+    }
+
+    let output = match (program_debruijn.evaluate(), expected_output.as_str()) {
+        (Some(_), "evaluation failure") => {
+            return Err(RunError::fail("Expected evaluation failure"));
+        }
         (None, "evaluation failure") => return Ok(()),
         (Some(p), _) => p,
         (None, _) => return Err(RunError::fail("Unexpected evaluation failure")),
     };
-    let expected_program: Program<ExpectedVariable> = expected_output.parse()
+    let expected_program: Program<ExpectedVariable> = expected_output
+        .parse()
         .map_err(|_| RunError::fail("Failed to parse expected output"))?;
 
-    // dbg!("Expected: {:?}", &expected_program);
-    // dbg!("Output: {:?}", &output);
-    
     if expected_program != output.into_de_bruijn().unwrap() {
-        return Err(RunError::fail("Output program does not match expected program"));
+        return Err(RunError::fail(
+            "Output program does not match expected program",
+        ));
     }
 
     Ok(())
