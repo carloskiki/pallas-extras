@@ -52,6 +52,7 @@ impl<'a> CleanBuffer<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct Buffer {
     buf: Vec<u8>,
     partial: u64,
@@ -65,6 +66,8 @@ impl Buffer {
         self.partial |= 1;
         let skip: usize = (u8::from(self.remaining) + 7) as usize / 8 - 1;
         self.buf.extend(&self.partial.to_be_bytes()[skip..]);
+        self.partial = 0;
+        self.remaining = NonZeroU8::new(64).unwrap();
         f(CleanBuffer { buf: self })
     }
 
@@ -423,13 +426,13 @@ impl Encode for Data {
                     buf = &buf[write_now..];
                 }
                 buf.chunks(255).for_each(|chunk| {
-                    let len = chunk.len() as u8;
+                    let len = (self.len - self.written).min(255);
                     assert!(
-                        chunk.len() <= self.len - self.written,
+                        chunk.len() <= len,
                         "Data length exceeded during encoding"
                     );
 
-                    self.writer.write_bytes(&[len]);
+                    self.writer.write_bytes(&[len as u8]);
                     self.writer.write_bytes(chunk);
                     self.written += chunk.len();
                 });
@@ -439,12 +442,13 @@ impl Encode for Data {
         }
 
         buffer.with_pad(|writer| {
-            let writer = DataWriter {
+            let mut writer = DataWriter {
                 writer,
                 len: self.cbor_len(&mut ()),
                 written: 0,
             };
-            minicbor::encode(self, writer).expect("Data should encode properly");
+            minicbor::encode(self, &mut writer).expect("Data should encode properly");
+            writer.writer.write_bytes(&[0]);
         })
     }
 }
@@ -747,37 +751,41 @@ impl Decode<'_> for Constant {
 
 impl Decode<'_> for constant::Type {
     fn decode(reader: &mut Reader<'_>) -> Option<Self> {
-        let 1 = reader.read_bits::<1>()? else {
-            return None;
-        };
-        let ty = match reader.read_bits::<4>()? {
-            0 => constant::Type::Integer,
-            1 => constant::Type::Bytes,
-            2 => constant::Type::String,
-            3 => constant::Type::Unit,
-            4 => constant::Type::Boolean,
-            7 if reader.read_bits::<1>()? == 1 => match reader.read_bits::<4>()? {
-                5 => {
-                    let elem_ty = Box::new(constant::Type::decode(reader)?);
-                    constant::Type::List(elem_ty)
-                }
-                7 if reader.read_bits::<1>()? == 1 && reader.read_bits::<4>()? == 6 => {
-                    let second_ty = constant::Type::decode(reader)?;
-                    let first_ty = constant::Type::decode(reader)?;
-                    constant::Type::Pair(Box::new((first_ty, second_ty)))
-                }
-                12 => {
-                    let elem_ty = Box::new(constant::Type::decode(reader)?);
-                    constant::Type::Array(elem_ty)
-                }
+        fn inner_decode(reader: &mut Reader<'_>) -> Option<constant::Type> {
+            let 1 = reader.read_bits::<1>()? else {
+                return None;
+            };
+            let ty = match reader.read_bits::<4>()? {
+                0 => constant::Type::Integer,
+                1 => constant::Type::Bytes,
+                2 => constant::Type::String,
+                3 => constant::Type::Unit,
+                4 => constant::Type::Boolean,
+                7 if reader.read_bits::<1>()? == 1 => match reader.read_bits::<4>()? {
+                    5 => {
+                        let elem_ty = Box::new(inner_decode(reader)?);
+                        constant::Type::List(elem_ty)
+                    }
+                    7 if reader.read_bits::<1>()? == 1 && reader.read_bits::<4>()? == 6 => {
+                        let second_ty = inner_decode(reader)?;
+                        let first_ty = inner_decode(reader)?;
+                        constant::Type::Pair(Box::new((first_ty, second_ty)))
+                    }
+                    12 => {
+                        let elem_ty = Box::new(inner_decode(reader)?);
+                        constant::Type::Array(elem_ty)
+                    }
+                    _ => return None,
+                },
+                8 => constant::Type::Data,
+                9 => constant::Type::BLSG1Element,
+                10 => constant::Type::BLSG2Element,
+                11 => constant::Type::MillerLoopResult,
                 _ => return None,
-            },
-            8 => constant::Type::Data,
-            9 => constant::Type::BLSG1Element,
-            10 => constant::Type::BLSG2Element,
-            11 => constant::Type::MillerLoopResult,
-            _ => return None,
-        };
+            };
+            Some(ty)
+        }
+        let ty = inner_decode(reader)?;
         let 0 = reader.read_bits::<1>()? else {
             return None;
         };
