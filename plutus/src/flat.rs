@@ -201,7 +201,7 @@ impl Encode for Program<DeBruijn> {
             match instruction {
                 Instruction::Variable(DeBruijn(var)) => {
                     buffer.write_bits::<4>(0);
-                    (*var as u64).encode(buffer);
+                    (*var as u64 + 1).encode(buffer);
                     decrement(&mut list_stack, buffer);
                 }
                 Instruction::Delay => {
@@ -573,7 +573,7 @@ impl Decode<'_> for Program<DeBruijn> {
                     // TODO: should be > 0?
                     // TODO: impl decode on u32 directly?
                     let var = u64::decode(reader)?;
-                    instructions.push(Instruction::Variable(DeBruijn(var as u32)));
+                    instructions.push(Instruction::Variable(DeBruijn(var.checked_sub(1)? as u32)));
                     decrement(&mut stack, reader, &mut instructions)?;
                 }
                 1 => {
