@@ -29,7 +29,7 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    if test_name != "uplc/evaluation/builtin/constant/bls12-381/G1/on-curve-bit3-clear" {
+                    if test_name != "uplc/evaluation/builtin/constant/array/simpleArray" {
                         continue;
                     }
 
@@ -98,6 +98,8 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
                 "Flat program does not match original program",
             ));
         }
+    } else {
+        // TODO: Make sure that flat can't be generated from the program in this case.
     }
 
     let output = match (program_debruijn.evaluate(), expected_output.as_str()) {
