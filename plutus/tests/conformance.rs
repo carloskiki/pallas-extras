@@ -91,6 +91,8 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             return Err(RunError::fail("Failed to parse flat program"));
         };
         let flat_from_program = program_debruijn.to_flat();
+        dbg!("{:#?} {:#?}", &flat, &flat_from_program);
+        
         if program_from_flat != program_debruijn || flat_from_program != flat {
             return Err(RunError::fail(
                 "Flat program does not match original program",

@@ -63,7 +63,7 @@ impl Buffer {
         let shift_amount = (u8::from(self.remaining) + 7) % 8 + 1;
         self.partial <<= shift_amount;
         self.partial |= 1;
-        let skip: usize = u8::from(self.remaining) as usize / 8;
+        let skip: usize = (u8::from(self.remaining) + 7) as usize / 8 - 1;
         self.buf.extend(&self.partial.to_be_bytes()[skip..]);
         f(CleanBuffer { buf: self })
     }
@@ -71,30 +71,36 @@ impl Buffer {
     /// The contents provided are in the lower part of the `contents`. The msb is the
     /// first "element", and the least significant bit is the last.
     ///
-    /// Panics if count > 64.
-    fn write_bits(&mut self, contents: u64, count: u8) {
+    /// Panics if COUNT > 64.
+    fn write_bits<const COUNT: u8>(&mut self, contents: u64) {
+        const {
+            assert!(
+                COUNT <= 64,
+                "write_bits: COUNT must be less than or equal to 64."
+            );
+        }
         let remaining: u8 = self.remaining.into();
-        if count >= remaining {
+        if COUNT >= remaining {
             self.partial <<= remaining;
-            self.partial |= contents >> (count - remaining);
+            self.partial |= contents >> (COUNT - remaining);
             self.buf.extend(&self.partial.to_be_bytes());
-            self.partial = contents & ((1 << (count - remaining)) - 1);
-            self.remaining = NonZeroU8::new(u64::BITS as u8 + remaining - count)
-                .expect("count should be less than 64.");
+            self.partial = contents & ((1 << (COUNT - remaining)) - 1);
+            self.remaining = NonZeroU8::new(u64::BITS as u8 + remaining - COUNT)
+                .expect("COUNT should be less than 64.");
         } else {
-            self.partial <<= count;
+            self.partial <<= COUNT;
             self.partial |= contents;
             self.remaining =
-                NonZeroU8::new(remaining - count).expect("count is less than remaining");
+                NonZeroU8::new(remaining - COUNT).expect("COUNT is less than remaining");
         }
     }
 
     fn encode_iter<'a, I: Encode + 'a, T: IntoIterator<Item = &'a I>>(&mut self, iter: T) {
         for item in iter {
-            self.write_bits(1, 1);
+            self.write_bits::<1>(1);
             item.encode(self);
         }
-        self.write_bits(0, 1);
+        self.write_bits::<1>(0);
     }
 
     pub fn finish(mut self) -> Vec<u8> {
@@ -151,7 +157,7 @@ fn leb128<const DOUBLE: bool>(data: &[c_ulong], buffer: &mut Buffer) {
         }
 
         let not_last_byte = (count != data.len() || to_read != 0) as u64;
-        buffer.write_bits(byte | (not_last_byte) << 7, 8);
+        buffer.write_bits::<8>(byte | (not_last_byte) << 7);
     }
 }
 
@@ -186,7 +192,7 @@ impl Encode for Program<DeBruijn> {
         for instruction in &self.program {
             let top = match list_stack.last_mut().expect("stack is not empty") {
                 Ok(x) => {
-                    buffer.write_bits(1, 1);
+                    buffer.write_bits::<1>(1);
                     x
                 }
                 Err(x) => x,
@@ -194,52 +200,52 @@ impl Encode for Program<DeBruijn> {
 
             match instruction {
                 Instruction::Variable(DeBruijn(var)) => {
-                    buffer.write_bits(0, 4);
+                    buffer.write_bits::<4>(0);
                     (*var as u64).encode(buffer);
                     decrement(&mut list_stack, buffer);
                 }
                 Instruction::Delay => {
-                    buffer.write_bits(1, 4);
+                    buffer.write_bits::<4>(1);
                 }
                 Instruction::Lambda(_) => {
-                    buffer.write_bits(0b10, 4);
+                    buffer.write_bits::<4>(0b10);
                 }
                 Instruction::Application => {
-                    buffer.write_bits(0b11, 4);
+                    buffer.write_bits::<4>(0b11);
                     increment(&mut list_stack, 1);
                 }
                 Instruction::Constant(constant_index) => {
-                    buffer.write_bits(0b100, 4);
+                    buffer.write_bits::<4>(0b100);
                     let constant = &self.constants[constant_index.0 as usize];
                     constant.type_of().encode(buffer);
                     constant.encode(buffer);
                     decrement(&mut list_stack, buffer);
                 }
                 Instruction::Force => {
-                    buffer.write_bits(0b101, 4);
+                    buffer.write_bits::<4>(0b101);
                 }
                 Instruction::Error => {
-                    buffer.write_bits(0b110, 4);
+                    buffer.write_bits::<4>(0b110);
                     decrement(&mut list_stack, buffer);
                 }
                 Instruction::Builtin(builtin) => {
-                    buffer.write_bits(0b111, 4);
-                    buffer.write_bits(*builtin as u64, 7);
+                    buffer.write_bits::<4>(0b111);
+                    buffer.write_bits::<7>(*builtin as u64);
                     decrement(&mut list_stack, buffer);
                 }
                 Instruction::Construct {
                     determinant,
                     length,
                 } => {
-                    buffer.write_bits(0b1000, 4);
+                    buffer.write_bits::<4>(0b1000);
                     (*determinant as u64).encode(buffer);
                     *top -= 1;
                     list_stack.push(Ok(*length));
                 }
                 Instruction::Case { count } => {
-                    buffer.write_bits(0b1001, 4);
+                    buffer.write_bits::<4>(0b1001);
                     *top -= 1;
-                    list_stack.push(Ok(*count as u16));
+                    list_stack.push(Ok(*count));
                     list_stack.push(Err(1));
                 }
             }
@@ -259,17 +265,17 @@ impl Encode for Program<DeBruijn> {
                 }
             }
 
-            loop {
-                match stack.last().expect("stack is not empty") {
+            while let Some(top) = stack.last() {
+                match top {
                     Ok(0) => {
                         stack.pop();
-                        buffer.write_bits(0, 1);
+                        buffer.write_bits::<1>(0);
                     }
                     Err(0) => {
                         stack.pop();
                     }
                     Ok(_) => {
-                        buffer.write_bits(1, 1);
+                        buffer.write_bits::<1>(1);
                         break;
                     }
                     _ => {}
@@ -293,7 +299,7 @@ impl Encode for Constant {
             }
             Constant::Unit => {}
             Constant::Boolean(b) => {
-                buffer.write_bits(u64::from(*b), 1);
+                buffer.write_bits::<1>(u64::from(*b));
             }
             Constant::List(list) => {
                 buffer.encode_iter(list.iter());
@@ -325,70 +331,73 @@ impl Encode for constant::Type {
     fn encode(&self, buffer: &mut Buffer) {
         let mut ty_stack = vec![self];
         while let Some(ty) = ty_stack.pop() {
-            buffer.write_bits(1, 1);
+            buffer.write_bits::<1>(1);
             match ty {
                 constant::Type::Integer => {
-                    buffer.write_bits(0, 4);
+                    buffer.write_bits::<4>(0);
                 }
                 constant::Type::Bytes => {
-                    buffer.write_bits(1, 4);
+                    buffer.write_bits::<4>(1);
                 }
                 constant::Type::String => {
-                    buffer.write_bits(2, 4);
+                    buffer.write_bits::<4>(2);
                 }
                 constant::Type::Unit => {
-                    buffer.write_bits(3, 4);
+                    buffer.write_bits::<4>(3);
                 }
                 constant::Type::Boolean => {
-                    buffer.write_bits(4, 4);
+                    buffer.write_bits::<4>(4);
                 }
                 constant::Type::List(elem_ty) => {
-                    buffer.write_bits(7, 4);
-                    buffer.write_bits(1, 1);
-                    buffer.write_bits(5, 4);
+                    buffer.write_bits::<4>(7);
+                    buffer.write_bits::<1>(1);
+                    buffer.write_bits::<4>(5);
                     ty_stack.push(elem_ty);
                 }
                 constant::Type::Pair(pair_tys) => {
-                    buffer.write_bits(7, 4);
-                    buffer.write_bits(1, 1);
-                    buffer.write_bits(7, 4);
-                    buffer.write_bits(1, 1);
-                    buffer.write_bits(6, 4);
+                    buffer.write_bits::<4>(7);
+                    buffer.write_bits::<1>(1);
+                    buffer.write_bits::<4>(7);
+                    buffer.write_bits::<1>(1);
+                    buffer.write_bits::<4>(6);
                     ty_stack.push(&pair_tys.1);
                     ty_stack.push(&pair_tys.0);
                 }
                 constant::Type::Data => {
-                    buffer.write_bits(8, 4);
+                    buffer.write_bits::<4>(8);
                 }
                 constant::Type::BLSG1Element => {
-                    buffer.write_bits(9, 4);
+                    buffer.write_bits::<4>(9);
                 }
                 constant::Type::BLSG2Element => {
-                    buffer.write_bits(10, 4);
+                    buffer.write_bits::<4>(10);
                 }
                 constant::Type::MillerLoopResult => {
-                    buffer.write_bits(11, 4);
+                    buffer.write_bits::<4>(11);
                 }
                 constant::Type::Array(elem_ty) => {
-                    buffer.write_bits(7, 4);
-                    buffer.write_bits(1, 1);
-                    buffer.write_bits(12, 4);
+                    buffer.write_bits::<4>(7);
+                    buffer.write_bits::<1>(1);
+                    buffer.write_bits::<4>(12);
                     ty_stack.push(elem_ty);
                 }
             }
         }
-        buffer.write_bits(0, 1);
+        buffer.write_bits::<1>(0);
     }
 }
 
 impl Encode for u64 {
     fn encode(&self, buffer: &mut Buffer) {
         let mut x = *self;
-        while x.leading_zeros() != u64::BITS {
+        loop {
             let byte = (x & 0x7F) as u8;
             x >>= 7;
             let not_last_byte = (x != 0) as u8;
-            buffer.write_bits(u64::from(byte | (not_last_byte << 7)), 8);
+            buffer.write_bits::<8>(u64::from(byte | (not_last_byte << 7)));
+            if x == 0 {
+                break;
+            }
         }
     }
 }
@@ -504,8 +513,8 @@ impl<'a> Reader<'a> {
         let pad_len = 8 - (self.position % 8);
         let byte_index = self.position / 8;
         let pad = self.buf.get(byte_index)?;
-        let mask = 1u8.wrapping_shl(pad_len as u32).wrapping_sub(1);
-        if pad & mask != 1 {
+        let mask = ((1u16 << pad_len) - 1) as u8;
+        if (pad & mask) != 1 {
             return None;
         }
         self.position += pad_len;
@@ -558,8 +567,8 @@ impl Decode<'_> for Program<DeBruijn> {
         let mut instructions = Vec::new();
         let mut constants = Vec::new();
 
-        while let Some(opcode) = reader.read_bits::<4>() {
-            match opcode {
+        while !stack.is_empty() {
+            match reader.read_bits::<4>()? {
                 0 => {
                     // TODO: should be > 0?
                     // TODO: impl decode on u32 directly?
@@ -612,6 +621,10 @@ impl Decode<'_> for Program<DeBruijn> {
                 }
                 _ => return None,
             }
+        }
+
+        if reader.read_bytes_padded()?.next().is_some() {
+            return None;
         }
 
         return Some(Program {
