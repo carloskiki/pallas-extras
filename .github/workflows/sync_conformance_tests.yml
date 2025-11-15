@@ -155,12 +155,10 @@ jobs:
               output_flat="$dir/$dirname.flat"
               if [ -f "$input_uplc" ]; then
                 echo "Attempting to convert files for $dirname..."
-                if uplc convert -i "$input_uplc" -o "$output_flat" --of flat; then
-                  # Remove trailing newline if it exists
-                  perl -pi -e 'chomp if eof' "$output_flat"
-                else
+                uplc convert -i "$input_uplc" -o "$output_flat" --of flat || {
                   echo "Conversion failed for $input_uplc, continuing..."
-                fi
+                  rm -f -- "$output_flat" # Remove incomplete or empty output file, if any
+                }
               else
                 echo "Warning: Skipping $dir. Missing expected files."
               fi

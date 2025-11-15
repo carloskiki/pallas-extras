@@ -29,9 +29,9 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    // if test_name != "uplc/evaluation/builtin/constant/bls12-381/G1/on-curve-bit3-clear" {
-                    //     continue;
-                    // }
+                    if test_name != "uplc/evaluation/builtin/constant/bls12-381/G1/on-curve-bit3-clear" {
+                        continue;
+                    }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
