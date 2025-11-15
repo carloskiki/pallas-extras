@@ -29,9 +29,9 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    if test_name != "uplc/evaluation/term/lam/lam-1" {
-                        continue;
-                    }
+                    // if test_name != "uplc/evaluation/builtin/constant/bls12-381/G1/on-curve-bit3-clear" {
+                    //     continue;
+                    // }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
@@ -91,7 +91,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             return Err(RunError::fail("Failed to parse flat program"));
         };
         let flat_from_program = program_debruijn.to_flat();
-        dbg!("{:#?} {:#?}", &flat, &flat_from_program);
+        // dbg!("{:#?} {:#?}", &flat, &flat_from_program);
         
         if program_from_flat != program_debruijn || flat_from_program != flat {
             return Err(RunError::fail(
