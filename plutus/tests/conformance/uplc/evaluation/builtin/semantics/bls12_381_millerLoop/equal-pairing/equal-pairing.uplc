@@ -1,4 +1,4 @@
-
+-- Check that applying finalVerify to the same two points in GT returns True.
 (program 1.0.0
  [
   [

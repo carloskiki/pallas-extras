@@ -1,4 +1,4 @@
-
+-- Inserts -2^127, which is the minimum allowed value of a token
 (program 1.0.0
   [
     (builtin insertCoin)

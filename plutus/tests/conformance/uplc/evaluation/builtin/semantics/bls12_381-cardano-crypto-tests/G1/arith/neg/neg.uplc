@@ -1,4 +1,4 @@
-
+-- Check that negating a random point in G1 gives the expected result.
 (program 1.0.0
  [
   [

@@ -1,6 +1,6 @@
-
-
-
+-- Test vector 9 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect False
+-- (sG - eP is infinite. Test fails in single verification if has_even_y(inf) is defined as true and x(inf) as 0)
 (program 1.0.0
  [
   [

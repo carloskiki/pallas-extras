@@ -1,4 +1,4 @@
-
+-- Shift by 0: the result should be the same as the input.
 (program 1.0.0
  [
   [

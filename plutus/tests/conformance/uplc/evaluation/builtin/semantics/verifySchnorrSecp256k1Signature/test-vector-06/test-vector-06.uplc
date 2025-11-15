@@ -1,5 +1,5 @@
-
-
+-- Test vector 6 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect False (has_even_y(R) is false)
 (program 1.0.0
  [
   [

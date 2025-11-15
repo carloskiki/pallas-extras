@@ -1,5 +1,5 @@
-
-
+-- Test vector 3 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect True (test fails if msg is reduced modulo p or n)
 (program 1.0.0
  [
   [

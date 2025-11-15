@@ -1,5 +1,5 @@
-
-
+-- Check that hashing different messages with the same DST gives different
+-- results: this should return False.
 (program 1.0.0
  [
   [

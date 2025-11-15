@@ -1,5 +1,5 @@
-
-
+-- Test vector (0-bit input) for Blake2b_256.
+-- Output obtained using the b2sum program from https://github.com/BLAKE2/BLAKE2
 (program 1.0.0
  [
   [

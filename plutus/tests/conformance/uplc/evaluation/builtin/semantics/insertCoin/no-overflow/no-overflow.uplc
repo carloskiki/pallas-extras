@@ -1,4 +1,4 @@
-
+-- Inserts 2^17 - 1, which is the maximum allowed value for a token
 (program 1.0.0
   [
     (builtin insertCoin)

@@ -1,5 +1,5 @@
-
-
+-- Test vector (0-bit input) from SHA3_256ShortMessage.rsp in
+-- https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/sha3/sha-3bytetestvectors.zip
 (program 1.0.0
  [
   [

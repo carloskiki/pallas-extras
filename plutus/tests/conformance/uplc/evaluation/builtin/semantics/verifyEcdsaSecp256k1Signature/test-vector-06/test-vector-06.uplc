@@ -1,7 +1,7 @@
-
-
-
-
+-- Generated using OpenSSL 3.0.14.4
+-- Signing key a1adc24fc72eeb3ca032f68134a21c83dbebed4d7088a3794dbe65b4570604fd
+-- Same keypair and message as test-vector-01, sha3_256 instead of sha2_256, alternative signature
+-- Expect True
 (program 1.0.0
  [
   [

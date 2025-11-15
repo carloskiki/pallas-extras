@@ -1,4 +1,4 @@
-
+-- Scalar multiplication by the group size should give you the zero element of the group.
 (program 1.0.0
 [
  [ (builtin bls12_381_G2_equal)

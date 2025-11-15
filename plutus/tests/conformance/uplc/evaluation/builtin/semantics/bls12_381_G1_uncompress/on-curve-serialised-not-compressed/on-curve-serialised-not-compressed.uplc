@@ -1,7 +1,7 @@
-
-
-
-
+-- This checks that the uncompression function fails on a valid *serialised* G1
+-- point (obtained by hashing 0x0102030405 onto G1).  The deserialisation
+-- function in the blst library can handle both serialised and compressed
+-- points, but we should fail on the former.
 (program 1.0.0
  [ (builtin bls12_381_G1_uncompress)
   (con bytestring

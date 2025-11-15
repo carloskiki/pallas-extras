@@ -1,4 +1,4 @@
-
+-- Later updates to duplicate indices take precedence.
 (program 1.0.0
  [
   [

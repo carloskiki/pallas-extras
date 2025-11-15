@@ -1,4 +1,4 @@
-
+-- m > 1, e = 1 -> return b modulo m
 (program 1.0.0
  [(builtin equalsInteger)
   [(builtin expModInteger)

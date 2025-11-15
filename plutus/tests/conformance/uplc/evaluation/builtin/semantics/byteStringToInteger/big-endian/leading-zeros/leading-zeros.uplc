@@ -1,4 +1,4 @@
-
+-- Check that leading zeros don't affect the result of a big-endian decoding.
 (program 1.0.0
  [(builtin equalsInteger)
   [(builtin byteStringToInteger) (con bool True) (con bytestring #123456abcdef)]

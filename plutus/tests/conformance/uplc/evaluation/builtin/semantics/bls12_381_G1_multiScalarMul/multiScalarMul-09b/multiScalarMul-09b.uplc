@@ -1,5 +1,5 @@
-
-
+-- Extra entries at end of first list are ignored.
+-- No infinite points in the input.
 (program 1.0.0
  [(builtin bls12_381_G1_equal)
   [(builtin bls12_381_G1_multiScalarMul)

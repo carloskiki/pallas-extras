@@ -1,4 +1,4 @@
-
+-- Rotate by minBound :: Int64
 (program 1.0.0
  [
   [

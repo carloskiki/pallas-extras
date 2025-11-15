@@ -1,4 +1,4 @@
-
+-- Computes (2^127) - 2, which stays under the maximum allowed value (2^127 - 1)
 (program 1.0.0
   [ (builtin scaleValue)
     (con integer 2)

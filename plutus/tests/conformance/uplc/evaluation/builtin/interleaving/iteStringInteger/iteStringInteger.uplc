@@ -1,5 +1,5 @@
-
-
+-- This is OK because the branches are terms and there's no requirement that
+--their types match in UPLC even if they do happen to be builtin constants.
 (program
   1.0.0
   [

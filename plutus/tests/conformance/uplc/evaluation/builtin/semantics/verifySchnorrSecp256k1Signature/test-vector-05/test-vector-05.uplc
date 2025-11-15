@@ -1,5 +1,5 @@
-
-
+-- Test vector 5 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect failure (public key not on the curve)
 (program 1.0.0
  [
   [

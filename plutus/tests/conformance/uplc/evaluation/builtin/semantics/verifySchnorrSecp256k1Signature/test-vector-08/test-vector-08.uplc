@@ -1,5 +1,5 @@
-
-
+-- Test vector 8 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect False (negated s value)
 (program 1.0.0
  [
   [

@@ -1,4 +1,4 @@
-
+-- Check that the results of two millerLoops of random points are different.
 (program 1.0.0
  [
   [

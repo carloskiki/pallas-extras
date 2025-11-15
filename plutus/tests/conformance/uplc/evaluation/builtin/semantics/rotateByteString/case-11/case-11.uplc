@@ -1,4 +1,4 @@
-
+-- Rotate by -10000 times the bit length: the result should be the same as the input.
 (program 1.0.0
  [
   [

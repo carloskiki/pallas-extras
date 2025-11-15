@@ -1,5 +1,5 @@
-
-
+-- Test vector 16 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
+-- Expect True (message of size 1 (added 2022-12)
 (program 1.0.0
  [
   [

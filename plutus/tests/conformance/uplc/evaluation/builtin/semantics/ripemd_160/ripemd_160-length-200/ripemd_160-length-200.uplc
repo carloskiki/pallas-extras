@@ -1,5 +1,5 @@
-
-
+-- Test vector (0-bit input) for Ripemd_160.
+-- Output obtained using the online tool https://emn178.github.io/online-tools/ripemd_160.html
 (program 1.0.0
  [
   [

@@ -1,4 +1,4 @@
-
+-- Rotate by (-10000 times the bit length) + 23
 (program 1.0.0
  [
   [
