@@ -1,4 +1,4 @@
--- All entries in second list are the zero point => result is the zero point
+
 (program 1.0.0
  [(builtin bls12_381_G2_equal)
   [(builtin bls12_381_G2_multiScalarMul)

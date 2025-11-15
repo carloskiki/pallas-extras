@@ -1,4 +1,4 @@
--- Taking an array element by a negative index 
+
 (program 1.1.0 
   [ 
     [ 

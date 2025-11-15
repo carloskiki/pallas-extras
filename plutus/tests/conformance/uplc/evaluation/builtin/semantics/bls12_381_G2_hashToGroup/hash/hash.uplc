@@ -1,4 +1,4 @@
--- Check that hashing a random bytestring gives the expected result.
+
 (program 1.0.0
  [
   [

@@ -1,4 +1,4 @@
--- This is the zero point of G1, but with the sign bit set.  It should fail to uncompress.
+
 (program 1.0.0
  [
   (builtin bls12_381_G1_uncompress)

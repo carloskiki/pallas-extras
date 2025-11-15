@@ -1,4 +1,4 @@
--- The zero element of G1 uncompresses correctly.
+
 (program 1.0.0
  [
   (builtin bls12_381_G1_uncompress)

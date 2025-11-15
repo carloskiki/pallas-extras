@@ -1,4 +1,4 @@
--- Scalar multiplication gives the correct result.
+
 (program 1.0.0
  [
   [
@@ -7,7 +7,7 @@
     [
      (builtin bls12_381_G1_scalarMul)
      (con integer 29342537169447282925541144552701591957563885683358707334406144036950193508773)
-     -- 0x40df499974f62e2f268cd5096b0d952073900054122ffce0a27c9d96932891a5
+     
     ]
     [
      (builtin bls12_381_G1_uncompress)

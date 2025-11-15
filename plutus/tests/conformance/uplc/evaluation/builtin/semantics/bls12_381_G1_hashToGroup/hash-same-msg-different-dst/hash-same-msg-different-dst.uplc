@@ -1,5 +1,5 @@
--- Check that hashing the same message with different DSTs gives different
--- results: this should return False.
+
+
 (program 1.0.0
  [
   [

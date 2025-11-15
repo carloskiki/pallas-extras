@@ -1,5 +1,5 @@
--- Test vector 14 from https://raw.githubusercontent.com/bitcoin/bips/master/bip-0340/test-vectors.csv
--- Expect failure (public key is not a valid X coordinate because it exceeds the field size)
+
+
 (program 1.0.0
  [
   [

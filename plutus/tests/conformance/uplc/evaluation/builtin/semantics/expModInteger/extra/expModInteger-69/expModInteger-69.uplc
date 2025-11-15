@@ -1,4 +1,4 @@
--- Large inputs: m = 79! -> fail (gcd > 1)
+
 (program 1.0.0
  [(builtin expModInteger)
   (con integer 2)
