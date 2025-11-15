@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::{ConstantIndex, DeBruijn, Version, builtin::Builtin, constant::Constant, lex};
+use crate::{ConstantIndex, DeBruijn, Version, builtin::Builtin, constant::Constant, lex, flat};
 
 pub(crate) mod evaluate;
 
@@ -268,11 +268,14 @@ impl Program<DeBruijn> {
     }
 
     pub fn from_flat(bytes: &[u8]) -> Option<Self> {
-        todo!()
+        let mut reader = flat::Reader::new(bytes);
+        flat::Decode::decode(&mut reader)
     }
 
     pub fn to_flat(&self) -> Vec<u8> {
-        todo!()
+        let mut buffer = flat::Buffer::default();
+        flat::Encode::encode(self, &mut buffer);
+        buffer.finish()
     }
 }
 

@@ -29,9 +29,9 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    // if test_name != "uplc/evaluation/builtin/semantics/dropList/dropList-05" {
-                    //     continue;
-                    // }
+                    if test_name != "uplc/evaluation/term/lam/lam-1" {
+                        continue;
+                    }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)

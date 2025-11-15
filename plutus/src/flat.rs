@@ -96,6 +96,21 @@ impl Buffer {
         }
         self.write_bits(0, 1);
     }
+
+    pub fn finish(mut self) -> Vec<u8> {
+        self.with_pad(|_| {});
+        self.buf
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self {
+            buf: Default::default(),
+            partial: Default::default(),
+            remaining: NonZeroU8::new(64).unwrap(),
+        }
+    }
 }
 
 /// LEB128 encoding of the words. The provided words are in little endian order.
@@ -446,7 +461,7 @@ impl<'a> Reader<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf, position: 0 }
     }
-    
+
     pub fn read_bits<const COUNT: usize>(&mut self) -> Option<u8> {
         const {
             if COUNT > 8 || COUNT == 0 {
@@ -454,22 +469,21 @@ impl<'a> Reader<'a> {
             }
         }
 
+        let mask = ((1u16 << COUNT) - 1) as u8;
         let offset = COUNT - 1;
         let byte_index = self.position / 8;
         let bit_index = 7 - (self.position % 8);
         self.position += COUNT;
-        self.buf
-            .get(byte_index)
-            .and_then(|byte| {
-                if bit_index >= offset {
-                    Some((byte >> (bit_index - offset)) & ((1 << COUNT) - 1))
-                } else {
-                    let mut value = (byte & ((1 << (bit_index + 1)) - 1)) << (offset - bit_index);
-                    let next_byte = self.buf.get(byte_index + 1)?;
-                    value |= next_byte >> (8 - (offset - bit_index));
-                    Some(value & ((1 << COUNT) - 1))
-                }
-            })
+        self.buf.get(byte_index).and_then(|byte| {
+            if bit_index >= offset {
+                Some((byte >> (bit_index - offset)) & mask)
+            } else {
+                let mut value = (byte & ((1 << (bit_index + 1)) - 1)) << (offset - bit_index);
+                let next_byte = self.buf.get(byte_index + 1)?;
+                value |= next_byte >> (8 - (offset - bit_index));
+                Some(value & mask)
+            }
+        })
     }
 
     pub fn read_bytes_padded<'b>(&'b mut self) -> Option<impl use<'b> + Iterator<Item = u8>> {
@@ -575,7 +589,6 @@ impl Decode<'_> for Program<DeBruijn> {
                 }
                 6 => {
                     instructions.push(Instruction::Error);
-                    
                 }
                 7 => {
                     let builtin = reader.read_bits::<7>()?;
@@ -589,18 +602,12 @@ impl Decode<'_> for Program<DeBruijn> {
                         determinant,
                         length: 0,
                     });
-                    stack.push((1, Some(Frame {
-                        index,
-                        length: 0,
-                    })));
+                    stack.push((1, Some(Frame { index, length: 0 })));
                 }
                 9 => {
                     let index = instructions.len() as u32;
                     instructions.push(Instruction::Case { count: 0 });
-                    stack.push((1, Some(Frame {
-                        index,
-                        length: 0,
-                    })));
+                    stack.push((1, Some(Frame { index, length: 0 })));
                     stack.push((1, None));
                 }
                 _ => return None,
@@ -628,8 +635,8 @@ impl Decode<'_> for Program<DeBruijn> {
                 *length += 1;
             }
 
-            loop {
-                match stack.last_mut().expect("stack is not empty") {
+            while let Some(top) = stack.last_mut() {
+                match top {
                     (0, Some(Frame { length, index })) => {
                         let 0 = reader.read_bits::<1>()? else {
                             return None;
