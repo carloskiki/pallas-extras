@@ -28,7 +28,14 @@ impl<C> Encode<C> for Data {
     ) -> Result<(), minicbor::encode::Error<W::Error>> {
         match self {
             Data::Map(items) => cbor_util::list_as_map::encode(items, e, ctx),
-            Data::List(data) => e.encode(data)?.ok(),
+            Data::List(data) if data.is_empty() => e.encode(data)?.ok(),
+            Data::List(data) => {
+                e.begin_array()?;
+                for item in data {
+                    e.encode(item)?;
+                }
+                e.end()?.ok()
+            }
             Data::Bytes(bytes) => cbor_util::bounded_bytes::encode(bytes, e, ctx),
             Data::Integer(big_int) if big_int.as_limbs().len() < 2 => e
                 .encode(
@@ -112,7 +119,8 @@ impl<C> CborLen<C> for Data {
     fn cbor_len(&self, ctx: &mut C) -> usize {
         match self {
             Data::Map(items) => cbor_util::list_as_map::cbor_len(items, ctx),
-            Data::List(datas) => datas.cbor_len(ctx),
+            Data::List(datas) if datas.is_empty() => 1,
+            Data::List(datas) => 1 + datas.iter().map(|item| item.cbor_len(ctx)).sum::<usize>() + 1,
             Data::Bytes(items) => cbor_util::bounded_bytes::cbor_len(items, ctx),
             Data::Integer(big_int) if big_int.as_limbs().len() < 2 => {
                 minicbor::data::Int::try_from(
@@ -241,7 +249,15 @@ impl<C> Encode<C> for Construct {
                 .array(2)?
                 .u64(self.tag)?;
         }
-        e.encode(&self.value)?;
+        if self.value.is_empty() {
+            e.encode(&self.value)?; // encode empty array
+        } else {
+            e.begin_array()?;
+            for item in &self.value {
+                e.encode(item)?;
+            }
+            e.end()?;
+        }
         Ok(())
     }
 }
@@ -258,6 +274,7 @@ impl<C> Decode<'_, C> for Construct {
                     #[cbor(n(1))]
                     value: Vec<Data>,
                 }
+
                 let Inner { tag, value } = d.decode()?;
                 Ok(Self { tag, value })
             }
@@ -279,16 +296,21 @@ impl<C> Decode<'_, C> for Construct {
 
 impl<C> CborLen<C> for Construct {
     fn cbor_len(&self, ctx: &mut C) -> usize {
-        if self.tag <= 6 {
-            minicbor::data::Tag::new(self.tag + 121).cbor_len(ctx) + self.value.cbor_len(ctx)
+        (if self.tag <= 6 {
+            minicbor::data::Tag::new(self.tag + 121).cbor_len(ctx)
         } else if self.tag <= 127 {
-            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx) + self.value.cbor_len(ctx)
+            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx)
         } else {
-            // self.tag <= 127, because of constructor
-            minicbor::data::Tag::new(102).cbor_len(ctx)
-                + 2.cbor_len(ctx)
-                + self.tag.cbor_len(ctx)
-                + self.value.cbor_len(ctx)
+            1 + self.tag.cbor_len(ctx) + minicbor::data::Tag::new(102).cbor_len(ctx)
+        }) + if self.value.is_empty() {
+            1
+        } else {
+            2 // indefinite array overhead, 1 for starting, 1 for ending
+            + self
+                .value
+                .iter()
+                .map(|item| item.cbor_len(ctx))
+                .sum::<usize>()
         }
     }
 }

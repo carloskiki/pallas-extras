@@ -10,7 +10,7 @@ use std::{
 };
 
 use minicbor::CborLen;
-use rug::{Complete, Integer};
+use rug::Integer;
 
 use crate::{
     ConstantIndex, DeBruijn, Version,
@@ -128,40 +128,57 @@ impl Default for Buffer {
 // - The last word may not have enough bytes to fulfill even one read from the previous to
 //   last word.
 // - The slice may be empty.
-fn leb128<const DOUBLE: bool>(data: &[c_ulong], buffer: &mut Buffer) {
+//
+// Two cases:
+// - We are on the last word.
+// - We are not on the last word.
+//
+//
+// Things:
+// - When we are not crossing boundaries, we cannot be on the last byte.
+// - When trying to cross a boundary, we can be on the last byte if we are on the last, or previous
+// to last word.
+//
+//
+fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[c_ulong], buffer: &mut Buffer) {
     let mut count = 0;
-    let mut word = 0;
+    let mut word = (DOUBLE & SUB1) as c_ulong;
     let mut to_read = DOUBLE as u32; // If we want to double, read 1 `0` bit as lsb, then words.
-    while count != data.len() || to_read != 0 {
-        let mut byte = word & 0x7F;
+    let mut byte;
+    let mut sub_1 = SUB1;
+    loop {
+        byte = word & 0x7F;
         word >>= 7;
 
         if to_read <= 7 {
-            word = data.get(count).copied().unwrap_or(0);
+            let Some(mut new_word) = data.get(count).copied() else {
+                break;
+            };
+            if sub_1 {
+                let (subbed, overflowed) = new_word.overflowing_sub(1);
+                sub_1 = overflowed;
+                new_word = subbed;
+            }
+            word = new_word;
             count += 1;
-            let mut shift = 7 - to_read;
-            let old_to_read = to_read;
-            to_read = if count == data.len() {
-                let remaining = c_ulong::BITS - word.leading_zeros();
-                if remaining <= shift {
-                    shift = remaining;
-                    0
-                } else {
-                    remaining - shift
+            let shift = 7 - to_read;
+            byte |= (word & ((1 << shift) - 1)) << to_read;
+            word >>= shift;
+            if count == data.len() {
+                to_read = c_ulong::BITS - word.leading_zeros();
+                if to_read == 0 {
+                    break;
                 }
             } else {
-                c_ulong::BITS - shift
+                to_read = c_ulong::BITS - shift;
             };
-
-            byte |= (word & ((1 << shift) - 1)) << old_to_read;
-            word >>= shift;
         } else {
             to_read -= 7;
         }
-
-        let not_last_byte = (count != data.len() || to_read != 0) as u64;
-        buffer.write_bits::<8>(byte | (not_last_byte) << 7);
+        let orred = byte | 0x80;
+        buffer.write_bits::<8>(orred);
     }
+    buffer.write_bits::<8>(byte);
 }
 
 impl Encode for [u8] {
@@ -191,50 +208,68 @@ impl Encode for Program<DeBruijn> {
         self.version.patch.encode(buffer);
         // Ok(x): element is part of a list.
         // Err(x): element is not part of a list.
-        let mut list_stack: Vec<Result<u16, u16>> = vec![Err(1)];
+        // (_, true): variable is bound.
+        let mut list_stack: Vec<Result<u16, (u16, bool)>> = vec![Err((1, false))];
+        let mut var_count: u32 = 0;
         for instruction in &self.program {
             let top = match list_stack.last_mut().expect("stack is not empty") {
                 Ok(x) => {
                     buffer.write_bits::<1>(1);
                     x
                 }
-                Err(x) => x,
+                Err((x, _)) => x,
             };
 
             match instruction {
                 Instruction::Variable(DeBruijn(var)) => {
                     buffer.write_bits::<4>(0);
-                    (*var as u64 + 1).encode(buffer);
-                    decrement(&mut list_stack, buffer);
+                    let var = var_count.checked_sub(*var).expect("variable in scope");
+                    (var as u64).encode(buffer);
+                    decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Delay => {
                     buffer.write_bits::<4>(1);
                 }
                 Instruction::Lambda(_) => {
                     buffer.write_bits::<4>(0b10);
+                    *top -= 1;
+                    list_stack.push(Err((1, true)));
+                    var_count += 1;
                 }
                 Instruction::Application => {
                     buffer.write_bits::<4>(0b11);
-                    increment(&mut list_stack, 1);
+                    match list_stack.last_mut().expect("stack is not empty") {
+                        Err((x, _)) => *x += 1,
+                        _ => list_stack.push(Err((1, false))),
+                    }
                 }
                 Instruction::Constant(constant_index) => {
                     buffer.write_bits::<4>(0b100);
                     let constant = &self.constants[constant_index.0 as usize];
                     constant.type_of().encode(buffer);
                     constant.encode(buffer);
-                    decrement(&mut list_stack, buffer);
+                    decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Force => {
                     buffer.write_bits::<4>(0b101);
                 }
                 Instruction::Error => {
                     buffer.write_bits::<4>(0b110);
-                    decrement(&mut list_stack, buffer);
+                    decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Builtin(builtin) => {
                     buffer.write_bits::<4>(0b111);
                     buffer.write_bits::<7>(*builtin as u64);
-                    decrement(&mut list_stack, buffer);
+                    decrement(&mut list_stack, buffer, &mut var_count);
+                }
+                Instruction::Construct {
+                    determinant,
+                    length: 0,
+                } => {
+                    buffer.write_bits::<4>(0b1000);
+                    (*determinant as u64).encode(buffer);
+                    buffer.write_bits::<1>(0);
+                    decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Construct {
                     determinant,
@@ -249,39 +284,33 @@ impl Encode for Program<DeBruijn> {
                     buffer.write_bits::<4>(0b1001);
                     *top -= 1;
                     list_stack.push(Ok(*count));
-                    list_stack.push(Err(1));
+                    list_stack.push(Err((1, false)));
                 }
             }
         }
 
-        fn increment(stack: &mut Vec<Result<u16, u16>>, count: u16) {
+        fn decrement(
+            stack: &mut Vec<Result<u16, (u16, bool)>>,
+            buffer: &mut Buffer,
+            var_count: &mut u32,
+        ) {
             match stack.last_mut().expect("stack is not empty") {
-                Ok(_) => stack.push(Err(count)),
-                Err(x) => *x += count,
-            }
-        }
-
-        fn decrement(stack: &mut Vec<Result<u16, u16>>, buffer: &mut Buffer) {
-            match stack.last_mut().expect("stack is not empty") {
-                Ok(x) | Err(x) => {
+                Ok(x) | Err((x, _)) => {
                     *x -= 1;
                 }
             }
 
-            while let Some(top) = stack.last() {
+            while let Some(top) = stack.last_mut() {
                 match top {
                     Ok(0) => {
-                        stack.pop();
                         buffer.write_bits::<1>(0);
-                    }
-                    Err(0) => {
                         stack.pop();
                     }
-                    Ok(_) => {
-                        buffer.write_bits::<1>(1);
-                        break;
+                    Err((0, bound_var)) => {
+                        *var_count -= u32::from(*bound_var);
+                        stack.pop();
                     }
-                    _ => {}
+                    _ => break,
                 }
             }
         }
@@ -427,10 +456,7 @@ impl Encode for Data {
                 }
                 buf.chunks(255).for_each(|chunk| {
                     let len = (self.len - self.written).min(255);
-                    assert!(
-                        chunk.len() <= len,
-                        "Data length exceeded during encoding"
-                    );
+                    assert!(chunk.len() <= len, "Data length exceeded during encoding");
 
                     self.writer.write_bytes(&[len as u8]);
                     self.writer.write_bytes(chunk);
@@ -456,10 +482,9 @@ impl Encode for Data {
 impl Encode for Integer {
     fn encode(&self, buffer: &mut Buffer) {
         if self.is_negative() {
-            let x: Integer = -(self * 2usize).complete();
-            leb128::<false>((x - 1usize).as_limbs(), buffer)
+            leb128::<true, true>(self.as_limbs(), buffer)
         } else {
-            leb128::<true>(self.as_limbs(), buffer)
+            leb128::<true, false>(self.as_limbs(), buffer)
         }
     }
 }
@@ -567,9 +592,11 @@ impl Decode<'_> for Program<DeBruijn> {
             length: u16,
         }
 
-        let mut stack: Vec<(u16, Option<Frame>)> = vec![(1, None)];
+        // (remaining, frame, bound_var)
+        let mut stack: Vec<Result<Frame, (u16, bool)>> = vec![Err((1, false))];
         let mut instructions = Vec::new();
         let mut constants = Vec::new();
+        let mut variable_count: u32 = 0;
 
         while !stack.is_empty() {
             match reader.read_bits::<4>()? {
@@ -577,14 +604,21 @@ impl Decode<'_> for Program<DeBruijn> {
                     // TODO: should be > 0?
                     // TODO: impl decode on u32 directly?
                     let var = u64::decode(reader)?;
-                    instructions.push(Instruction::Variable(DeBruijn(var.checked_sub(1)? as u32)));
-                    decrement(&mut stack, reader, &mut instructions)?;
+                    instructions.push(Instruction::Variable(DeBruijn(
+                        variable_count.checked_sub(var as u32)?,
+                    )));
+                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 1 => {
                     instructions.push(Instruction::Delay);
                 }
                 2 => {
-                    instructions.push(Instruction::Lambda(DeBruijn(0)));
+                    instructions.push(Instruction::Lambda(DeBruijn(variable_count)));
+                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
+                        *top -= 1;
+                    }
+                    variable_count += 1;
+                    stack.push(Err((1, true)));
                 }
                 3 => {
                     instructions.push(Instruction::Application);
@@ -595,18 +629,19 @@ impl Decode<'_> for Program<DeBruijn> {
                     let index = constants.len();
                     constants.push(constant);
                     instructions.push(Instruction::Constant(ConstantIndex(index as u32)));
-                    decrement(&mut stack, reader, &mut instructions)?;
+                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 5 => {
                     instructions.push(Instruction::Force);
                 }
                 6 => {
                     instructions.push(Instruction::Error);
+                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 7 => {
                     let builtin = reader.read_bits::<7>()?;
                     instructions.push(Instruction::Builtin(Builtin::from_repr(builtin)?));
-                    decrement(&mut stack, reader, &mut instructions)?;
+                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 8 => {
                     let determinant = u64::decode(reader)? as u32;
@@ -615,13 +650,24 @@ impl Decode<'_> for Program<DeBruijn> {
                         determinant,
                         length: 0,
                     });
-                    stack.push((1, Some(Frame { index, length: 0 })));
+
+                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
+                        *top -= 1;
+                    }
+
+                    stack.push(Ok(Frame { index, length: 0 }));
+                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 9 => {
                     let index = instructions.len() as u32;
                     instructions.push(Instruction::Case { count: 0 });
-                    stack.push((1, Some(Frame { index, length: 0 })));
-                    stack.push((1, None));
+
+                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
+                        *top -= 1;
+                    }
+                    
+                    stack.push(Ok(Frame { index, length: 0 }));
+                    stack.push(Err((1, false)));
                 }
                 _ => return None,
             }
@@ -642,22 +688,24 @@ impl Decode<'_> for Program<DeBruijn> {
         });
 
         fn decrement(
-            stack: &mut Vec<(u16, Option<Frame>)>,
+            stack: &mut Vec<Result<Frame, (u16, bool)>>,
             reader: &mut Reader<'_>,
             program: &mut [Instruction<DeBruijn>],
+            variable_count: &mut u32,
         ) -> Option<()> {
-            let (x, frame) = stack.last_mut().expect("stack is not empty");
-            *x -= 1;
-            if let Some(Frame { length, .. }) = frame {
-                *length += 1;
-            }
+            if let Err((x, _)) = stack.last_mut().expect("stack is not empty") {
+                *x -= 1;
+            };
 
             while let Some(top) = stack.last_mut() {
                 match top {
-                    (0, Some(Frame { length, index })) => {
-                        let 0 = reader.read_bits::<1>()? else {
-                            return None;
-                        };
+                    Ok(Frame { length, index }) => {
+                        let bit = reader.read_bits::<1>()?;
+                        if bit == 1 {
+                            *length += 1;
+                            break;
+                        }
+
                         let (Instruction::Construct { length: count, .. }
                         | Instruction::Case { count }) = &mut program[*index as usize]
                         else {
@@ -666,24 +714,19 @@ impl Decode<'_> for Program<DeBruijn> {
                         *count = *length;
                         stack.pop();
                     }
-                    (0, None) => {
+                    Err((0, bound_var)) => {
+                        *variable_count -= *bound_var as u32;
                         stack.pop();
                     }
-                    (_, Some(_)) => {
-                        let 1 = reader.read_bits::<1>()? else {
-                            return None;
-                        };
-                        break;
-                    }
-                    (_, None) => break,
+                    _ => break,
                 }
             }
             Some(())
         }
-        fn increment(stack: &mut Vec<(u16, Option<Frame>)>, count: u16) {
+        fn increment(stack: &mut Vec<Result<Frame, (u16, bool)>>, count: u16) {
             match stack.last_mut().expect("stack is not empty") {
-                (x, None) => *x += count,
-                (_, Some(_)) => stack.push((count, None)),
+                Err((x, _)) => *x += count,
+                Ok(_) => stack.push(Err((1, false))),
             }
         }
     }
@@ -767,8 +810,8 @@ impl Decode<'_> for constant::Type {
                         constant::Type::List(elem_ty)
                     }
                     7 if reader.read_bits::<1>()? == 1 && reader.read_bits::<4>()? == 6 => {
-                        let second_ty = inner_decode(reader)?;
                         let first_ty = inner_decode(reader)?;
+                        let second_ty = inner_decode(reader)?;
                         constant::Type::Pair(Box::new((first_ty, second_ty)))
                     }
                     12 => {
@@ -819,15 +862,26 @@ impl Decode<'_> for Data {
 impl<'a> Decode<'a> for Integer {
     fn decode(reader: &mut Reader<'a>) -> Option<Self> {
         let mut integer = Integer::new();
+        let mut bytes = Vec::new();
         loop {
             let byte = reader.read_bits::<8>()?;
-            integer |= byte & 0x7F;
+            bytes.push(byte & 0x7F);
             if byte & 0x80 == 0 {
                 break;
             }
+        }
+        for byte in bytes.iter().rev() {
             integer <<= 7;
+            integer |= byte;
         }
 
+        if integer.is_even() {
+            integer >>= 1;
+        } else {
+            integer += 1;
+            integer >>= 1;
+            integer = -integer;
+        }
         Some(integer)
     }
 }

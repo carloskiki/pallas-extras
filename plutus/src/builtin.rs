@@ -93,7 +93,6 @@ pub enum Builtin {
     UnIData,
     UnBData,
     EqualsData,
-    SerialiseData,
     // Misc monomorphized constructors.
     // We could simply replace those with constants, but we use built-in functions for consistency
     // with monomorphic built-in types. Polymorphic built-in constructors are generally problematic,
@@ -101,6 +100,7 @@ pub enum Builtin {
     MkPairData,
     MkNilData,
     MkNilPairData,
+    SerialiseData,
     // BLS12_381 operations
     // G1
     #[strum(serialize = "bls12_381_G1_add")]
@@ -111,12 +111,12 @@ pub enum Builtin {
     BlsG1ScalarMul,
     #[strum(serialize = "bls12_381_G1_equal")]
     BlsG1Equal,
-    #[strum(serialize = "bls12_381_G1_hashToGroup")]
-    BlsG1HashToGroup,
     #[strum(serialize = "bls12_381_G1_compress")]
     BlsG1Compress,
     #[strum(serialize = "bls12_381_G1_uncompress")]
     BlsG1Uncompress,
+    #[strum(serialize = "bls12_381_G1_hashToGroup")]
+    BlsG1HashToGroup,
     // G2
     #[strum(serialize = "bls12_381_G2_add")]
     BlsG2Add,
@@ -126,12 +126,12 @@ pub enum Builtin {
     BlsG2ScalarMul,
     #[strum(serialize = "bls12_381_G2_equal")]
     BlsG2Equal,
-    #[strum(serialize = "bls12_381_G2_hashToGroup")]
-    BlsG2HashToGroup,
     #[strum(serialize = "bls12_381_G2_compress")]
     BlsG2Compress,
     #[strum(serialize = "bls12_381_G2_uncompress")]
     BlsG2Uncompress,
+    #[strum(serialize = "bls12_381_G2_hashToGroup")]
+    BlsG2HashToGroup,
     // Pairing
     #[strum(serialize = "bls12_381_millerLoop")]
     BlsMillerLoop,

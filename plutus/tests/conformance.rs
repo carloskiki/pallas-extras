@@ -29,9 +29,9 @@ fn main() {
                         .to_string();
 
                     // Filter for dbg
-                    if test_name != "uplc/evaluation/builtin/constant/data/dataConstr" {
-                        continue;
-                    }
+                    // if test_name != "uplc/evaluation/term/case/case-08" {
+                    //     continue;
+                    // }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
@@ -87,13 +87,10 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
 
     let flat_path = program_path.with_extension("flat");
     if let Ok(flat) = std::fs::read(&flat_path) {
-        // dbg!("{:#?}", &flat);
         let Some(program_from_flat) = Program::from_flat(&flat) else {
             return Err(RunError::fail("Failed to parse flat program"));
         };
-        // dbg!("{:#?}", &program_from_flat, &program_debruijn);
         let flat_from_program = program_debruijn.to_flat();
-        // dbg!("{:#?}", &flat_from_program);
         
         if program_from_flat != program_debruijn || flat_from_program != flat {
             return Err(RunError::fail(
@@ -101,7 +98,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             ));
         }
     } else {
-        // TODO: Make sure that flat can't be generated from the program in this case.
+        // TODO: Failing encode tests
     }
 
     let output = match (program_debruijn.evaluate(), expected_output.as_str()) {
