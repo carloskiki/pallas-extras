@@ -1,16 +1,6 @@
-use crate::program::TermType;
+//! Low level parsing utilities.
 
-pub fn term(s: &str) -> Option<(&str, &str, TermType)> {
-    match s.as_bytes()[0] {
-        b'(' => stripped_group::<b'(', b')'>(&s[1..]).map(|(a, b)| (a, b, TermType::Group)),
-        b'[' => stripped_group::<b'[', b']'>(&s[1..]).map(|(a, b)| (a, b, TermType::Application)),
-        _ => Some({
-            let (a, b) = word(s);
-            (a, b, TermType::Variable)
-        }),
-    }
-}
-
+/// The type of a constant: either a parenthesized group or a single word.
 pub fn constant_type(s: &str) -> Option<(&str, &str)> {
     if s.as_bytes().first() == Some(&b'(') {
         stripped_group::<b'(', b')'>(&s[1..])
@@ -19,13 +9,14 @@ pub fn constant_type(s: &str) -> Option<(&str, &str)> {
     }
 }
 
-// Any non-whitespace sequence of characters
+// Any sequence of characters, stopping at whitespace or `(`.
 pub fn word(s: &str) -> (&str, &str) {
     s.find(|c: char| c.is_whitespace() || c == '(')
         .map(|pos| (&s[..pos], s[pos..].trim_start()))
         .unwrap_or((s, ""))
 }
 
+/// Parse a group delimited by `OPEN` and `CLOSE` brackets.
 pub fn group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str, &str)> {
     if !s.as_bytes().starts_with(&[OPEN]) {
         return None;
@@ -33,6 +24,8 @@ pub fn group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str, &str)> {
     stripped_group::<OPEN, CLOSE>(&s[1..])
 }
 
+/// Extract the rightmost term from a string, which may be a group in
+/// parentheses or brackets, or a single word.
 pub fn right_term(s: &str) -> Option<(&str, &str)> {
     match s.as_bytes().last() {
         Some(bracket @ (b')' | b']')) => {
@@ -66,7 +59,8 @@ pub fn right_term(s: &str) -> Option<(&str, &str)> {
     }
 }
 
-/// Parse a group in parentheses, with the first `(` already stripped.
+/// Parse a group in delimited by `OPEN` and `CLOSE` brackets, with the opening delimiter already
+/// stripped.
 pub fn stripped_group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str, &str)> {
     let mut depth = 1;
     for (i, c) in s.as_bytes().iter().enumerate() {
@@ -85,6 +79,7 @@ pub fn stripped_group<const OPEN: u8, const CLOSE: u8>(s: &str) -> Option<(&str,
     None
 }
 
+/// Parse a string literal, handling escape sequences.
 pub fn string(s: &str) -> Option<(String, &str)> {
     let stripped = s.strip_prefix('"')?;
     let mut string_chars = stripped.char_indices().peekable();

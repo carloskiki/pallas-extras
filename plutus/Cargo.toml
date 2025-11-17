@@ -24,6 +24,7 @@ ripemd = "0.2.0-rc.1"
 
 strum = { version = "0.27.2", features = ["derive"] }
 macro_rules_attribute = "0.2.2"
+thiserror = "2.0"
 
 const-hex = "1.16.0"
 minicbor = { workspace = true }

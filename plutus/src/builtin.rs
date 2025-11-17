@@ -1,15 +1,17 @@
-use crate::{constant::Constant, program::evaluate::Value};
+//! Builtin functions supported by the evaluator.
+//!
+//! Each builtin function is defined in the [specification][spec] section 4.3.
+//!
+//! The submodules contain implementations of built-in functions roughly grouped by their types.
+//!
+//! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
+
+use crate::{constant::Constant, evaluate::Value};
 use macro_rules_attribute::apply;
 use strum::{EnumString, FromRepr};
 
-// Builtin Implementations
-//
-// Take stuff by value, or by shared reference.
-//
 // INVARIANTS:
 //
-// - The first argument is never a `*` value (always a constant).
-// - Quantifier arguments (`∀`) are found at the start, followed by value arguments.
 
 mod array;
 mod bls12_381;
@@ -22,6 +24,10 @@ mod k256;
 mod list;
 mod string;
 
+/// Builtin functions supported by the evaluator.
+/// 
+/// Expected Invariants:
+/// - Quantifier arguments (`∀`) are found at the start, followed by value arguments.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, EnumString)]
 #[strum(serialize_all = "camelCase")]
@@ -185,6 +191,7 @@ pub enum Builtin {
 }
 
 impl Builtin {
+    /// Returns the number of quantifier arguments (`∀`) of the builtin function.
     pub fn quantifiers(&self) -> u8 {
         match self {
             Builtin::IfThenElse
@@ -204,6 +211,7 @@ impl Builtin {
         }
     }
 
+    /// Returns the arity (number of value arguments) of the builtin function.
     pub fn arity(&self) -> u8 {
         match self {
             // Integers
@@ -320,6 +328,7 @@ impl Builtin {
         }
     }
 
+    /// Applies the builtin function to the given arguments.
     pub fn apply(
         self,
         args: Vec<Value>,
@@ -476,10 +485,19 @@ pub fn second_pair(pair: (Constant, Constant)) -> Constant {
     pair.1
 }
 
+/// Converts a builtin function with typed arguments and return type into
+/// a function that does type checking at runtime.
+/// 
+/// ```ignore
+/// // From
+/// fn builtin(arg1: Type1, arg2: Type2, ...) -> ReturnType;
+/// // To
+/// pub fn builtin(args: Vec<Value>) -> Option<Value>;
+/// ```
 macro_rules! builtin {
     (pub fn $name:ident ( $($args:tt)+ ) -> $($rest:tt)+) => {
         #[allow(unused_mut, clippy::ptr_arg)]
-        pub fn $name (args: Vec<$crate::program::evaluate::Value>, constants: &mut Vec<$crate::constant::Constant>) -> Option<$crate::program::evaluate::Value> {
+        pub fn $name (args: Vec<$crate::evaluate::Value>, constants: &mut Vec<$crate::constant::Constant>) -> Option<$crate::evaluate::Value> {
             // #[allow(unused_variables)]
             // let $crate::program::evaluate::Value::Constant(const_index) = args[0] else {
             //     unreachable!("Invariant violation: expected the first argument to builtin to be a constant");
@@ -503,7 +521,7 @@ macro_rules! builtin {
 
     (@unwrap ($arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
         let mut $arg_name: $arg_ty = {
-            let $crate::program::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has the enough arguments") else {
+            let $crate::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has the enough arguments") else {
                 return None;
             };
             (&$constants[constant_index.0 as usize]).clone().try_into().ok()?
@@ -533,7 +551,7 @@ macro_rules! builtin {
     (@wrap $ret:ty; $constants:ident, $result:ident) => {
         let index = $constants.len();
         $constants.push($result.into());
-        return Some($crate::program::evaluate::Value::Constant($crate::ConstantIndex(index as u32)));
+        return Some($crate::evaluate::Value::Constant($crate::ConstantIndex(index as u32)));
     }
 }
 use builtin;

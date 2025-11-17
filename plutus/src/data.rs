@@ -1,3 +1,5 @@
+//! Implementation of the `Data` constant used by plutus.
+
 use std::{cmp::Ordering, str::FromStr};
 
 use minicbor::{CborLen, Decode, Encode};
@@ -5,6 +7,10 @@ use rug::{Complete, integer::IntegerExt64};
 
 use crate::lex;
 
+
+/// The `Data` constant used by plutus.
+// TODO: move this to the ledger, as more and more types from the ledger are being used here, so
+// the ledger should host this type.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum Data {
     Map(Vec<(Data, Data)>),

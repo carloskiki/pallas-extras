@@ -1,6 +1,11 @@
-use crate::program::Program;
-use crate::{ConstantIndex, DeBruijn, TermIndex, builtin::Builtin, program::Instruction};
+//! Evaluation of programs according to the CEK machine defined in the [specification][spec]
+//! section 2.4.
+//!
+//! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
+use crate::{ConstantIndex, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin};
+
+/// Represents a processed value in the CEK machine.
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
     Constant(ConstantIndex),
@@ -24,6 +29,14 @@ pub(crate) enum Value {
 }
 
 impl Value {
+    /// Discharge the value back into a program.
+    ///
+    /// Once a program is evaluated to a value, this value may still contain references to
+    /// variables in its environment, which need to be discharged back into the program.
+    ///
+    /// This is defined in the [specification][spec] section 2.4.1.
+    ///
+    /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
     fn discharge(self, mut program: Program<DeBruijn>) -> Program<DeBruijn> {
         enum DischargeValue {
             Constant(ConstantIndex),
@@ -104,8 +117,8 @@ impl Value {
                             }
                             Instruction::Constant(_)
                             | Instruction::Error
-                            | Instruction::Builtin(_) |
-                            Instruction::Construct { length: 0, .. } => {
+                            | Instruction::Builtin(_)
+                            | Instruction::Construct { length: 0, .. } => {
                                 remaining -= 1;
                             }
                             Instruction::Application => {
@@ -152,6 +165,11 @@ impl Value {
     }
 }
 
+/// Represents a frame of the CEK machine's stack.
+///
+/// Defined in the [specification][spec] figure 2.9.
+///
+/// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 pub enum Frame {
     Force,
     ApplyLeftValue(Value),
@@ -179,6 +197,7 @@ pub enum Frame {
 // - Find a way to not store `next` and not `skip_terms` so much.
 // - Don't clone constants all the time, only clone if they come from the environment.
 
+/// Run the given program according to the CEK machine.
 pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
     let mut stack = Vec::new();
     let mut environment: Vec<Value> = Vec::new();
@@ -379,6 +398,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
     }
 }
 
+/// Skip over `count` terms in the instruction list, starting from `index`.
 fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u32) -> usize {
     let mut remaining = count;
     while remaining > 0 {

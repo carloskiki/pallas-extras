@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use libtest2_mimic::{Harness, RunContext, RunError, Trial};
-use plutus::{DeBruijn, program::Program};
+use plutus::{DeBruijn, Program};
 
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
 
@@ -27,11 +27,6 @@ fn main() {
                         .unwrap()
                         .to_string_lossy()
                         .to_string();
-
-                    // Filter for dbg
-                    // if test_name != "uplc/evaluation/term/case/case-08" {
-                    //     continue;
-                    // }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
@@ -86,19 +81,25 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
     };
 
     let flat_path = program_path.with_extension("flat");
-    if let Ok(flat) = std::fs::read(&flat_path) {
-        let Some(program_from_flat) = Program::from_flat(&flat) else {
-            return Err(RunError::fail("Failed to parse flat program"));
-        };
-        let flat_from_program = program_debruijn.to_flat();
-        
-        if program_from_flat != program_debruijn || flat_from_program != flat {
-            return Err(RunError::fail(
-                "Flat program does not match original program",
-            ));
+    match (std::fs::read(&flat_path), program_debruijn.to_flat()) {
+        (Ok(flat), Some(flat_from_program)) => {
+            let Some(program_from_flat) = Program::from_flat(&flat) else {
+                return Err(RunError::fail("Failed to parse flat program"));
+            };
+
+            if program_from_flat != program_debruijn || flat_from_program != flat {
+                return Err(RunError::fail(
+                    "Flat program does not match original program",
+                ));
+            }
         }
-    } else {
-        // TODO: Failing encode tests
+        (Err(_), Some(_)) => {
+            return Err(RunError::fail("Expected flat encoding to fail."));
+        }
+        (Ok(_), None) => {
+            return Err(RunError::fail("Expected flat encoding to succeed."));
+        }
+        (Err(_), None) => {}
     }
 
     let output = match (program_debruijn.evaluate(), expected_output.as_str()) {

@@ -1,4 +1,4 @@
-use blstrs::{G1Affine, G1Projective, G2Affine, G2Projective, Gt, MillerLoopResult, Scalar};
+use blstrs::{G1Affine, G1Projective, G2Affine, G2Projective, MillerLoopResult, Scalar};
 use macro_rules_attribute::apply;
 use rug::ops::RemRounding;
 

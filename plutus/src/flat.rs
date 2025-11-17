@@ -1,6 +1,4 @@
-// Non obvious thing from the spec:
-// - The msb (most significant bit) is read first in the bit stream. For exmaple, If I have 9 bits
-// to encode (0b011011011), they are encoded as such in memory: `01101101` `10000000`.
+//! Flat binary encoding and decoding for Plutus Core programs.
 
 use std::{
     convert::Infallible,
@@ -13,17 +11,20 @@ use minicbor::CborLen;
 use rug::Integer;
 
 use crate::{
-    ConstantIndex, DeBruijn, Version,
+    ConstantIndex, DeBruijn, Instruction, Program, Version,
     builtin::Builtin,
     constant::{self, Array, Constant, List},
     data::Data,
-    program::{Instruction, Program},
 };
 
+/// Trait for encoding an object into a Buffer.
+///
+/// This is a failable oepration since not all constants can currently be encoded.
 pub trait Encode {
-    fn encode(&self, buffer: &mut Buffer);
+    fn encode(&self, buffer: &mut Buffer) -> Option<()>;
 }
 
+/// Trait for decoding an object from a Reader.
 pub trait Decode<'a>: Sized {
     fn decode(reader: &mut Reader<'a>) -> Option<Self>;
 }
@@ -123,23 +124,26 @@ impl Default for Buffer {
 }
 
 /// LEB128 encoding of the words. The provided words are in little endian order.
-// Wierd Cases:
-// - The last word may not finish on a multiple of 7
-// - The last word may not have enough bytes to fulfill even one read from the previous to
-//   last word.
-// - The slice may be empty.
-//
-// Two cases:
-// - We are on the last word.
-// - We are not on the last word.
-//
-//
-// Things:
-// - When we are not crossing boundaries, we cannot be on the last byte.
-// - When trying to cross a boundary, we can be on the last byte if we are on the last, or previous
-// to last word.
-//
-//
+/// 
+/// A non-exhaustive list of cases this needs to handle.
+/// - Reads may not align on word boundaries.
+/// - When reading from a word that is not the last word, we may still have a case where we are
+///   reading the last byte of the whole word sequence.
+/// - When reading from the last word, we do not read the full bit width of the word, but only up
+///   to the highest set bit.
+///
+/// Schematic (we use 8 bits per word for simplicity, real words are 32 or 64 bits):
+/// ```txt
+///   00000001   22111111   33322222       3333
+/// _____________________________________________
+/// | ........ | ........ | ........ | 000000.. |
+/// ---------------------------------------------
+/// ```
+///
+/// When reading the block index `1`, we need to read some bits from word `0` and some
+/// from word `1`. When reading block index `3`, we are not reading from the last word, yet this is
+/// the last block we need to read. The last word has only two significant bits, so we only read
+/// those two bits.
 fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[c_ulong], buffer: &mut Buffer) {
     let mut count = 0;
     let mut word = (DOUBLE & SUB1) as c_ulong;
@@ -182,7 +186,7 @@ fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[c_ulong], buffer: &mut B
 }
 
 impl Encode for [u8] {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         buffer.with_pad(|mut buf| {
             self.chunks(255).for_each(|chunk| {
                 let len = chunk.len() as u8;
@@ -191,21 +195,21 @@ impl Encode for [u8] {
             });
             buf.write_bytes(&[0]);
         });
+        Some(())
     }
 }
 
 impl Encode for str {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         self.as_bytes().encode(buffer)
     }
 }
 
 impl Encode for Program<DeBruijn> {
-    // TODO: test
-    fn encode(&self, buffer: &mut Buffer) {
-        self.version.major.encode(buffer);
-        self.version.minor.encode(buffer);
-        self.version.patch.encode(buffer);
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
+        self.version.major.encode(buffer)?;
+        self.version.minor.encode(buffer)?;
+        self.version.patch.encode(buffer)?;
         // Ok(x): element is part of a list.
         // Err(x): element is not part of a list.
         // (_, true): variable is bound.
@@ -224,7 +228,7 @@ impl Encode for Program<DeBruijn> {
                 Instruction::Variable(DeBruijn(var)) => {
                     buffer.write_bits::<4>(0);
                     let var = var_count.checked_sub(*var).expect("variable in scope");
-                    (var as u64).encode(buffer);
+                    (var as u64).encode(buffer)?;
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Delay => {
@@ -246,8 +250,8 @@ impl Encode for Program<DeBruijn> {
                 Instruction::Constant(constant_index) => {
                     buffer.write_bits::<4>(0b100);
                     let constant = &self.constants[constant_index.0 as usize];
-                    constant.type_of().encode(buffer);
-                    constant.encode(buffer);
+                    constant.type_of().encode(buffer)?;
+                    constant.encode(buffer)?;
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Force => {
@@ -267,7 +271,7 @@ impl Encode for Program<DeBruijn> {
                     length: 0,
                 } => {
                     buffer.write_bits::<4>(0b1000);
-                    (*determinant as u64).encode(buffer);
+                    (*determinant as u64).encode(buffer)?;
                     buffer.write_bits::<1>(0);
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
@@ -276,7 +280,7 @@ impl Encode for Program<DeBruijn> {
                     length,
                 } => {
                     buffer.write_bits::<4>(0b1000);
-                    (*determinant as u64).encode(buffer);
+                    (*determinant as u64).encode(buffer)?;
                     *top -= 1;
                     list_stack.push(Ok(*length));
                 }
@@ -288,6 +292,7 @@ impl Encode for Program<DeBruijn> {
                 }
             }
         }
+        return Some(());
 
         fn decrement(
             stack: &mut Vec<Result<u16, (u16, bool)>>,
@@ -318,16 +323,16 @@ impl Encode for Program<DeBruijn> {
 }
 
 impl Encode for Constant {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         match self {
             Constant::Integer(integer) => {
-                integer.encode(buffer);
+                integer.encode(buffer)?;
             }
             Constant::Bytes(bytes) => {
-                bytes.encode(buffer);
+                bytes.encode(buffer)?;
             }
             Constant::String(str) => {
-                str.encode(buffer);
+                str.encode(buffer)?;
             }
             Constant::Unit => {}
             Constant::Boolean(b) => {
@@ -340,27 +345,22 @@ impl Encode for Constant {
                 buffer.encode_iter(array.iter());
             }
             Constant::Pair(pair) => {
-                pair.0.encode(buffer);
-                pair.1.encode(buffer);
+                pair.0.encode(buffer)?;
+                pair.1.encode(buffer)?;
             }
             Constant::Data(data) => {
-                data.encode(buffer);
+                data.encode(buffer)?;
             }
-            Constant::BLSG1Element(g1_projective) => {
-                g1_projective.to_compressed().encode(buffer);
-            }
-            Constant::BLSG2Element(g2_projective) => {
-                g2_projective.to_compressed().encode(buffer);
-            }
-            Constant::MillerLoopResult(_) => {
-                panic!("Cannot serialize MillerLoopResult constants");
+            _ => {
+                return None;
             }
         }
+        Some(())
     }
 }
 
 impl Encode for constant::Type {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         let mut ty_stack = vec![self];
         while let Some(ty) = ty_stack.pop() {
             buffer.write_bits::<1>(1);
@@ -398,29 +398,24 @@ impl Encode for constant::Type {
                 constant::Type::Data => {
                     buffer.write_bits::<4>(8);
                 }
-                constant::Type::BLSG1Element => {
-                    buffer.write_bits::<4>(9);
-                }
-                constant::Type::BLSG2Element => {
-                    buffer.write_bits::<4>(10);
-                }
-                constant::Type::MillerLoopResult => {
-                    buffer.write_bits::<4>(11);
-                }
                 constant::Type::Array(elem_ty) => {
                     buffer.write_bits::<4>(7);
                     buffer.write_bits::<1>(1);
                     buffer.write_bits::<4>(12);
                     ty_stack.push(elem_ty);
                 }
+                _ => {
+                    return None;
+                }
             }
         }
         buffer.write_bits::<1>(0);
+        Some(())
     }
 }
 
 impl Encode for u64 {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         let mut x = *self;
         loop {
             let byte = (x & 0x7F) as u8;
@@ -431,11 +426,12 @@ impl Encode for u64 {
                 break;
             }
         }
+        Some(())
     }
 }
 
 impl Encode for Data {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         struct DataWriter<'a> {
             writer: CleanBuffer<'a>,
             len: usize,
@@ -475,17 +471,19 @@ impl Encode for Data {
             };
             minicbor::encode(self, &mut writer).expect("Data should encode properly");
             writer.writer.write_bytes(&[0]);
-        })
+        });
+        Some(())
     }
 }
 
 impl Encode for Integer {
-    fn encode(&self, buffer: &mut Buffer) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         if self.is_negative() {
             leb128::<true, true>(self.as_limbs(), buffer)
         } else {
             leb128::<true, false>(self.as_limbs(), buffer)
         }
+        Some(())
     }
 }
 
@@ -665,7 +663,7 @@ impl Decode<'_> for Program<DeBruijn> {
                     if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
                         *top -= 1;
                     }
-                    
+
                     stack.push(Ok(Frame { index, length: 0 }));
                     stack.push(Err((1, false)));
                 }
