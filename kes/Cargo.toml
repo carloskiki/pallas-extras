@@ -8,8 +8,8 @@ signature = { workspace = true }
 blake2 = { workspace = true }
 digest = { workspace = true }
 either = { workspace = true }
-ref-cast = "1.0.24"
+zerocopy = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-ed25519-dalek = "2.1.1"
-rand = "0.8"
+ed25519-dalek = "3.0.0-pre.1"
+rand = "0.10.0-rc.5"

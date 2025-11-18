@@ -8,14 +8,12 @@ mod compact;
 
 use blake2::Blake2b;
 use digest::{
-    Digest, KeyInit, OutputSizeUser,
+    Digest, Key, KeyInit, Output, OutputSizeUser,
     consts::U64,
     crypto_common::KeySizeUser,
-    generic_array::{ArrayLength, GenericArray},
     typenum::{IsLessOrEqual, LeEq, NonZero, Unsigned},
 };
 use either::Either::{self, Left, Right};
-use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, SignatureEncoding, Signer, Verifier};
 use std::{
     array::TryFromSliceError,
@@ -41,8 +39,8 @@ where
     H: OutputSizeUser,
 {
     inner: Either<(L, R::VerifyingKey), (R, L::VerifyingKey)>,
-    seed: GenericArray<u8, R::KeySize>,
-    vkey: GenericArray<u8, H::OutputSize>,
+    seed: Key<R>,
+    vkey: Output<H>,
 }
 
 impl<L, R, H> AsRef<VerifyingKey<H>> for Sum<L, R, H>
@@ -52,7 +50,7 @@ where
     H: OutputSizeUser,
 {
     fn as_ref(&self) -> &VerifyingKey<H> {
-        VerifyingKey::ref_cast(&self.vkey)
+        zerocopy::transmute_ref!(&self.vkey)
     }
 }
 
@@ -252,7 +250,8 @@ where
         let signature_end = value.len().saturating_sub(left_size + right_size);
         let left_vkey_end = value.len().saturating_sub(right_size);
 
-        let signature = S::try_from(&value[..signature_end]).map_err(SignatureFromBytesError::Signature)?;
+        let signature =
+            S::try_from(&value[..signature_end]).map_err(SignatureFromBytesError::Signature)?;
         let left_vkey = L::VerifyingKey::try_from(&value[signature_end..left_vkey_end])
             .map_err(SignatureFromBytesError::Left)?;
         let right_vkey = R::VerifyingKey::try_from(&value[left_vkey_end..])
@@ -326,9 +325,15 @@ where
 ///
 /// Internally this is simply the hash of the concatenation of the verifying keys of the left and
 /// right parts of the sum.
-#[derive(RefCast)]
+#[derive(
+    zerocopy::KnownLayout,
+    zerocopy::Immutable,
+    zerocopy::Unaligned,
+    zerocopy::FromBytes,
+    zerocopy::IntoBytes,
+)]
 #[repr(transparent)]
-pub struct VerifyingKey<H>(GenericArray<u8, H::OutputSize>)
+pub struct VerifyingKey<H>(Output<H>)
 where
     H: OutputSizeUser;
 
