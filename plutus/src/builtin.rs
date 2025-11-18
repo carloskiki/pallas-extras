@@ -469,9 +469,9 @@ pub fn choose_unit(_u: (), then: Value) -> Value {
     then
 }
 
-// TODO: do something with the trace.
 #[apply(builtin)]
-pub fn trace(_message: String, value: Value) -> Value {
+pub fn trace(message: String, value: Value) -> Value {
+    log::info!("{message}");
     value
 }
 

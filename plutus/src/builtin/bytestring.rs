@@ -9,13 +9,14 @@ pub fn append(mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x
 }
 
-// TODO: Check how we want to handle this.
-#[apply(builtin)]
-pub fn cons_v1(x: Integer, mut y: Vec<u8>) -> Vec<u8> {
-    let byte = x.to_u8_wrapping();
-    y.insert(0, byte);
-    y
-}
+// FIXME: Check how we want to handle this.
+// https://github.com/IntersectMBO/plutus/issues/7426
+// #[apply(builtin)]
+// pub fn cons_v1(x: Integer, mut y: Vec<u8>) -> Vec<u8> {
+//     let byte = x.to_u8_wrapping();
+//     y.insert(0, byte);
+//     y
+// }
 
 #[apply(builtin)]
 pub fn cons_v2(x: Integer, mut y: Vec<u8>) -> Option<Vec<u8>> {

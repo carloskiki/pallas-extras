@@ -50,11 +50,6 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "scaleValue"
     }) {
         return ctx.ignore_for("Requires value built-in type support");
-    } else if program_path
-        .components()
-        .any(|c| c.as_os_str() == "constr-08")
-    {
-        return ctx.ignore_for("Requires large construct index support");
     }
 
     let program = std::fs::read_to_string(program_path).unwrap();

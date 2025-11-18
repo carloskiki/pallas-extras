@@ -261,9 +261,19 @@ impl<T: FromStr> FromStr for Program<T> {
                         }
                         "constr" if version.minor > 0 => {
                             let (index_str, mut rest) = lex::word(rest);
-                            let determinant: u32 = index_str
+                            let discriminant: u64 = index_str
                                 .parse()
                                 .map_err(|_| ParseError::ConstructDiscriminant)?;
+                            let (discriminant, large_discriminant) = if discriminant
+                                > u32::MAX as u64
+                            {
+                                let const_index = constants.len() as u32;
+                                constants.push(Constant::Integer(rug::Integer::from(discriminant)));
+                                (const_index, true)
+                            } else {
+                                (discriminant as u32, false)
+                            };
+
                             let mut count = 0u16;
                             while !rest.is_empty() {
                                 let (prefix, arg) =
@@ -273,8 +283,9 @@ impl<T: FromStr> FromStr for Program<T> {
                                 count += 1;
                             }
                             program.push(Instruction::Construct {
-                                determinant,
+                                discriminant,
                                 length: count,
+                                large_discriminant,
                             });
                         }
                         "case" if version.minor > 0 => {
@@ -448,20 +459,23 @@ impl<T: PartialEq> Program<T> {
                         Instruction::Case { count: len }
                     }
                     Instruction::Construct {
-                        determinant,
+                        discriminant,
                         length: len,
+                        large_discriminant,
                     } => {
                         if len > 0 {
                             increment_stack(&mut stack, len as u32 - 1);
                             Instruction::Construct {
-                                determinant,
+                                discriminant,
                                 length: len,
+                                large_discriminant,
                             }
                         } else {
                             decrement_stack(&mut stack, &mut variables);
                             Instruction::Construct {
-                                determinant,
+                                discriminant,
                                 length: len,
+                                large_discriminant,
                             }
                         }
                     }
@@ -500,14 +514,25 @@ where
                 (Instruction::Error, Instruction::Error) => true,
                 (
                     Instruction::Construct {
-                        determinant: a_det,
+                        discriminant: a_det,
                         length: a_len,
+                        large_discriminant: a_large,
                     },
                     Instruction::Construct {
-                        determinant: b_det,
+                        discriminant: b_det,
                         length: b_len,
+                        large_discriminant: b_large,
                     },
-                ) => a_det == b_det && a_len == b_len,
+                ) => {
+                    a_len == b_len && {
+                        a_large == b_large
+                            && if *a_large {
+                                self.constants[*a_det as usize] == other.constants[*b_det as usize]
+                            } else {
+                                a_det == b_det
+                            }
+                    }
+                }
                 (Instruction::Case { count: a_count }, Instruction::Case { count: b_count }) => {
                     a_count == b_count
                 }
@@ -517,15 +542,22 @@ where
 }
 
 impl Program<DeBruijn> {
+    /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
+    /// failed.
     pub fn evaluate(self) -> Option<Self> {
         evaluate::run(self)
     }
 
+    /// Decode a `Program<DeBruijn>` from its flat binary representation.
     pub fn from_flat(bytes: &[u8]) -> Option<Self> {
         let mut reader = flat::Reader::new(bytes);
         flat::Decode::decode(&mut reader)
     }
 
+    /// Encode a `Program<DeBruijn>` into its flat binary representation.
+    ///
+    /// Encoding can fail if the program contains constants that cannot yet be encoded in flat,
+    /// such as `BLS12-381` related constants.
     pub fn to_flat(&self) -> Option<Vec<u8>> {
         let mut buffer = flat::Buffer::default();
         flat::Encode::encode(self, &mut buffer)?;
@@ -533,24 +565,65 @@ impl Program<DeBruijn> {
     }
 }
 
+/// An instruction in a `uplc` program.
+///
+/// Instead of containing pointers to their sub-terms, instructions are laid out in a linear
+/// vector, like bytecode (`size_of::<Instruction<DeBruijn>>() == 8`). Each instruction knows how
+/// many sub-terms it has. For example, `[(lam x x) (delay error)]` is a single "term", and is
+/// represented with the following instructions:
+/// ```ignore
+/// use plutus::Instruction;
+///
+/// let instructions = vec![
+///     Instruction::Application, // (Term) `[ ... ... ]` -- Expect two sub-terms
+///     Instruction::Lambda(String::from(x)), // (Sub-term 1) `(lam x ...)` -- Expect one sub-term
+///     Instruction::Variable(String::from(x)),// (Sub-term 1.1) x -- Expect zero sub-terms
+///     Instruction::Delay,               // (Sub-term 2) `(delay ...)` -- Expect one sub-term
+///     Instruction::Error,               // (Sub-term 2.1) `error` -- Expect zero sub-terms
+/// ];
+/// ```
+///
+/// # Limits
+///
+/// By using bounded numeric types, we limit the maximum size of programs:
+///
+/// - A program can have at most `u32::MAX` instructions, and `u32::MAX` constants.
+/// - A `case` statement can have at most `u16::MAX` branches.
+/// - A `construct` can have at most `u16::MAX` fields.
+///
+/// Generally, we use `u16` to quantify the number of sub-terms, and `u32` to quantify instructions
+/// or constants.
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Instruction<T> {
     Variable(T),
     Delay,
     Lambda(T),
     Application,
-    // Index into the constants pool
+    /// Index into the constants pool.
     Constant(ConstantIndex),
     Force,
     Error,
     Builtin(Builtin),
-    // Should we support full u64 determinants?
-    Construct { determinant: u32, length: u16 },
-    Case { count: u16 },
+    Construct {
+        discriminant: u32,
+        length: u16,
+        /// - `false`: the discriminant fits in 4 bytes, and is stored directly in the
+        ///   `discriminant` field.
+        /// - `true`: the discriminant is larger than 4 bytes, and the `discriminant` field
+        ///   contains the index into the constants pool where the actual discriminant is stored.
+        large_discriminant: bool,
+    },
+    Case {
+        count: u16,
+    },
 }
 
+/// Index of a term in the program.
+///
+/// This is used by `Value` to point to terms in the program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct TermIndex(u32);
 
+/// Index of a constant in the constants pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ConstantIndex(u32);

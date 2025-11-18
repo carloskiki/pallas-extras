@@ -3,7 +3,7 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use crate::{ConstantIndex, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin};
+use crate::{builtin::Builtin, constant::Constant, ConstantIndex, DeBruijn, Instruction, Program, TermIndex};
 
 /// Represents a processed value in the CEK machine.
 #[derive(Debug, Clone)]
@@ -18,7 +18,8 @@ pub(crate) enum Value {
         environment: Vec<Value>,
     },
     Construct {
-        determinant: u32,
+        discriminant: u32,
+        large_discriminant: bool,
         values: Vec<Value>,
     },
     Builtin {
@@ -42,11 +43,13 @@ impl Value {
             Constant(ConstantIndex),
             Term {
                 term: TermIndex,
-                remaining: u32,
+                // This is a number of terms, so u16 is sufficient.
+                remaining: u16,
                 environment: Vec<Value>,
             },
             Construct {
-                determinant: u32,
+                discriminant: u32,
+                large_discriminant: bool,
                 values: Vec<DischargeValue>,
             },
             Builtin {
@@ -68,11 +71,13 @@ impl Value {
                         }
                     }
                     Value::Construct {
-                        determinant,
+                        discriminant,
                         values,
+                        large_discriminant,
                     } => DischargeValue::Construct {
-                        determinant,
+                        discriminant,
                         values: values.into_iter().map(DischargeValue::from).collect(),
+                        large_discriminant,
                     },
                     Value::Builtin {
                         builtin,
@@ -125,10 +130,10 @@ impl Value {
                                 remaining += 1;
                             }
                             Instruction::Construct { length, .. } => {
-                                remaining += length as u32 - 1;
+                                remaining += length - 1;
                             }
                             Instruction::Case { count } => {
-                                remaining += count as u32;
+                                remaining += count;
                             }
                         }
                         instructions.push(program.program[index]);
@@ -136,11 +141,13 @@ impl Value {
                     }
                 }
                 DischargeValue::Construct {
-                    determinant,
+                    discriminant,
+                    large_discriminant,
                     values,
                 } => {
                     instructions.push(Instruction::Construct {
-                        determinant,
+                        discriminant,
+                        large_discriminant,
                         length: values.len() as u16,
                     });
                     value_stack.extend(values.into_iter().rev());
@@ -180,12 +187,13 @@ pub enum Frame {
     },
     Construct {
         remaining: u16,
-        determinant: u32,
+        discriminant: u32,
+        large_discriminant: bool,
         environment_len: u16,
         environment_and_values: Vec<Value>,
     },
     Case {
-        count: u32,
+        count: u16,
         next: TermIndex,
         environment: Vec<Value>,
     },
@@ -240,7 +248,8 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 args: Vec::new(),
             },
             Instruction::Construct {
-                determinant,
+                discriminant,
+                large_discriminant,
                 length,
             } => {
                 if length != 0 {
@@ -248,21 +257,23 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                         remaining: length - 1,
                         environment_len: environment.len() as u16,
                         environment_and_values: environment.clone(),
-                        determinant,
+                        discriminant,
+                        large_discriminant,
                     });
                     index += 1;
                     continue;
                 }
 
                 Value::Construct {
-                    determinant,
+                    discriminant,
+                    large_discriminant,
                     values: Vec::new(),
                 }
             }
             Instruction::Case { count } => {
                 index += 1;
                 stack.push(Frame::Case {
-                    count: count as u32,
+                    count,
                     environment: environment.clone(),
                     next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                 });
@@ -346,7 +357,8 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 }
                 (
                     Some(Frame::Construct {
-                        determinant,
+                        discriminant,
+                        large_discriminant,
                         mut remaining,
                         environment_len,
                         mut environment_and_values,
@@ -356,7 +368,8 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                     environment_and_values.push(value);
                     if remaining == 0 {
                         ret = Value::Construct {
-                            determinant,
+                            discriminant,
+                            large_discriminant,
                             values: environment_and_values
                                 .drain(environment_len as usize..)
                                 .collect(),
@@ -366,7 +379,8 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                     remaining -= 1;
                     let environment = environment_and_values[..environment_len as usize].to_vec();
                     stack.push(Frame::Construct {
-                        determinant,
+                        discriminant,
+                        large_discriminant,
                         remaining,
                         environment_len,
                         environment_and_values,
@@ -381,12 +395,22 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                         next,
                     }),
                     Value::Construct {
-                        determinant,
+                        discriminant,
+                        large_discriminant,
                         values,
                     },
-                ) if determinant < count => {
+                ) if discriminant < count as u32 || large_discriminant => {
+                    let discriminant = if large_discriminant {
+                        let Constant::Integer(discriminant) = &program.constants[discriminant as usize] else {
+                            panic!("large discriminant did not point to an integer constant");
+                        };
+                        discriminant.to_u64().expect("discriminant fits in u64")
+                    } else {
+                        discriminant as u64
+                    };
+                    
                     stack.extend(values.into_iter().map(Frame::ApplyLeftValue).rev());
-                    index = skip_terms(&program.program, next.0 as usize, determinant);
+                    index = skip_terms(&program.program, next.0 as usize, discriminant);
                     environment
                 }
                 (None, value) => {
@@ -399,7 +423,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
 }
 
 /// Skip over `count` terms in the instruction list, starting from `index`.
-fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u32) -> usize {
+fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u64) -> usize {
     let mut remaining = count;
     while remaining > 0 {
         match terms[index] {
@@ -417,10 +441,10 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u32) -> usiz
                 remaining -= 1;
             }
             Instruction::Construct { length, .. } => {
-                remaining += length as u32 - 1;
+                remaining += length as u64 - 1;
             }
             Instruction::Case { count } => {
-                remaining += count as u32;
+                remaining += count as u64;
             }
         }
         index += 1;

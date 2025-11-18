@@ -124,7 +124,7 @@ impl Default for Buffer {
 }
 
 /// LEB128 encoding of the words. The provided words are in little endian order.
-/// 
+///
 /// A non-exhaustive list of cases this needs to handle.
 /// - Reads may not align on word boundaries.
 /// - When reading from a word that is not the last word, we may still have a case where we are
@@ -228,7 +228,7 @@ impl Encode for Program<DeBruijn> {
                 Instruction::Variable(DeBruijn(var)) => {
                     buffer.write_bits::<4>(0);
                     let var = var_count.checked_sub(*var).expect("variable in scope");
-                    (var as u64).encode(buffer)?;
+                    var.encode(buffer)?;
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Delay => {
@@ -267,22 +267,31 @@ impl Encode for Program<DeBruijn> {
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
                 Instruction::Construct {
-                    determinant,
-                    length: 0,
-                } => {
-                    buffer.write_bits::<4>(0b1000);
-                    (*determinant as u64).encode(buffer)?;
-                    buffer.write_bits::<1>(0);
-                    decrement(&mut list_stack, buffer, &mut var_count);
-                }
-                Instruction::Construct {
-                    determinant,
+                    discriminant,
                     length,
+                    large_discriminant,
                 } => {
                     buffer.write_bits::<4>(0b1000);
-                    (*determinant as u64).encode(buffer)?;
-                    *top -= 1;
-                    list_stack.push(Ok(*length));
+                    if *large_discriminant {
+                        let Constant::Integer(discriminant) =
+                            &self.constants[*discriminant as usize]
+                        else {
+                            panic!("large_discriminant should point to an Integer constant");
+                        };
+                        discriminant
+                            .to_u64()
+                            .expect("discriminant should fit in u64")
+                    } else {
+                        *discriminant as u64
+                    }
+                    .encode(buffer)?;
+                    if *length == 0 {
+                        buffer.write_bits::<1>(0);
+                        decrement(&mut list_stack, buffer, &mut var_count);
+                    } else {
+                        *top -= 1;
+                        list_stack.push(Ok(*length));
+                    }
                 }
                 Instruction::Case { count } => {
                     buffer.write_bits::<4>(0b1001);
@@ -427,6 +436,12 @@ impl Encode for u64 {
             }
         }
         Some(())
+    }
+}
+
+impl Encode for u32 {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
+        (*self as u64).encode(buffer)
     }
 }
 
@@ -599,11 +614,9 @@ impl Decode<'_> for Program<DeBruijn> {
         while !stack.is_empty() {
             match reader.read_bits::<4>()? {
                 0 => {
-                    // TODO: should be > 0?
-                    // TODO: impl decode on u32 directly?
-                    let var = u64::decode(reader)?;
+                    let var = u32::decode(reader)?;
                     instructions.push(Instruction::Variable(DeBruijn(
-                        variable_count.checked_sub(var as u32)?,
+                        variable_count.checked_sub(var)?,
                     )));
                     decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
@@ -642,12 +655,23 @@ impl Decode<'_> for Program<DeBruijn> {
                     decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 8 => {
-                    let determinant = u64::decode(reader)? as u32;
+                    let discriminant = u64::decode(reader)?;
                     let index = instructions.len() as u32;
-                    instructions.push(Instruction::Construct {
-                        determinant,
-                        length: 0,
-                    });
+                    if discriminant > u32::MAX as u64 {
+                        instructions.push(Instruction::Construct {
+                            discriminant: constants.len() as u32,
+                            large_discriminant: true,
+                            length: 0,
+                        });
+                        let discriminant_constant = Constant::Integer(Integer::from(discriminant));
+                        constants.push(discriminant_constant);
+                    } else {
+                        instructions.push(Instruction::Construct {
+                            discriminant: discriminant as u32,
+                            large_discriminant: false,
+                            length: 0,
+                        });
+                    }
 
                     if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
                         *top -= 1;
@@ -847,6 +871,16 @@ impl Decode<'_> for u64 {
             shift += 7;
         }
         Some(result)
+    }
+}
+
+impl Decode<'_> for u32 {
+    fn decode(reader: &mut Reader<'_>) -> Option<Self> {
+        let value = u64::decode(reader)?;
+        if value > u32::MAX as u64 {
+            return None;
+        }
+        Some(value as u32)
     }
 }
 
