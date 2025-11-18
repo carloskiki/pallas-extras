@@ -6,12 +6,12 @@
 
 mod compact;
 
-use blake2::Blake2b;
+use blake2::{Blake2b, Blake2bVarCore};
 use digest::{
     Digest, Key, KeyInit, Output, OutputSizeUser,
-    consts::U64,
+    array::{Array, ArraySize},
     crypto_common::KeySizeUser,
-    typenum::{IsLessOrEqual, LeEq, NonZero, Unsigned},
+    typenum::{IsLessOrEqual, True, Unsigned},
 };
 use either::Either::{self, Left, Right};
 use signature::{Keypair, KeypairRef, SignatureEncoding, Signer, Verifier};
@@ -50,7 +50,7 @@ where
     H: OutputSizeUser,
 {
     fn as_ref(&self) -> &VerifyingKey<H> {
-        zerocopy::transmute_ref!(&self.vkey)
+        todo!()
     }
 }
 
@@ -76,8 +76,7 @@ impl<L, R, H> KeyInit for Sum<L, R, H>
 where
     L: KeypairRef<VerifyingKey: AsRef<[u8]>> + KeyInit + KeySizeUser<KeySize = R::KeySize>,
     R: KeyInit + KeypairRef<VerifyingKey: AsRef<[u8]>>,
-    R::KeySize: IsLessOrEqual<Blake2bMaxSize>,
-    LeEq<R::KeySize, Blake2bMaxSize>: NonZero,
+    R::KeySize: IsLessOrEqual<Blake2bMaxSize, Output = True>,
     H: Digest,
 {
     fn new(key: &digest::Key<Self>) -> Self {
@@ -360,7 +359,7 @@ where
             let _ = <[u8; 1] as TryFrom<&[u8]>>::try_from(&[])?;
             unreachable!()
         } else {
-            Ok(VerifyingKey(GenericArray::from_slice(value).clone()))
+            Output::<H>::try_from(value).map(VerifyingKey)
         }
     }
 }
@@ -448,13 +447,12 @@ where
 
 // This does not work for some reason: `<Blake2bVarCore as OutputSizeUser>::OutputSize`
 // But I am certain that they are the same.
-type Blake2bMaxSize = U64;
+type Blake2bMaxSize = <Blake2bVarCore as OutputSizeUser>::OutputSize;
 
 /// Function used by input-output-hk's MMM implementation.
-fn double_length<U>(key: &GenericArray<u8, U>) -> (GenericArray<u8, U>, GenericArray<u8, U>)
+fn double_length<U>(key: &Array<u8, U>) -> (Array<u8, U>, Array<u8, U>)
 where
-    LeEq<U, Blake2bMaxSize>: NonZero,
-    U: ArrayLength<u8> + IsLessOrEqual<Blake2bMaxSize>,
+    U: ArraySize + IsLessOrEqual<Blake2bMaxSize, Output = True>,
 {
     let mut hasher: Blake2b<U> = <Blake2b<U> as Digest>::new();
     hasher.update([1]);

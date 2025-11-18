@@ -3,7 +3,7 @@
 A partial implementation of the [MMM KES paper](MMM-paper.pdf), relevant for Cardano.
 
 Specifically, this implements the `Sum` construction from the paper with both the
-normal `Signatore` and the `CompactSignature` variants. This is implemented generically
+normal `Signature` and the `CompactSignature` variants. This is implemented generically
 over any `Signer` and `Verifier`.
 
 ## TODOs

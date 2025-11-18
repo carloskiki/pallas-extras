@@ -1,6 +1,6 @@
 //! Host of [`SingleUse`] and [`VerifyingKey`].
 
-use digest::{KeyInit, crypto_common::KeySizeUser};
+use digest::{array::AsArrayRef, crypto_common::KeySizeUser, Key};
 use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, Signer, Verifier};
 
@@ -21,11 +21,23 @@ impl<T: KeySizeUser> KeySizeUser for SingleUse<T> {
     type KeySize = T::KeySize;
 }
 
-impl<T: KeyInit> KeyInit for SingleUse<T> {
-    fn new(key: &digest::Key<Self>) -> Self {
-        SingleUse(T::new(key))
+impl<T: KeySizeUser + TryFrom<U>, U: AsArrayRef<u8, Size = T::KeySize>> TryFrom<U> for SingleUse<T> {
+    type Error = T::Error;
+
+    fn try_from(value: Key<Self>) -> Result<Self, Self::Error> {
+        todo!()
     }
 }
+
+// impl<T, U> From<U> for SingleUse<T>
+// where
+//     T: KeySizeUser + From<U>,
+//     U: AsArrayRef<u8, Size = T::KeySize>,
+// {
+//     fn from(value: U) -> Self {
+//         Self(T::from(value))
+//     }
+// }
 
 impl<T> Evolve for SingleUse<T> {
     const PERIOD_COUNT: u32 = 1;
@@ -72,12 +84,11 @@ impl<T: KeypairRef> AsRef<VerifyingKey<T::VerifyingKey>> for SingleUse<T> {
     }
 }
 
-// A newtype wrapper is needed because we need for
 /// This is a transparent wrapper around `VK`.
 ///
 /// Importantly, it implements [`Verifier<KeyEvolvingSignature<S>>`] if
 /// [`VK::VerifyingKey`](KeypairRef::VerifyingKey) implements [`Verifier<S>`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ref_cast::RefCast)]
 #[repr(transparent)]
 pub struct VerifyingKey<VK>(VK);
 
@@ -104,9 +115,7 @@ impl<S, VK: Verifier<S>> Verifier<KeyEvolvingSignature<'_, S>> for VerifyingKey<
             period,
         }: &KeyEvolvingSignature<S>,
     ) -> Result<(), signature::Error> {
-        (*period == 0)
-            .then(|| self.0.verify(msg, s))
-            .unwrap_or(Err(signature::Error::new()))
+        if *period == 0 { self.0.verify(msg, s) } else { Err(signature::Error::new()) }
     }
 }
 
@@ -117,14 +126,13 @@ impl<VK: KeySizeUser> KeySizeUser for VerifyingKey<VK> {
 #[cfg(test)]
 mod tests {
     use crate::{Evolve as _, tests::SkWrapper};
-    use digest::KeyInit;
 
     use super::SingleUse;
 
     #[test]
     fn cannot_evolve() {
         let seed: [u8; 32] = [0; 32];
-        let key: SingleUse<SkWrapper> = SingleUse::new(&seed.into());
+        let key: SingleUse<SkWrapper> = SingleUse::from(seed);
         assert!(key.evolve().is_none());
     }
 }
