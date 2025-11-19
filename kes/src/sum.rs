@@ -8,7 +8,7 @@ mod compact;
 
 use blake2::{Blake2b, Blake2bVarCore};
 use digest::{
-    Digest, Key, KeyInit, Output, OutputSizeUser,
+    Digest, Key, Output, OutputSizeUser,
     array::{Array, ArraySize},
     crypto_common::KeySizeUser,
     typenum::{IsLessOrEqual, True, Unsigned},
@@ -40,7 +40,7 @@ where
 {
     inner: Either<(L, R::VerifyingKey), (R, L::VerifyingKey)>,
     seed: Key<R>,
-    vkey: Output<H>,
+    vkey: VerifyingKey<H>,
 }
 
 impl<L, R, H> AsRef<VerifyingKey<H>> for Sum<L, R, H>
@@ -50,7 +50,7 @@ where
     H: OutputSizeUser,
 {
     fn as_ref(&self) -> &VerifyingKey<H> {
-        todo!()
+        &self.vkey
     }
 }
 
@@ -72,17 +72,17 @@ where
     type KeySize = L::KeySize;
 }
 
-impl<L, R, H> KeyInit for Sum<L, R, H>
+impl<L, R, H> From<Key<Self>> for Sum<L, R, H>
 where
-    L: KeypairRef<VerifyingKey: AsRef<[u8]>> + KeyInit + KeySizeUser<KeySize = R::KeySize>,
-    R: KeyInit + KeypairRef<VerifyingKey: AsRef<[u8]>>,
+    L: KeypairRef<VerifyingKey: AsRef<[u8]>> + From<Key<L>> + KeySizeUser<KeySize = R::KeySize>,
+    R: KeySizeUser + From<Key<R>> + KeypairRef<VerifyingKey: AsRef<[u8]>>,
     R::KeySize: IsLessOrEqual<Blake2bMaxSize, Output = True>,
     H: Digest,
 {
-    fn new(key: &digest::Key<Self>) -> Self {
-        let (left, right) = double_length(key);
-        let left_key = L::new(&left);
-        let right_key = R::new(&right);
+    fn from(value: Key<Self>) -> Self {
+        let (left, right) = double_length(&value);
+        let left_key = L::from(left);
+        let right_key = R::from(right.clone());
         let mut vkey_hasher = H::new();
         vkey_hasher.update(left_key.verifying_key());
         vkey_hasher.update(right_key.verifying_key());
@@ -90,7 +90,7 @@ where
         Sum {
             inner: Left((left_key, right_key.verifying_key())),
             seed: right,
-            vkey: vkey_key,
+            vkey: VerifyingKey(vkey_key),
         }
     }
 }
@@ -137,7 +137,7 @@ where
 impl<L, R, H> Evolve for Sum<L, R, H>
 where
     L: KeypairRef + Evolve,
-    R: KeyInit + KeypairRef + Evolve,
+    R: KeySizeUser + From<Key<R>> + KeypairRef + Evolve,
     H: OutputSizeUser,
 {
     const PERIOD_COUNT: u32 = L::PERIOD_COUNT + R::PERIOD_COUNT;
@@ -153,7 +153,7 @@ where
                         vkey: self.vkey,
                     }
                 } else {
-                    let right = R::new(&self.seed);
+                    let right = R::from(self.seed);
                     Sum {
                         inner: Right((right, left_vkey)),
                         seed: Default::default(),
@@ -324,17 +324,14 @@ where
 ///
 /// Internally this is simply the hash of the concatenation of the verifying keys of the left and
 /// right parts of the sum.
-#[derive(
-    zerocopy::KnownLayout,
-    zerocopy::Immutable,
-    zerocopy::Unaligned,
-    zerocopy::FromBytes,
-    zerocopy::IntoBytes,
-)]
 #[repr(transparent)]
-pub struct VerifyingKey<H>(Output<H>)
+pub struct VerifyingKey<H: OutputSizeUser>(Output<H>);
+
+impl<H> Copy for VerifyingKey<H>
 where
-    H: OutputSizeUser;
+    H: OutputSizeUser,
+    <H::OutputSize as ArraySize>::ArrayType<u8>: Copy,
+{}
 
 impl<H: OutputSizeUser> Clone for VerifyingKey<H> {
     fn clone(&self) -> Self {
@@ -373,7 +370,13 @@ impl<H: OutputSizeUser> Eq for VerifyingKey<H> {}
 
 impl<H: OutputSizeUser> PartialOrd for VerifyingKey<H> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.0.cmp(&other.0))
+        Some(self.cmp(other))
+    }
+}
+
+impl<H: OutputSizeUser> Hash for VerifyingKey<H> {
+    fn hash<T: std::hash::Hasher>(&self, state: &mut T) {
+        self.0.hash(state);
     }
 }
 
@@ -393,7 +396,7 @@ impl<H: OutputSizeUser> KeySizeUser for VerifyingKey<H> {
     type KeySize = H::OutputSize;
 }
 
-impl<H: OutputSizeUser> From<digest::Key<Self>> for VerifyingKey<H>
+impl<H: OutputSizeUser> From<Key<Self>> for VerifyingKey<H>
 where
     H: OutputSizeUser,
 {
@@ -498,7 +501,7 @@ pub type Pow6Signature<S, T, H> = DoubleSignature<Pow5Signature<S, T, H>, Pow5<T
 #[cfg(test)]
 mod tests {
     use blake2::Blake2b;
-    use digest::{KeyInit, consts::U32};
+    use digest::{array::Array, consts::U32};
     use ed25519_dalek::Signature;
     use rand::random;
     use signature::{Keypair, Signer, Verifier};
@@ -523,7 +526,7 @@ mod tests {
     #[test]
     fn update_count() {
         let key: [u8; 32] = random();
-        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::new(&key.into());
+        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::from(digest::array::Array::from(key));
 
         assert_eq!(pow6.period(), 0);
         for period in 1..Pow6::<KeyBase, Blake2b<U32>>::PERIOD_COUNT {
@@ -536,7 +539,7 @@ mod tests {
     #[test]
     fn always_same_vkey() {
         let key: [u8; 32] = random();
-        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::new(&key.into());
+        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::from(Array::from(key));
 
         let mut vkey = pow6.verifying_key();
         for _ in 1..Pow6::<KeyBase, Blake2b<U32>>::PERIOD_COUNT {
@@ -549,7 +552,7 @@ mod tests {
     #[test]
     fn can_verify_from_all_evolutions() {
         let key: [u8; 32] = random();
-        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::new(&key.into());
+        let mut pow6: Pow6<KeyBase, Blake2b<U32>> = Pow6::from(Array::from(key));
 
         let vkey = pow6.verifying_key();
         let raw_signature: Pow6Signature<Signature, KeyBase, Blake2b<U32>> =
@@ -575,9 +578,10 @@ mod tests {
     #[test]
     fn different_vkey_verification_fails() {
         let key: [u8; 32] = random();
-        let mut kes1: Pow6<KeyBase, Blake2b<U32>> = Pow6::new(&key.into());
+        let mut kes1: Pow6<KeyBase, Blake2b<U32>> = Pow6::from(Array::from(key));
+        let other_key: [u8; 32] = random();
         let other_vkey =
-            Pow6::<KeyBase, Blake2b<U32>>::new(&random::<[u8; 32]>().into()).verifying_key();
+            Pow6::<KeyBase, Blake2b<U32>>::from(Array::from(other_key)).verifying_key();
 
         for msg in MESSAGES {
             let raw_signature: Pow6Signature<_, _, _> = kes1.try_sign(msg).unwrap();
@@ -594,7 +598,7 @@ mod tests {
     #[test]
     fn wrong_signature_period_fails() {
         let key: [u8; 32] = random();
-        let mut skey: Pow6<KeyBase, Blake2b<U32>> = Pow6::new(&key.into());
+        let mut skey: Pow6<KeyBase, Blake2b<U32>> = Pow6::from(Array::from(key));
 
         for msg in MESSAGES {
             let signature: Pow6Signature<_, _, _> = skey.try_sign(msg).unwrap();

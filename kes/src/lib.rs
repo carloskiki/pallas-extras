@@ -53,7 +53,7 @@ impl<S> Copy for KeyEvolvingSignature<'_, S> {}
 pub(crate) mod tests {
     use crate::single_use::SingleUse;
     use blake2::Blake2b;
-    use digest::{consts::U32, crypto_common::KeySizeUser};
+    use digest::{array::Array, consts::U32, crypto_common::KeySizeUser};
     use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
     use signature::{KeypairRef, Signer, Verifier};
 
@@ -77,6 +77,12 @@ pub(crate) mod tests {
     impl From<[u8; 32]> for SkWrapper {
         fn from(bytes: [u8; 32]) -> Self {
             SkWrapper(SigningKey::from_bytes(&bytes))
+        }
+    }
+
+    impl From<Array<u8, U32>> for SkWrapper {
+        fn from(bytes: Array<u8, U32>) -> Self {
+            SkWrapper(SigningKey::from_bytes(bytes.as_ref()))
         }
     }
 

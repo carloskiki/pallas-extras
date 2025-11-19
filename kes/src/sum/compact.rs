@@ -213,7 +213,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use digest::KeyInit;
+    use digest::array::Array;
     use rand::random;
     use signature::{Keypair, Signer};
 
@@ -239,7 +239,7 @@ mod tests {
         let seed: [u8; 32] = random();
         let msg = b"Hello, world!";
 
-        let key: sum::Pow2<KeyBase, THash> = sum::Pow2::new(&seed.into());
+        let key: sum::Pow2<KeyBase, THash> = sum::Pow2::from(Array::from(seed));
         let signature: Pow2CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
             signature: &signature,
@@ -248,7 +248,7 @@ mod tests {
         let vkey = sum::VerifyingKey::<THash>::from_signature(kes);
         assert_eq!(vkey, key.verifying_key());
 
-        let key: sum::Pow6<KeyBase, THash> = sum::Pow6::new(&seed.into());
+        let key: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(seed));
         let signature: Pow6CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
             signature: &signature,
@@ -263,7 +263,7 @@ mod tests {
         let seed: [u8; 32] = random();
         let msg = b"Hello, world!";
 
-        let key: sum::Pow3<KeyBase, THash> = sum::Pow3::new(&seed.into());
+        let key: sum::Pow3<KeyBase, THash> = sum::Pow3::from(Array::from(seed));
         let signature: Pow3CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
             signature: &signature,
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn can_verify_from_all_evolutions() {
         let key: [u8; 32] = random();
-        let mut pow6: sum::Pow6<KeyBase, THash> = sum::Pow6::new(&key.into());
+        let mut pow6: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
 
         let vkey = pow6.verifying_key();
         let raw_signature: Pow6CompactSignature<_, _, _> = pow6.try_sign(MESSAGES[0]).unwrap();
@@ -300,9 +300,12 @@ mod tests {
     #[test]
     fn different_vkey_verification_fails() {
         let key: [u8; 32] = random();
-        let mut kes1: sum::Pow6<KeyBase, THash> = sum::Pow6::new(&key.into());
+        let mut kes1: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
+        let other_key: [u8; 32] = random();
         let other_vkey =
-            sum::Pow6::<KeyBase, THash>::new(&random::<[u8; 32]>().into()).verifying_key();
+            sum::Pow6::<KeyBase, THash>::from(
+                Array::from(other_key)
+            ).verifying_key();
 
         for msg in MESSAGES {
             let raw_signature: Pow6CompactSignature<_, _, _> = kes1.try_sign(msg).unwrap();
@@ -319,7 +322,7 @@ mod tests {
     #[test]
     fn wrong_signature_period_fails() {
         let key: [u8; 32] = random();
-        let mut skey: sum::Pow6<KeyBase, THash> = sum::Pow6::new(&key.into());
+        let mut skey: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
 
         for msg in MESSAGES {
             let signature: Pow6CompactSignature<_, _, _> = skey.try_sign(msg).unwrap();

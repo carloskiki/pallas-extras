@@ -1,6 +1,6 @@
 //! Host of [`SingleUse`] and [`VerifyingKey`].
 
-use digest::{array::AsArrayRef, crypto_common::KeySizeUser, Key};
+use digest::{crypto_common::KeySizeUser, Key};
 use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, Signer, Verifier};
 
@@ -21,23 +21,14 @@ impl<T: KeySizeUser> KeySizeUser for SingleUse<T> {
     type KeySize = T::KeySize;
 }
 
-impl<T: KeySizeUser + TryFrom<U>, U: AsArrayRef<u8, Size = T::KeySize>> TryFrom<U> for SingleUse<T> {
-    type Error = T::Error;
-
-    fn try_from(value: Key<Self>) -> Result<Self, Self::Error> {
-        todo!()
+impl<T> From<Key<T>> for SingleUse<T>
+where
+    T: KeySizeUser + From<Key<T>>,
+{
+    fn from(value: Key<T>) -> Self {
+        Self(T::from(value))
     }
 }
-
-// impl<T, U> From<U> for SingleUse<T>
-// where
-//     T: KeySizeUser + From<U>,
-//     U: AsArrayRef<u8, Size = T::KeySize>,
-// {
-//     fn from(value: U) -> Self {
-//         Self(T::from(value))
-//     }
-// }
 
 impl<T> Evolve for SingleUse<T> {
     const PERIOD_COUNT: u32 = 1;
@@ -125,6 +116,8 @@ impl<VK: KeySizeUser> KeySizeUser for VerifyingKey<VK> {
 
 #[cfg(test)]
 mod tests {
+    use digest::array::Array;
+
     use crate::{Evolve as _, tests::SkWrapper};
 
     use super::SingleUse;
@@ -132,7 +125,7 @@ mod tests {
     #[test]
     fn cannot_evolve() {
         let seed: [u8; 32] = [0; 32];
-        let key: SingleUse<SkWrapper> = SingleUse::from(seed);
+        let key: SingleUse<SkWrapper> = SingleUse::from(Array::from(seed));
         assert!(key.evolve().is_none());
     }
 }
