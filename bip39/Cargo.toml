@@ -5,4 +5,7 @@ edition = "2024"
 
 [dependencies]
 sha2 = { workspace = true }
-const-hex = "1.14"
+const-hex = { workspace = true, features = ["alloc"] }
+
+[dev-dependencies]
+rand = { workspace = true }

@@ -10,14 +10,14 @@ zerocopy = { workspace = true }
 curve25519-dalek = { workspace = true }
 digest = { workspace = true }
 sha2 = { workspace = true }
-hmac = "0.12"
-pbkdf2 = "0.12"
+hmac = "0.13.0-rc.3"
+pbkdf2 = "0.13.0-rc.2"
 
 [dev-dependencies]
 curve25519-dalek = { workspace = true }
 ed25519-bip32 = "0.4"
-criterion = "0.5"
-rand = "0.8"
+criterion = "0.7"
+rand = { workspace = true }
 
 [[bench]]
 name = "comparison"

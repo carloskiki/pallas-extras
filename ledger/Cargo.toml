@@ -11,10 +11,10 @@ either = { workspace = true }
 digest = { workspace = true }
 ed25519-dalek = { workspace = true }
 blake2 = { workspace = true }
-sha3 = "0.10"
+sha3 = { workspace = true }
 bech32 = "0.11"
 crc32fast = "1.4"
-bs58 = "0.2"
+bs58 = "0.5"
 
 kes = { path = "../kes" }
 bip32 = { path = "../bip32" }
@@ -22,7 +22,7 @@ plutus = { path = "../plutus" }
 
 [dev-dependencies]
 anyhow = "1"
-const-hex = "1"
+const-hex = { workspace = true }
 
 [[test]]
 name = "codec"
