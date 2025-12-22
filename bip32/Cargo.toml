@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-minicbor = { workspace = true }
+minicbor = { version = "2.1", features = ["full"] }
 zerocopy = { workspace = true }
 
 curve25519-dalek = { workspace = true }
