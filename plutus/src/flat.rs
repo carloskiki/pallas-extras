@@ -7,8 +7,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use minicbor::CborLen;
 use rug::Integer;
+use tinycbor::CborLen;
 
 use crate::{
     ConstantIndex, DeBruijn, Instruction, Program, Version,
@@ -453,10 +453,13 @@ impl Encode for Data {
             written: usize,
         }
 
-        impl minicbor::encode::Write for DataWriter<'_> {
+        impl embedded_io::ErrorType for DataWriter<'_> {
             type Error = Infallible;
+        }
 
-            fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Self::Error> {
+        impl embedded_io::Write for DataWriter<'_> {
+            fn write(&mut self, mut buf: &[u8]) -> Result<usize, Self::Error> {
+                let len = buf.len();
                 let written_in_slot = self.written % 255;
                 if written_in_slot != 0 {
                     let to_write_in_slot = 255 - written_in_slot;
@@ -467,25 +470,29 @@ impl Encode for Data {
                 }
                 buf.chunks(255).for_each(|chunk| {
                     let len = (self.len - self.written).min(255);
-                    assert!(chunk.len() <= len, "Data length exceeded during encoding");
+                    debug_assert!(chunk.len() <= len, "Data length exceeded during encoding");
 
                     self.writer.write_bytes(&[len as u8]);
                     self.writer.write_bytes(chunk);
                     self.written += chunk.len();
                 });
 
+                Ok(len)
+            }
+
+            fn flush(&mut self) -> Result<(), Self::Error> {
                 Ok(())
             }
         }
 
         buffer.with_pad(|writer| {
-            let mut writer = DataWriter {
+            let mut encoder = tinycbor::Encoder(DataWriter {
                 writer,
-                len: self.cbor_len(&mut ()),
+                len: self.cbor_len(),
                 written: 0,
-            };
-            minicbor::encode(self, &mut writer).expect("Data should encode properly");
-            writer.writer.write_bytes(&[0]);
+            });
+            tinycbor::Encode::encode(self, &mut encoder);
+            encoder.0.writer.write_bytes(&[0]);
         });
         Some(())
     }
@@ -886,8 +893,8 @@ impl Decode<'_> for u32 {
 
 impl Decode<'_> for Data {
     fn decode(reader: &mut Reader<'_>) -> Option<Self> {
-        let bytes = Vec::<u8>::decode(reader)?;
-        minicbor::decode(&bytes).ok()
+        let mut decoder = tinycbor::Decoder(&Vec::<u8>::decode(reader)?);
+        tinycbor::Decode::decode(&mut decoder).ok()
     }
 }
 

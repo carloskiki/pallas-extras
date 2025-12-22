@@ -32,9 +32,11 @@ impl CborLen for Data {
             Data::Map(items) => items.cbor_len(),
             Data::List(datas) => datas.cbor_len(),
             Data::Bytes(items) => {
-                <Vec<u8> as AsRef<cbor_util::tinycbor::BoundedBytes>>::as_ref(items).cbor_len()
+                <_ as AsRef<cbor_util::tinycbor::BoundedBytes>>::as_ref(items).cbor_len()
             }
-            Data::Integer(big_int) => big_int.as_ref().cbor_len(),
+            Data::Integer(big_int) => {
+                <_ as AsRef<cbor_util::tinycbor::BigInt>>::as_ref(&big_int).cbor_len()
+            }
             Data::Construct(construct) => construct.cbor_len(),
         }
     }
@@ -46,9 +48,11 @@ impl Encode for Data {
             Data::Map(items) => items.encode(e),
             Data::List(items) => items.encode(e),
             Data::Bytes(bytes) => {
-                <Vec<u8> as AsRef<cbor_util::tinycbor::BoundedBytes>>::as_ref(bytes).encode(e)
+                <_ as AsRef<cbor_util::tinycbor::BoundedBytes>>::as_ref(bytes).encode(e)
             }
-            Data::Integer(big_int) => big_int.as_ref().encode(e),
+            Data::Integer(big_int) => {
+                <_ as AsRef<cbor_util::tinycbor::BigInt>>::as_ref(&big_int).encode(e)
+            }
             Data::Construct(construct) => construct.encode(e),
         }
     }
@@ -58,7 +62,7 @@ impl Decode<'_> for Data {
     type Error = Error;
 
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
-        match d.datatype()? {
+        match d.datatype().map_err(|e| Error::Header(From::from(e)))? {
             Type::Int => cbor_util::tinycbor::BigInt::decode(d)
                 .map(|b| Self::Integer(b.0))
                 .map_err(Error::Integer),
@@ -75,7 +79,7 @@ impl Decode<'_> for Data {
                     Err(e) => return Err(Error::Construct(Box::new(e))),
                 }
                 *d = pre;
-                
+
                 cbor_util::tinycbor::BigInt::decode(d)
                     .map(|b| Self::Integer(b.0))
                     .map_err(Error::Integer)
@@ -88,7 +92,7 @@ impl Decode<'_> for Data {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-enum Error {
+pub enum Error {
     #[error("while decoding header: {0}")]
     Header(#[from] primitive::Error),
     #[error("while decoding map: {0}")]

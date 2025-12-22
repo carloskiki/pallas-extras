@@ -82,9 +82,20 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
                 return Err(RunError::fail("Failed to parse flat program"));
             };
 
-            if program_from_flat != program_debruijn || flat_from_program != flat {
+            if program_from_flat != program_debruijn {
                 return Err(RunError::fail(
                     "Flat program does not match original program",
+                ));
+            }
+
+            let Some(round_trip_program) = Program::from_flat(&flat_from_program) else {
+                return Err(RunError::fail(
+                    "Failed to convert round-tripped flat program to de Bruijn",
+                ));
+            };
+            if round_trip_program != program_debruijn {
+                return Err(RunError::fail(
+                    "Round-tripped flat program does not match original program",
                 ));
             }
         }

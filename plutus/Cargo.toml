@@ -31,6 +31,7 @@ const-hex = { workspace = true }
 
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
+embedded-io = "0.7.1"
 cbor-util = { workspace = true }
 
 [dev-dependencies]

@@ -27,11 +27,22 @@ impl Decode<'_> for Construct {
             Err(string::Error::Malformed(e)) => return Err(tag::Error::Malformed(e)),
         };
         let (tag, value) = match tag {
-            121..=127 => (tag - 121, Decode::decode(d).map_err(|e| Error::Value(e)))?,
+            121..=127 => (
+                tag - 121,
+                <Vec<Data>>::decode(d).map_err(|e| {
+                    tag::Error::Inner(collections::fixed::Error::Collection(
+                        collections::Error::Element(Error::Value(e)),
+                    ))
+                })?,
+            ),
             1280..=1400 => (
                 tag - 1280 + 7,
-                Decode::decode(d).map_err(|e| Error::Value(e)),
-            )?,
+                Decode::decode(d).map_err(|e| {
+                    tag::Error::Inner(collections::fixed::Error::Collection(
+                        collections::Error::Element(Error::Value(e)),
+                    ))
+                })?,
+            ),
             102 => {
                 let mut visitor = d.array_visitor().map_err(|e| {
                     tag::Error::Inner(collections::fixed::Error::Collection(
@@ -61,7 +72,7 @@ impl Decode<'_> for Construct {
             }
         };
 
-        return Self { tag, value };
+        Ok(Self { tag, value })
     }
 }
 

@@ -1063,6 +1063,7 @@ dependencies = [
  "cbor-util",
  "const-hex",
  "ed25519-dalek",
+ "embedded-io",
  "k256",
  "libtest2-mimic",
  "log",
@@ -1106,6 +1107,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rand_xorshift",
+ "regex-syntax",
  "unarray",
 ]
 
@@ -1493,18 +1495,18 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79fb6433a7baf94b24f770aca672dacac760e94741483ec3a572cc4037e36359"
+checksum = "bf726f6fd8334a8dd7efc4ee655183f681313aedb3272d926954ac77ffd95bf4"
 dependencies = [
  "embedded-io",
 ]
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "390bfdcbacc3adb80d218c203c8ca6dcd3ca7d154d231c3d91578eae2596c957"
+checksum = "93833fb3f6cacf6b00f5a7cb04ff3a2d8ef80007a7d2379cf725dffb8cf2c96c"
 dependencies = [
  "heck",
  "proc-macro2",
