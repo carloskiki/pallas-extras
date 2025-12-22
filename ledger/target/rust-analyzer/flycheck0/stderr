@@ -1,0 +1,306 @@
+   0.087069458s  INFO prepare_target{force=false package_id=bip39 v0.1.0 (/Users/charles/Code/pallas-extras/bip39) target="bip39"}: cargo::core::compiler::fingerprint: fingerprint error for bip39 v0.1.0 (/Users/charles/Code/pallas-extras/bip39)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("bip39", ["lib"], "/Users/charles/Code/pallas-extras/bip39/src/lib.rs", Edition2024) }
+   0.087080208s  INFO prepare_target{force=false package_id=bip39 v0.1.0 (/Users/charles/Code/pallas-extras/bip39) target="bip39"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/bip39-727ad73d6f8c4f5d/test-lib-bip39`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.092888542s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.092894083s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-9d39087035feb1c1/lib-ledger`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.094527833s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.094531167s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-ed5d8c4d42d624d6/test-lib-ledger`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.095090458s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
+   0.095094375s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-cbf1e8adc93a09b4/test-integration-test-cbor_len`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.095404083s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
+   0.095407083s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-4e3a0082297884b3/test-integration-test-codec`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.096803917s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="network"}: cargo::core::compiler::fingerprint: fingerprint error for network v0.1.0 (/Users/charles/Code/pallas-extras/network)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("network", ["lib"], "/Users/charles/Code/pallas-extras/network/src/lib.rs", Edition2024) }
+   0.096807167s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="network"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/network-136f912ce3821f51/lib-network`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.097977375s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="network"}: cargo::core::compiler::fingerprint: fingerprint error for network v0.1.0 (/Users/charles/Code/pallas-extras/network)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("network", ["lib"], "/Users/charles/Code/pallas-extras/network/src/lib.rs", Edition2024) }
+   0.097980500s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="network"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/network-00690896746d0ac6/test-lib-network`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.098149208s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="duplex"}: cargo::core::compiler::fingerprint: fingerprint error for network v0.1.0 (/Users/charles/Code/pallas-extras/network)/Check { test: true }/TargetInner { kind: "test", name: "duplex", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/network/tests/duplex.rs", Edition2024) }
+   0.098152167s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="duplex"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/network-049d992fab08d966/test-integration-test-duplex`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.098326625s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="mux"}: cargo::core::compiler::fingerprint: fingerprint error for network v0.1.0 (/Users/charles/Code/pallas-extras/network)/Check { test: true }/TargetInner { kind: "test", name: "mux", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/network/tests/mux.rs", Edition2024) }
+   0.098329458s  INFO prepare_target{force=false package_id=network v0.1.0 (/Users/charles/Code/pallas-extras/network) target="mux"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/network-2807efe22b091d74/test-integration-test-mux`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.100489167s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="ponk"}: cargo::core::compiler::fingerprint: fingerprint error for ponk v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: false }/TargetInner { name: "ponk", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.100492125s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="ponk"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ponk-601357e64b01d955/bin-ponk`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.102925958s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="ponk"}: cargo::core::compiler::fingerprint: fingerprint error for ponk v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: true }/TargetInner { name: "ponk", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.102931167s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="ponk"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ponk-60373655d2d7ae93/test-bin-ponk`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.103189125s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="comparison"}: cargo::core::compiler::fingerprint: fingerprint error for ponk v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: true }/TargetInner { kind: "bench", name: "comparison", tested: false, harness: false, ..: with_path("/Users/charles/Code/pallas-extras/benches/comparison.rs", Edition2024) }
+   0.103191875s  INFO prepare_target{force=false package_id=ponk v0.1.0 (/Users/charles/Code/pallas-extras) target="comparison"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ponk-a6fe12c28c305053/test-bench-comparison`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+    Checking ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)
+    Checking bip39 v0.1.0 (/Users/charles/Code/pallas-extras/bip39)
+error: could not compile `bip39` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `ledger` (lib) due to 136 previous errors; 2 warnings emitted
+error: could not compile `ledger` (lib test) due to 136 previous errors; 2 warnings emitted

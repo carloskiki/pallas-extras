@@ -42,13 +42,3 @@ pub struct Proposal {
     #[n(3)]
     pub anchor: Anchor,
 }
-
-pub(crate) fn dbg_d<'a, C,T: Decode<'a, C> + Debug>(
-    d: &mut minicbor::Decoder<'a>,
-    ctx: &mut C,
-) -> Result<T, minicbor::decode::Error> {
-    dbg!("pre dbg");
-    let value = d.decode_with(ctx)?;
-    dbg!(&value);
-    Ok(value)
-}

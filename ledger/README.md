@@ -15,3 +15,17 @@ This crate contains the ledger data types and the logic for encoding and decodin
 - We only support encoding into the latest era. Currently, this means that all types encode to the Babbage era.
 - A single type is used to represent equivalent types across eras. For example, the `Block` can be decoded from
     any supported era, but it is encoded as a Babbage era block.
+
+## Attributes
+
+- which lifetimes are borrowed.
+- transparent newtypes
+
+- structs array/map encoding (array by default)
+- must specify index for map codec.
+- optional entries for map codec.
+
+- flat/index-only enums (flat by default)
+
+- Adding arbitrary bounds
+- "with" types
