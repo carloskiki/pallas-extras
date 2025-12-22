@@ -15,7 +15,6 @@ sha3 = { workspace = true, features = ["alloc"] }
 blake2 = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["alloc"] }
 k256 = "0.14.0-rc.0"
-
 # Be careful updating this dependency, some unsafe code depdends on its internal details.
 # See code with `Safety:(blstrs)` comments.
 blstrs = { version = "0.8.0-pre.0", default-features = false }
@@ -29,8 +28,9 @@ thiserror = "2.0"
 log = "0.4"
 
 const-hex = { workspace = true }
-minicbor = { workspace = true }
-cbor-util = { path = "../cbor-util" }
+
+tinycbor = "0.2.1"
+tinycbor-derive = "0.2.1"
 
 [dev-dependencies]
 libtest2-mimic = "0.0.4"

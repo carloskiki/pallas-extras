@@ -6,6 +6,7 @@ pub mod bool_as_u8;
 pub mod signature;
 pub mod cbor_encoded;
 pub mod url;
+pub mod tinycbor;
 
 use minicbor::{decode::{BytesIter, StrIter}, Decoder};
 

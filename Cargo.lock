@@ -235,6 +235,7 @@ dependencies = [
  "minicbor",
  "rand",
  "signature",
+ "tinycbor",
 ]
 
 [[package]]
@@ -566,6 +567,12 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "embedded-io"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
 
 [[package]]
 name = "ff"
@@ -1049,20 +1056,20 @@ dependencies = [
  "blake2",
  "blst",
  "blstrs",
- "cbor-util",
  "const-hex",
  "ed25519-dalek",
  "k256",
  "libtest2-mimic",
  "log",
  "macro_rules_attribute",
- "minicbor",
  "ripemd",
  "rug",
  "sha2",
  "sha3",
  "strum",
  "thiserror",
+ "tinycbor",
+ "tinycbor-derive",
 ]
 
 [[package]]
@@ -1477,6 +1484,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d050e60b33d41c19108b32cea32164033a9013fe3b46cbd4457559bfbf77afaa"
 dependencies = [
  "num_cpus",
+]
+
+[[package]]
+name = "tinycbor"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b27f2702f6da9bf5b499d044fcfcf275a14d453e801cac0c6e794e41551ae635"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
+name = "tinycbor-derive"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef334ec7fdb7b5e20b50a02f94c4eb1d9d497bc0befb233c308b4db333ed35e6"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+ "tinycbor",
 ]
 
 [[package]]

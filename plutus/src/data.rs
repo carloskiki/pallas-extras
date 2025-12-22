@@ -1,12 +1,14 @@
 //! Implementation of the `Data` constant used by plutus.
 
-use std::{cmp::Ordering, str::FromStr};
+use std::{cmp::Ordering, convert::Infallible, str::FromStr};
 
-use minicbor::{CborLen, Decode, Encode};
 use rug::{Complete, integer::IntegerExt64};
+use tinycbor::{
+    CborLen, Decode, Decoder, Encode, Encoder, EndOfInput, InvalidHeader, Write, collections, primitive, tag
+};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::lex;
-
 
 /// The `Data` constant used by plutus.
 // TODO: move this to the ledger, as more and more types from the ledger are being used here, so
@@ -26,23 +28,15 @@ impl Default for Data {
     }
 }
 
-impl<C> Encode<C> for Data {
-    fn encode<W: minicbor::encode::Write>(
+impl Encode for Data {
+    fn encode<W: Write>(
         &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+        e: &mut Encoder<W>,
+    ) -> Result<(), W::Error> {
         match self {
-            Data::Map(items) => cbor_util::list_as_map::encode(items, e, ctx),
-            Data::List(data) if data.is_empty() => e.encode(data)?.ok(),
-            Data::List(data) => {
-                e.begin_array()?;
-                for item in data {
-                    e.encode(item)?;
-                }
-                e.end()?.ok()
-            }
-            Data::Bytes(bytes) => cbor_util::bounded_bytes::encode(bytes, e, ctx),
+            Data::Map(items) => items.encode(e)?,
+            Data::List(items) => items.encode(e)?,
+            Data::Bytes(bytes) => cbor_u
             Data::Integer(big_int) if big_int.as_limbs().len() < 2 => e
                 .encode(
                     minicbor::data::Int::try_from(
@@ -234,89 +228,45 @@ fn data_list(s: &str) -> Option<(Vec<Data>, &str)> {
     Some((items, rest))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Encode, CborLen)]
+#[cbor(tag(102))]
 pub struct Construct {
     pub tag: u64,
     pub value: Vec<Data>,
 }
 
-impl<C> Encode<C> for Construct {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        if self.tag <= 6 {
-            e.tag(minicbor::data::Tag::new(self.tag + 121))?;
-        } else if self.tag <= 127 {
-            e.tag(minicbor::data::Tag::new(self.tag + 1280 - 7))?;
-        } else {
-            e.tag(minicbor::data::Tag::new(102))?
-                .array(2)?
-                .u64(self.tag)?;
+impl Decode<'_> for Construct {
+    type Error = tag::Error<ConstructError>;
+
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+        struct Inner {
+            tag: Option<u64>,
+            value: Vec<Data>,
         }
-        if self.value.is_empty() {
-            e.encode(&self.value)?; // encode empty array
-        } else {
-            e.begin_array()?;
-            for item in &self.value {
-                e.encode(item)?;
+        impl Decode<'_> for Inner {
+            type Error = ConstructError;
+
+            fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+                todo!()
             }
-            e.end()?;
         }
-        Ok(())
+
+        let tag::Dynamic {
+            tag,
+            value: Inner {
+                tag: inner_tag,
+                value,
+            },
+        } = Decode::decode(d).map_err(|e| todo!())?;
+
+        todo!()
     }
 }
 
-impl<C> Decode<'_, C> for Construct {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let tag = d.tag()?.as_u64();
-        match tag {
-            102 => {
-                #[derive(Decode)]
-                struct Inner {
-                    #[n(0)]
-                    tag: u64,
-                    #[cbor(n(1))]
-                    value: Vec<Data>,
-                }
+struct Error;
 
-                let Inner { tag, value } = d.decode()?;
-                Ok(Self { tag, value })
-            }
-
-            121..=127 => Ok(Construct {
-                tag: tag - 121,
-                value: d.decode_with(ctx)?,
-            }),
-            1280..=1400 => Ok(Construct {
-                tag: tag - 1280 + 7,
-                value: d.decode_with(ctx)?,
-            }),
-            t => Err(
-                minicbor::decode::Error::tag_mismatch(minicbor::data::Tag::new(t)).at(d.position()),
-            ),
-        }
-    }
-}
-
-impl<C> CborLen<C> for Construct {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        (if self.tag <= 6 {
-            minicbor::data::Tag::new(self.tag + 121).cbor_len(ctx)
-        } else if self.tag <= 127 {
-            minicbor::data::Tag::new(self.tag + 1280 - 7).cbor_len(ctx)
-        } else {
-            1 + self.tag.cbor_len(ctx) + minicbor::data::Tag::new(102).cbor_len(ctx)
-        }) + if self.value.is_empty() {
-            1
-        } else {
-            2 // indefinite array overhead, 1 for starting, 1 for ending
-            + self
-                .value
-                .iter()
-                .map(|item| item.cbor_len(ctx))
-                .sum::<usize>()
-        }
-    }
+enum ConstructError {
+    Array(collections::fixed::Error<Infallible>),
+    NestedTag(primitive::Error),
+    Value(collections::Error<Error>),
 }

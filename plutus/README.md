@@ -6,12 +6,6 @@ limit the set of builtins/primitives/terms to a specific version.
 
 - [github pages doc](https://www.reddit.com/r/rust/comments/195ao81/publishing_documentation_as_github_page/)
 
-## BigInt
-
-- malachite: brings in a stupid amount of dependencies for nothing
-- num-bigint: allegedly slow, but widely used and maintained.
-- rug: looks good
-
 ## Fixed point arithmetic
 
 - bigdecimal: uses arbitrarily large ints :/
