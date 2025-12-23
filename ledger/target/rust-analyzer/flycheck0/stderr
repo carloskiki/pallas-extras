@@ -1,0 +1,104 @@
+   0.044170625s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.044181917s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-4cb7cba78aae32f8/lib-ledger`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.047323250s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.047328042s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-71f650a0639f86bf/test-lib-ledger`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.047807875s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
+   0.047811084s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-e241ef6ee4392518/test-integration-test-cbor_len`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.048121667s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
+   0.048124000s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-c4fcbc5ca8179557/test-integration-test-codec`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+    Checking ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)
+error: could not compile `ledger` (lib) due to 196 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `ledger` (lib test) due to 196 previous errors

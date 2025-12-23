@@ -206,8 +206,10 @@ mod tests {
     use super::*;
 
     const TEST_VECTORS: [&str; 3] = [
+        // From https://cardano-foundation.github.io/cardano-wallet/design/concepts/byron-address-format.html
         "37btjrVyb4KDXBNC4haBVPCrro8AQPHwvCMp3RFhhSVWwfFmZ6wwzSK6JK1hY6wHNmtrpTf1kdbva8TCneM2YsiXT7mrzT21EacHnPpz5YyUdj64na",
         "Ae2tdPwUPEZLs4HtbuNey7tK4hTKrwNwYtGqp7bDfCy2WdR3P6735W5Yfpe",
+        // From https://github.com/txpipe/pallas/blob/main/pallas-addresses/src/byron.rs
         "DdzFFzCqrht7PQiAhzrn6rNNoADJieTWBt8KeK9BZdUsGyX9ooYD9NpMCTGjQoUKcHN47g8JMXhvKogsGpQHtiQ65fZwiypjrC6d3a4Q",
     ];
 
