@@ -166,24 +166,6 @@ mod cbor_no_tag {
     }
 }
 
-#[derive(Debug)]
-pub enum FromBase58Error {
-    Base58(bs58::decode::Error),
-    Decode(minicbor::decode::Error),
-}
-
-impl From<bs58::decode::Error> for FromBase58Error {
-    fn from(e: bs58::decode::Error) -> Self {
-        FromBase58Error::Base58(e)
-    }
-}
-
-impl From<minicbor::decode::Error> for FromBase58Error {
-    fn from(e: minicbor::decode::Error) -> Self {
-        FromBase58Error::Decode(e)
-    }
-}
-
 fn fill_bytes<C>(
     d: &mut minicbor::Decoder<'_>,
     _: &mut C,

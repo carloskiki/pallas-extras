@@ -4,14 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-minicbor = { version = "2.1", features = ["full"] }
 zerocopy = { workspace = true }
 
 curve25519-dalek = { workspace = true }
 digest = { workspace = true }
 sha2 = { workspace = true }
 hmac = "0.13.0-rc.3"
-pbkdf2 = "0.13.0-rc.2"
+pbkdf2 = "0.13.0-rc.5"
 
 [dev-dependencies]
 curve25519-dalek = { workspace = true }

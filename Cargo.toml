@@ -27,19 +27,19 @@ rand = "0.9"
 rug = { version = "1.28.0", default-features = false, features = ["integer", "std"] }
 
 # Crypto Traits
-signature = { version = "=3.0.0-rc.4", default-features = false }
-digest = { version = "0.11.0-rc.4", default-features = false }
+signature = { version = "3.0.0-rc.6", default-features = false }
+digest = { version = "0.11.0-rc.5", default-features = false }
  
 # Hashing
 blake2 = { version = "0.11.0-rc.3", default-features = false }
 sha2 = { version = "0.11.0-rc.3", default-features = false }
 sha3 = { version = "0.11.0-rc.3", default-features = false }
 
-ed25519-dalek = { version = "3.0.0-pre.1", default-features = false }
-curve25519-dalek = { version = "5.0.0-pre.1", default-features = false }
+ed25519-dalek = { version = "3.0.0-pre.3", default-features = false }
+curve25519-dalek = { version = "5.0.0-pre.3", default-features = false }
 
-tinycbor = "0.2.3"
-tinycbor-derive = "0.2.3"
+tinycbor = "0.4.1"
+tinycbor-derive = "0.4.0"
 
 [package]
 name = "pallas-extras"

@@ -1,5 +1,5 @@
-   0.044170625s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
-   0.044181917s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-4cb7cba78aae32f8/lib-ledger`
+   0.043968791s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.043980583s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-4cb7cba78aae32f8/lib-ledger`
 
 Caused by:
     No such file or directory (os error 2)
@@ -23,8 +23,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.047323250s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
-   0.047328042s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-71f650a0639f86bf/test-lib-ledger`
+   0.047179375s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.047186291s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-71f650a0639f86bf/test-lib-ledger`
 
 Caused by:
     No such file or directory (os error 2)
@@ -48,8 +48,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.047807875s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
-   0.047811084s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-e241ef6ee4392518/test-integration-test-cbor_len`
+   0.047657125s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
+   0.047660958s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-e241ef6ee4392518/test-integration-test-cbor_len`
 
 Caused by:
     No such file or directory (os error 2)
@@ -73,8 +73,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.048121667s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
-   0.048124000s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-c4fcbc5ca8179557/test-integration-test-codec`
+   0.047966666s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
+   0.047969125s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-c4fcbc5ca8179557/test-integration-test-codec`
 
 Caused by:
     No such file or directory (os error 2)

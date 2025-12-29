@@ -3,6 +3,7 @@ use rug::Complete;
 use tinycbor::*;
 
 pub mod bounded_bytes;
+pub use crate::tinycbor::bounded_bytes::BoundedBytes;
 
 macro_rules! wrapper {
     ($vis:vis struct $name:ident(pub $inner:ty);) => {
@@ -25,8 +26,6 @@ macro_rules! wrapper {
     };
 }
 use wrapper;
-
-pub use crate::tinycbor::bounded_bytes::BoundedBytes;
 
 #[apply(wrapper)]
 pub struct BigInt(pub rug::Integer);

@@ -1,6 +1,5 @@
-use curve25519_dalek::{edwards::EdwardsPoint, Scalar, edwards::CompressedEdwardsY, scalar::clamp_integer};
-use minicbor::{
-    decode, encode::{self, Write}, CborLen, Decode, Decoder, Encode, Encoder
+use curve25519_dalek::{
+    Scalar, edwards::CompressedEdwardsY, edwards::EdwardsPoint, scalar::clamp_integer,
 };
 use hmac::Hmac;
 use pbkdf2::pbkdf2_hmac;
@@ -36,14 +35,14 @@ impl SoftIndex {
 }
 
 pub struct ExtendedSecretKey {
-    // Invariant: Must be a valid scalar (clamped).
+    // Invariant: Must be a valid scalar (clamped by maybe unreduced).
     key: [u8; 32],
     pub hash_prefix: [u8; 32],
     pub chain_code: [u8; 32],
 }
 
 impl ExtendedSecretKey {
-    /// Generate an [`ExtendedSecretKey`] from [`Entropy`] and a password.
+    /// Generate an [`ExtendedSecretKey`] from entropy and a password.
     ///
     /// This uses the Icarus method to generate the key, which is the method recommended by
     /// [CIP3](https://github.com/cardano-foundation/CIPs/tree/master/CIP-0003).
@@ -141,7 +140,7 @@ impl ExtendedSecretKey {
     }
 
     pub fn verifying_key(&self) -> ExtendedVerifyingKey {
-        let key = EdwardsPoint::mul_base_clamped(self.key).compress();
+        let key = EdwardsPoint::mul_base_clamped(self.key);
         ExtendedVerifyingKey {
             key,
             chain_code: self.chain_code,
@@ -149,32 +148,33 @@ impl ExtendedSecretKey {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExtendedVerifyingKey {
     // Invariant: Must be a valid EdwardsPoint
-    key: CompressedEdwardsY,
+    pub key: EdwardsPoint,
     pub chain_code: [u8; 32],
 }
 
 impl ExtendedVerifyingKey {
-    pub fn new(key: [u8; 32], chain_code: [u8; 32]) -> Option<Self> {
+    pub fn new(key: [u8; 32], chain_code: [u8; 32]) -> Result<Self, InvalidKey> {
         let key = CompressedEdwardsY(key);
-        key.decompress()?;
-        Some(Self { key, chain_code })
+        let key = key.decompress().ok_or(InvalidKey)?;
+        Ok(Self { key, chain_code })
     }
-    
+
     pub fn derive_child(&self, index: SoftIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
         let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
+        let CompressedEdwardsY(compressed_key) = self.key.compress();
 
         key_hmac.update(&[2u8]);
-        key_hmac.update(&self.key.0);
+        key_hmac.update(&compressed_key);
         key_hmac.update(&index.0.to_le_bytes());
         chain_code_hmac.update(&[3u8]);
-        chain_code_hmac.update(&self.key.0);
+        chain_code_hmac.update(&compressed_key);
         chain_code_hmac.update(&index.0.to_le_bytes());
 
         let z: [u8; 64] = key_hmac.finalize_fixed().into();
@@ -190,60 +190,30 @@ impl ExtendedVerifyingKey {
             *elem = 0;
         });
 
-        let child_key = self.key.decompress().expect("public key should be valid")
-            + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
+        let child_key = self.key + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
         let chain_code_hash: [u8; 64] = chain_code_hmac.finalize_fixed().into();
         let [_, child_chain_code]: [[u8; 32]; 2] = transmute!(chain_code_hash);
 
         Self {
-            key: child_key.compress(),
+            key: child_key,
             chain_code: child_chain_code,
         }
     }
+}
 
-    pub fn point(&self) -> curve25519_dalek::EdwardsPoint {
-        self.key.decompress().expect("public key should be valid")
-    }
+/// The key does not represent a valid secret key.
+///
+/// A valid secret key must be a clamped scalar, see [`curve25519_dalek::scalar::clamp_integer`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InvalidKey;
 
-    pub fn key_bytes(&self) -> &[u8; 32] {
-        &self.key.0
+impl core::fmt::Display for InvalidKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid key")
     }
 }
 
-impl<C> Encode<C> for ExtendedVerifyingKey {
-    fn encode<W: Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        e.bytes_len(64)?;
-        let writer = e.writer_mut();
-        writer
-            .write_all(&self.key.0)
-            .map_err(encode::Error::write)?;
-        writer
-            .write_all(&self.chain_code)
-            .map_err(encode::Error::write)?;
-        Ok(())
-    }
-}
-
-impl<C> Decode<'_, C> for ExtendedVerifyingKey {
-    fn decode(d: &mut Decoder<'_>, _: &mut C) -> Result<Self, decode::Error> {
-        let bytes: [u8; 64] = d.bytes()?.try_into().map_err(decode::Error::custom)?;
-        let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
-        Ok(ExtendedVerifyingKey {
-            key: CompressedEdwardsY(key),
-            chain_code,
-        })
-    }
-}
-
-impl<C> CborLen<C> for ExtendedVerifyingKey {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        64.cbor_len(ctx) + 64
-    }
-}
+impl std::error::Error for InvalidKey {}
 
 #[cfg(test)]
 mod tests {
@@ -324,7 +294,10 @@ mod tests {
             let ref_pub = reference.public();
 
             assert_eq!(&impl_pub.chain_code, ref_pub.chain_code());
-            assert_eq!(&impl_pub.key.0, ref_pub.public_key_bytes());
+            assert_eq!(
+                impl_pub.key.compress().as_bytes(),
+                ref_pub.public_key_bytes()
+            );
 
             for _ in 0..5 {
                 let index = random::<u32>() >> 1;
@@ -335,7 +308,10 @@ mod tests {
                     .unwrap();
 
                 assert_eq!(&impl_child.chain_code, ref_child.chain_code());
-                assert_eq!(impl_child.key.as_bytes(), ref_child.public_key_bytes());
+                assert_eq!(
+                    impl_child.key.compress().as_bytes(),
+                    ref_child.public_key_bytes()
+                );
             }
         }
     }
