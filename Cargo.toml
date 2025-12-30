@@ -46,9 +46,4 @@ name = "pallas-extras"
 version = "0.1.0"
 edition = "2024"
 
-[patch.crates-io]
-# Be careful updating this dependency, some unsafe code depdends on its internal details.
-# See code with `Safety:(blstrs)` comments.
-blstrs = {  git = "https://github.com/carloskiki/blstrs" }
-
 [dependencies]

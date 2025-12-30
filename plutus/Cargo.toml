@@ -13,15 +13,11 @@ rug = { workspace = true }
 sha2 = { workspace = true, features = ["alloc"] }
 sha3 = { workspace = true, features = ["alloc"] }
 blake2 = { workspace = true }
-ed25519-dalek = { workspace = true, features = ["alloc"] }
 k256 = "0.14.0-rc.2"
-
-# Be careful updating this dependency, some unsafe code depdends on its internal details.
-# See code with `Safety:(blstrs)` comments.
-blstrs = { version = "0.8.0-pre.0", default-features = false }
-# TODO: Fix the mess with blst importing `threadpool`.
-blst = { version = "0.3" }
 ripemd = "0.2.0-rc.3"
+
+bwst = { git = "https://github.com/carloskiki/bwst.git", tag = "v0.1.5", features = ["alloc"] }
+ed25519-dalek = { workspace = true, features = ["alloc"] }
 
 strum = { version = "0.27.2", features = ["derive"] }
 macro_rules_attribute = { workspace = true }

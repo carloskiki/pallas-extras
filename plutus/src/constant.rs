@@ -6,6 +6,8 @@
 
 use std::str::FromStr;
 
+use bwst::{g1, g2, group::GroupEncoding};
+
 use crate::{
     data::{self, Data},
     lex,
@@ -153,11 +155,11 @@ pub enum Constant {
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Data(Data),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    BLSG1Element(Box<blstrs::G1Projective>),
+    BLSG1Element(Box<g1::Projective>),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    BLSG2Element(Box<blstrs::G2Projective>),
+    BLSG2Element(Box<g2::Projective>),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    MillerLoopResult(Box<blstrs::MillerLoopResult>),
+    MillerLoopResult(Box<bwst::miller_loop::Result>),
 }
 
 impl Constant {
@@ -327,12 +329,11 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
                 .ok_or(ParseError::BLSG1Element)?;
             let bytes = const_hex::decode(hex).map_err(|_| ParseError::BLSG1Element)?;
             Constant::BLSG1Element(Box::new(
-                blstrs::G1Affine::from_compressed(
-                    &bytes.try_into().map_err(|_| ParseError::BLSG1Element)?,
-                )
+                g1::Projective::from_bytes(&g1::Compressed(
+                    bytes.try_into().map_err(|_| ParseError::BLSG1Element)?,
+                ))
                 .into_option()
                 .ok_or(ParseError::BLSG1Element)?
-                .into(),
             ))
         }
         "bls12_381_G2_element" => {
@@ -341,12 +342,11 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
                 .ok_or(ParseError::BLSG2Element)?;
             let bytes = const_hex::decode(hex).map_err(|_| ParseError::BLSG2Element)?;
             Constant::BLSG2Element(Box::new(
-                blstrs::G2Affine::from_compressed(
-                    &bytes.try_into().map_err(|_| ParseError::BLSG2Element)?,
-                )
+                g2::Projective::from_bytes(&g2::Compressed(
+                    bytes.try_into().map_err(|_| ParseError::BLSG2Element)?,
+                ))
                 .into_option()
                 .ok_or(ParseError::BLSG2Element)?
-                .into(),
             ))
         }
         "list" | "array" => {
@@ -389,8 +389,10 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
             let (konst_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(ParseError::Pair)?;
             konst_rest = rest;
             let (first, rest) = from_split(first_ty, konst_str)?;
-            let (second, rest) =
-                from_split(second_ty, rest.strip_prefix(',').ok_or(ParseError::Pair)?.trim_start())?;
+            let (second, rest) = from_split(
+                second_ty,
+                rest.strip_prefix(',').ok_or(ParseError::Pair)?.trim_start(),
+            )?;
             if !rest.is_empty() {
                 return Err(ParseError::Pair);
             }
@@ -466,20 +468,20 @@ impl From<Data> for Constant {
     }
 }
 
-impl From<blstrs::G1Projective> for Constant {
-    fn from(value: blstrs::G1Projective) -> Self {
+impl From<g1::Projective> for Constant {
+    fn from(value: g1::Projective) -> Self {
         Constant::BLSG1Element(Box::new(value))
     }
 }
 
-impl From<blstrs::G2Projective> for Constant {
-    fn from(value: blstrs::G2Projective) -> Self {
+impl From<g2::Projective> for Constant {
+    fn from(value: g2::Projective) -> Self {
         Constant::BLSG2Element(Box::new(value))
     }
 }
 
-impl From<blstrs::MillerLoopResult> for Constant {
-    fn from(value: blstrs::MillerLoopResult) -> Self {
+impl From<bwst::miller_loop::Result> for Constant {
+    fn from(value: bwst::miller_loop::Result) -> Self {
         Constant::MillerLoopResult(Box::new(value))
     }
 }
@@ -595,7 +597,7 @@ impl TryFrom<Constant> for Data {
     }
 }
 
-impl TryFrom<Constant> for blstrs::G1Projective {
+impl TryFrom<Constant> for g1::Projective {
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {
@@ -607,7 +609,7 @@ impl TryFrom<Constant> for blstrs::G1Projective {
     }
 }
 
-impl TryFrom<Constant> for blstrs::G2Projective {
+impl TryFrom<Constant> for g2::Projective {
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {
@@ -619,7 +621,7 @@ impl TryFrom<Constant> for blstrs::G2Projective {
     }
 }
 
-impl TryFrom<Constant> for blstrs::MillerLoopResult {
+impl TryFrom<Constant> for bwst::miller_loop::Result {
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {
