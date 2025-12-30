@@ -14,7 +14,8 @@ sha2 = { workspace = true, features = ["alloc"] }
 sha3 = { workspace = true, features = ["alloc"] }
 blake2 = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["alloc"] }
-k256 = "0.14.0-rc.0"
+k256 = "0.14.0-rc.2"
+
 # Be careful updating this dependency, some unsafe code depdends on its internal details.
 # See code with `Safety:(blstrs)` comments.
 blstrs = { version = "0.8.0-pre.0", default-features = false }
