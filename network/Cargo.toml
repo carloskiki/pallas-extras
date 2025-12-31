@@ -1,15 +1,15 @@
 [package]
+edition = "2024"
 name = "network"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
-minicbor = { workspace = true }
 cbor-util = { workspace = true }
+minicbor = { workspace = true }
 zerocopy = { workspace = true }
 
-ledger = { path = "../ledger" }
 futures = "0.3"
+ledger = { path = "../ledger" }
 
 [[test]]
 name = "mux"

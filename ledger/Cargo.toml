@@ -1,39 +1,38 @@
 [package]
+edition = "2024"
 name = "ledger"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
-# Data types
-either = { workspace = true }
-
 # CBOR
+cbor-util = { workspace = true }
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
-cbor-util = { workspace = true }
 
 # Crypto Traits
 digest = { workspace = true }
 
+# Data types
+either = { workspace = true }
+
 # Hashing
 blake2 = { workspace = true }
-sha3 = { workspace = true }
 crc32fast = "1.4"
+sha3 = { workspace = true }
 
 # Public Key Cryptography
-kes = { path = "../kes" }
 bip32 = { path = "../bip32" }
 ed25519-dalek = { workspace = true }
-
+kes = { path = "../kes" }
 
 # Utilities
-zerocopy = { workspace = true }
 bech32 = "0.11"
+zerocopy = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1"
-const-hex = { workspace = true }
 bs58 = "0.5"
+const-hex = { workspace = true }
 
 [[test]]
 name = "codec"

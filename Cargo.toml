@@ -1,32 +1,37 @@
 [workspace]
 members = [
-    "bip32",
-    "bip39",
-    "cbor-util",
-    "database",
-    "kes",
-    "ledger",
-    #     "network",
-    #     "vrf",
-    #     "ledger/minicbor-derive",
-    #     "ledger/sparse-struct",
-    "plutus",
+  "bip32",
+  "bip39",
+  "cbor-util",
+  "database",
+  "kes",
+  "ledger",
+  #     "network",
+  #     "vrf",
+  #     "ledger/minicbor-derive",
+  #     "ledger/sparse-struct",
+  "plutus",
 ]
 
 # TODO: Figure out features to enable for each dep.
 [workspace.dependencies]
 
-# Data types
-either = "1.15"
-rug = { version = "1.28.0", default-features = false, features = [
-    "integer",
-    "std",
-] }
-mitsein = "0.8"
+# CBOR
+cbor-util = { path = "cbor-util" }
+tinycbor = "0.5.1"
+tinycbor-derive = "0.5.2"
 
 # Crypto Traits
-signature = { version = "3.0.0-rc.6", default-features = false }
 digest = { version = "0.11.0-rc.5", default-features = false }
+signature = { version = "3.0.0-rc.6", default-features = false }
+
+# Data types
+either = "1.15"
+mitsein = "0.8"
+rug = { version = "1.28.0", default-features = false, features = [
+  "integer",
+  "std",
+] }
 
 # Hashing
 blake2 = { version = "0.11.0-rc.3", default-features = false }
@@ -34,25 +39,20 @@ sha2 = { version = "0.11.0-rc.3", default-features = false }
 sha3 = { version = "0.11.0-rc.3", default-features = false }
 
 # Public Key Cryptography
-ed25519-dalek = { version = "3.0.0-pre.3", default-features = false }
 curve25519-dalek = { version = "5.0.0-pre.3", default-features = false }
-
-# CBOR
-tinycbor = "0.5.1"
-tinycbor-derive = "0.5.2"
-cbor-util = { path = "cbor-util" }
+ed25519-dalek = { version = "3.0.0-pre.3", default-features = false }
 
 # Utilities
-macro_rules_attribute = "0.2.2"
-thiserror = "2.0"
-ref-cast = "1.0"
-zerocopy = "0.8"
-rand = "0.9"
 const-hex = { version = "1" }
+macro_rules_attribute = "0.2.2"
+rand = "0.9"
+ref-cast = "1.0"
+thiserror = "2.0"
+zerocopy = "0.8"
 
 [package]
+edition = "2024"
 name = "pallas-extras"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]

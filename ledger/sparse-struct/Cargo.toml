@@ -1,7 +1,7 @@
 [package]
+edition = "2024"
 name = "sparse-struct"
 version = "0.1.0"
-edition = "2024"
 
 [lib]
 proc-macro = true
@@ -14,7 +14,7 @@ path = "tests/ui.rs"
 trybuild = { version = "1.0.110", features = ["diff"] }
 
 [dependencies]
-proc-macro2 = "1.0.95"
-syn = "2.0.104"
-quote = "1.0.40"
 heck = "0.5.0"
+proc-macro2 = "1.0.95"
+quote = "1.0.40"
+syn = "2.0.104"

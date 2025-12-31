@@ -1,13 +1,13 @@
 [package]
+edition = "2024"
 name = "kes"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
-signature = { workspace = true, features = ["alloc"] }
 blake2 = { workspace = true }
 digest = { workspace = true }
 either = { workspace = true }
+signature = { workspace = true, features = ["alloc"] }
 
 ref-cast = { workspace = true }
 
