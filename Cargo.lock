@@ -198,7 +198,7 @@ checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
 [[package]]
 name = "bwst"
 version = "0.1.0"
-source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.5#4d7db5abc04915848f7f87ea1c1ae812deb38b31"
+source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.6#ff295b1cd55ea247c97a2fe5e5a5772f40654f33"
 dependencies = [
  "bindgen",
  "cc",
@@ -783,8 +783,6 @@ dependencies = [
  "ed25519-dalek",
  "either",
  "kes",
- "minicbor",
- "plutus",
  "sha3",
  "tinycbor",
  "tinycbor-derive",
@@ -1487,18 +1485,18 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28ca7f1c0fe467881e98f8335b5ad833877109395632f33c0a5c978537b8eb96"
+checksum = "b9a788772e7fb5bf48bd78fa7ac80c5579b304cb08bd69575109971416c43109"
 dependencies = [
  "embedded-io",
 ]
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.4.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b880a84c4965f6b47be39d841bac69358110953c5f9b500d9d1920298e42c3a"
+checksum = "c230c81539908ce692561b0c1446512b8046106fcd04c4b0632fcf6e1b03751e"
 dependencies = [
  "heck",
  "proc-macro2",

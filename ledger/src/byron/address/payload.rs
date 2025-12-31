@@ -40,7 +40,7 @@ impl Payload {
         let root_digest: Blake2b224Digest = Blake2b224::digest(Sha3_256::digest(&encoder.0)).into();
         Payload {
             root_digest,
-            attributes,
+            attributes: root.attributes,
             address_type,
         }
     }

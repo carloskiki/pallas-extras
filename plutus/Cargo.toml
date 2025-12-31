@@ -16,7 +16,7 @@ blake2 = { workspace = true }
 k256 = "0.14.0-rc.2"
 ripemd = "0.2.0-rc.3"
 
-bwst = { git = "https://github.com/carloskiki/bwst.git", tag = "v0.1.5", features = ["alloc"] }
+bwst = { git = "https://github.com/carloskiki/bwst.git", tag = "v0.1.6", features = ["alloc"] }
 ed25519-dalek = { workspace = true, features = ["alloc"] }
 
 strum = { version = "0.27.2", features = ["derive"] }

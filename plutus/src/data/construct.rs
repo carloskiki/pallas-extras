@@ -13,6 +13,12 @@ impl Decode<'_> for Construct {
     type Error = tag::Error<collections::fixed::Error<Error>>;
 
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+        fn wrap(e: Error) -> tag::Error<collections::fixed::Error<Error>> {
+            tag::Error::Inner(collections::fixed::Error::Collection(
+                collections::Error::Element(e),
+            ))
+        }
+
         let tag = match d
             .next()
             .ok_or(tag::Error::Malformed(primitive::Error::EndOfInput(
@@ -29,19 +35,11 @@ impl Decode<'_> for Construct {
         let (tag, value) = match tag {
             121..=127 => (
                 tag - 121,
-                <Vec<Data>>::decode(d).map_err(|e| {
-                    tag::Error::Inner(collections::fixed::Error::Collection(
-                        collections::Error::Element(Error::Value(e)),
-                    ))
-                })?,
+                <Vec<Data>>::decode(d).map_err(|e| wrap(Error::Value(e)))?,
             ),
             1280..=1400 => (
                 tag - 1280 + 7,
-                Decode::decode(d).map_err(|e| {
-                    tag::Error::Inner(collections::fixed::Error::Collection(
-                        collections::Error::Element(Error::Value(e)),
-                    ))
-                })?,
+                Decode::decode(d).map_err(|e| wrap(Error::Value(e)))?,
             ),
             102 => {
                 let mut visitor = d.array_visitor().map_err(|e| {
@@ -52,19 +50,11 @@ impl Decode<'_> for Construct {
                 let tag: u64 = visitor
                     .visit()
                     .ok_or(tag::Error::Inner(collections::fixed::Error::Missing))?
-                    .map_err(|e| {
-                        tag::Error::Inner(collections::fixed::Error::Collection(
-                            collections::Error::Element(Error::from(e)),
-                        ))
-                    })?;
+                    .map_err(|e| wrap(Error::from(e)))?;
                 let value: Vec<Data> = visitor
                     .visit()
                     .ok_or(tag::Error::Inner(collections::fixed::Error::Missing))?
-                    .map_err(|e| {
-                        tag::Error::Inner(collections::fixed::Error::Collection(
-                            collections::Error::Element(Error::from(e)),
-                        ))
-                    })?;
+                    .map_err(|e| wrap(Error::from(e)))?;
                 (tag, value)
             }
             _ => {

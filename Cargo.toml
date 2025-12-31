@@ -13,33 +13,42 @@ members = [
     "plutus",
 ]
 
-# TODO: We "default-features = false" on all crates.
+# TODO: Figure out features to enable for each dep.
 [workspace.dependencies]
-const-hex = { version = "1" }
-cbor-util = { path = "cbor-util" }
 
-macro_rules_attribute = "0.2.2"
-thiserror = "2.0"
-ref-cast = "1.0"
-zerocopy = "0.8"
+# Data types
 either = "1.15"
-rand = "0.9"
-rug = { version = "1.28.0", default-features = false, features = ["integer", "std"] }
+rug = { version = "1.28.0", default-features = false, features = [
+    "integer",
+    "std",
+] }
+mitsein = "0.8"
 
 # Crypto Traits
 signature = { version = "3.0.0-rc.6", default-features = false }
 digest = { version = "0.11.0-rc.5", default-features = false }
- 
+
 # Hashing
 blake2 = { version = "0.11.0-rc.3", default-features = false }
 sha2 = { version = "0.11.0-rc.3", default-features = false }
 sha3 = { version = "0.11.0-rc.3", default-features = false }
 
+# Public Key Cryptography
 ed25519-dalek = { version = "3.0.0-pre.3", default-features = false }
 curve25519-dalek = { version = "5.0.0-pre.3", default-features = false }
 
-tinycbor = "0.4.1"
-tinycbor-derive = "0.4.0"
+# CBOR
+tinycbor = "0.5.1"
+tinycbor-derive = "0.5.2"
+cbor-util = { path = "cbor-util" }
+
+# Utilities
+macro_rules_attribute = "0.2.2"
+thiserror = "2.0"
+ref-cast = "1.0"
+zerocopy = "0.8"
+rand = "0.9"
+const-hex = { version = "1" }
 
 [package]
 name = "pallas-extras"

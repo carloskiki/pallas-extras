@@ -17,11 +17,11 @@ impl core::convert::AsRef<[u8]> for Attributes {
     }
 }
 
-impl Decode for Attributes {
+impl Decode<'_> for Attributes {
     type Error = tinycbor::string::Error;
 
-    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        if !matches(
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+        if !matches!(
             d.datatype()?,
             tinycbor::Type::Map | tinycbor::Type::MapIndef,
         ) {
@@ -30,7 +30,8 @@ impl Decode for Attributes {
             ));
         }
         
-        let bytes: &[u8] = tinycbor::Any::decode(d)?;
+        let any = tinycbor::Any::decode(d)?;
+        let bytes: &[u8] = any.as_ref();
         Ok(Attributes(bytes.to_vec()))
     }
 }

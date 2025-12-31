@@ -5,6 +5,8 @@ use tinycbor::*;
 pub mod bounded_bytes;
 pub use crate::tinycbor::bounded_bytes::BoundedBytes;
 
+pub mod non_empty;
+
 macro_rules! wrapper {
     ($vis:vis struct $name:ident(pub $inner:ty);) => {
         #[derive(ref_cast::RefCast)]

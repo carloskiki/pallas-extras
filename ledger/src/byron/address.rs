@@ -1,7 +1,5 @@
-use tinycbor::{Encoded, Encoder};
+use tinycbor::Encoded;
 use tinycbor_derive::{CborLen, Decode, Encode};
-
-use crate::crypto::Blake2b224Digest;
 
 pub mod payload;
 pub use payload::Payload;
@@ -16,7 +14,7 @@ pub mod data;
 pub use data::Data;
 
 /// Byron Era address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
     #[cbor(with = "Encoded<Payload>")]
     pub payload: Payload,
@@ -26,7 +24,7 @@ pub struct Address {
 impl Address {
     pub fn new(payload: Payload) -> Self {
         // We know this cannot error because of Vec.
-        let cbor_payload = tinycbor::to_vec(payload);
+        let cbor_payload = tinycbor::to_vec(&payload);
         let checksum = crc32fast::hash(&cbor_payload);
         Self { payload, checksum }
     }
@@ -35,8 +33,7 @@ impl Address {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bs58::{decode, encode};
-    use tinycbor::{Decode, Encode};
+    use tinycbor::{Decode, Decoder, Encode, Encoder};
 
     const TEST_VECTORS: [&str; 3] = [
         // From https://cardano-foundation.github.io/cardano-wallet/design/concepts/byron-address-format.html
@@ -50,7 +47,7 @@ mod tests {
     fn roundtrip_base58() {
         for vector in TEST_VECTORS {
             let cbor = bs58::decode(vector).into_vec().unwrap();
-            let addr = Address::decode(vector).unwrap();
+            let addr = Address::decode(&mut Decoder(&cbor)).unwrap();
             let mut encoder = Encoder(Vec::new());
             addr.encode(&mut encoder);
             let ours = bs58::encode(encoder.0).into_string();

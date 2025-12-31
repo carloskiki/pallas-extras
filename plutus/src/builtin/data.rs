@@ -127,5 +127,5 @@ pub fn mk_nil_pair(_u: ()) -> List {
 
 #[apply(builtin)]
 pub fn serialize(data: Data) -> Vec<u8> {
-    tinycbor::to_vec(data)
+    tinycbor::to_vec(&data)
 }
