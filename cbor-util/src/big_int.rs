@@ -1,33 +1,7 @@
 use macro_rules_attribute::apply;
 use rug::Complete;
-use tinycbor::*;
-
-pub mod bounded_bytes;
-pub use crate::tinycbor::bounded_bytes::BoundedBytes;
-
-pub mod non_empty;
-
-macro_rules! wrapper {
-    ($vis:vis struct $name:ident(pub $inner:ty);) => {
-        #[derive(ref_cast::RefCast)]
-        #[repr(transparent)]
-        $vis struct $name(pub $inner);
-
-        impl From<$name> for $inner {
-            fn from(wrapper: $name) -> Self {
-                wrapper.0
-            }
-        }
-
-        impl AsRef<$name> for $inner {
-            fn as_ref(&self) -> &$name {
-                use ref_cast::RefCast;
-                $name::ref_cast(&self)
-            }
-        }
-    };
-}
-use wrapper;
+use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, InvalidHeader, Type, Write, num, primitive, tag};
+use crate::{BoundedBytes, bounded_bytes, wrapper};
 
 #[apply(wrapper)]
 pub struct BigInt(pub rug::Integer);
@@ -82,7 +56,7 @@ impl Encode for BigInt {
 impl Decode<'_> for BigInt {
     type Error = Error;
 
-    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
         match d.datatype().map_err(|e| Error::Int(e.into()))? {
             Type::Int => {
                 let int = num::Int::decode(d).map_err(Error::Int)?;

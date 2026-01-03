@@ -14,6 +14,7 @@ digest = { workspace = true }
 
 # Data types
 either = { workspace = true }
+mitsein = { workspace = true }
 
 # Hashing
 blake2 = { workspace = true }
@@ -28,6 +29,7 @@ kes = { path = "../kes" }
 # Utilities
 bech32 = "0.11"
 zerocopy = { workspace = true }
+sparse-struct = { path = "sparse-struct" }
 
 [dev-dependencies]
 anyhow = "1"

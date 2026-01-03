@@ -7,6 +7,7 @@ pub type Blake2b256Digest = [u8; 32];
 
 pub type VerifyingKey = [u8; 32];
 pub type Signature = ed25519_dalek::Signature;
+pub type ExtendedVerifyingKey = bip32::ExtendedVerifyingKey;
 
 pub mod kes {
     pub type VerifyingKey = kes::sum::VerifyingKey<super::Blake2b256>;

@@ -4,14 +4,24 @@ name = "cbor-util"
 version = "0.1.0"
 
 [dependencies]
-minicbor = { version = "2.1.3", features = ["full"] }
-rug = { workspace = true }
+# CBOR
+tinycbor = { workspace = true }
+
+# Crypto Traits
 signature = { workspace = true }
 
+# Data types
+rug = { workspace = true }
+mitsein = { workspace = true }
+
+# Public Key Cryptography
+bip32 = { path = "../bip32" }
+
+# Utilities
 macro_rules_attribute = { workspace = true }
 ref-cast = { workspace = true }
 thiserror = { workspace = true }
-tinycbor = { workspace = true }
+zerocopy = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }

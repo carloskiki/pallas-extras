@@ -4,5 +4,6 @@
 //! era between and including Shelley and Babbage.
 pub mod crypto;
 pub mod slot;
+pub mod epoch;
 
 pub mod byron;

@@ -1,4 +1,4 @@
-use bip32::{ExtendedVerifyingKey, curve25519_dalek::edwards::CompressedEdwardsY};
+use bip32::curve25519_dalek::edwards::CompressedEdwardsY;
 use tinycbor::{
     CborLen, Decode, Decoder, Encode, Encoder, Write,
     collections::{self, fixed},
@@ -11,28 +11,28 @@ use crate::crypto::VerifyingKey;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, CborLen)]
 pub enum Data {
     #[n(0)]
-    PublicKey(#[cbor(with = "PublicKey")] ExtendedVerifyingKey),
+    VerifyingKey(#[cbor(with = "ExtendedVerifyingKey")] bip32::ExtendedVerifyingKey),
     #[n(1)]
     Redeem(VerifyingKey),
 }
 
 #[repr(transparent)]
-struct PublicKey(ExtendedVerifyingKey);
+struct ExtendedVerifyingKey(bip32::ExtendedVerifyingKey);
 
-impl From<PublicKey> for ExtendedVerifyingKey {
-    fn from(pk: PublicKey) -> Self {
+impl From<ExtendedVerifyingKey> for bip32::ExtendedVerifyingKey {
+    fn from(pk: ExtendedVerifyingKey) -> Self {
         pk.0
     }
 }
 
-impl From<&ExtendedVerifyingKey> for &PublicKey {
-    fn from(pk: &ExtendedVerifyingKey) -> Self {
+impl From<&bip32::ExtendedVerifyingKey> for &ExtendedVerifyingKey {
+    fn from(pk: &bip32::ExtendedVerifyingKey) -> Self {
         // SAFETY: PublicKey is #[repr(transparent)] over ExtendedVerifyingKey
-        unsafe { &*(pk as *const ExtendedVerifyingKey as *const PublicKey) }
+        unsafe { &*(pk as *const bip32::ExtendedVerifyingKey as *const ExtendedVerifyingKey) }
     }
 }
 
-impl Encode for PublicKey {
+impl Encode for ExtendedVerifyingKey {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         // CBOR bytestring len 64 header
         e.0.write_all(&[0x58, 0x40])?;
@@ -41,7 +41,7 @@ impl Encode for PublicKey {
     }
 }
 
-impl Decode<'_> for PublicKey {
+impl Decode<'_> for ExtendedVerifyingKey {
     type Error = fixed::Error<bip32::InvalidKey>;
 
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
@@ -51,11 +51,11 @@ impl Decode<'_> for PublicKey {
         let key = CompressedEdwardsY(key)
             .decompress()
             .ok_or(collections::Error::Element(bip32::InvalidKey))?;
-        Ok(Self(ExtendedVerifyingKey { key, chain_code }))
+        Ok(Self(bip32::ExtendedVerifyingKey { key, chain_code }))
     }
 }
 
-impl CborLen for PublicKey {
+impl CborLen for ExtendedVerifyingKey {
     fn cbor_len(&self) -> usize {
         64.cbor_len() + 64
     }

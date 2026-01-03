@@ -150,7 +150,6 @@ impl ExtendedSecretKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExtendedVerifyingKey {
-    // Invariant: Must be a valid EdwardsPoint
     pub key: EdwardsPoint,
     pub chain_code: [u8; 32],
 }

@@ -1,11 +1,11 @@
-error: expected identifier
- --> tests/ui/wrong-attribute.rs:4:15
+error: The `struct_name` attribute must be in the form `#[struct_name = "Name"]`.
+ --> tests/ui/wrong-attribute.rs:4:1
   |
-4 | #[struct_name("hello")]
-  |               ^^^^^^^
+4 | #[struct_name(Hello)]
+  | ^
 
-error: The `struct_name` should be specified on the enum, not on its variants.
-  --> tests/ui/wrong-attribute.rs:13:5
+error: `struct_name` should be specified on the enum, not on its variants.
+  --> tests/ui/wrong-attribute.rs:12:5
    |
-13 |     #[struct_name("hello")]
+12 |     #[struct_name = "Hello"]
    |     ^

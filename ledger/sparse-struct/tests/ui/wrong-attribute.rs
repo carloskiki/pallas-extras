@@ -1,7 +1,7 @@
 use sparse_struct::SparseStruct;
 
 #[derive(SparseStruct)]
-#[struct_name("hello")]
+#[struct_name(Hello)]
 enum Enum {
     Variant1(u8),
     Variant2(u16),
@@ -9,8 +9,8 @@ enum Enum {
 
 #[derive(SparseStruct)]
 enum Enum2 {
+    #[struct_name = "Hello"]
     Variant1(u8),
-    #[struct_name("hello")]
     Variant2(u16),
 }
 

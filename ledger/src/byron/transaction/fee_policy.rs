@@ -5,37 +5,37 @@ use tinycbor::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Input {
-    id: super::Id,
-    index: u32,
+pub struct FeePolicy {
+    pub constant: u64,
+    pub coefficient: u64,
 }
 
-impl Encode for Input {
+impl Encode for FeePolicy {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         codec::Codec::from(*self).encode(e)
     }
 }
 
-impl<'a> Decode<'a> for Input {
+impl Decode<'_> for FeePolicy {
     type Error = fixed::Error<tag::Error<tag::Error<collections::Error<fixed::Error<Error>>>>>;
 
-    fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         match codec::Codec::decode(d).map_err(|e| {
             e.map(|e| {
                 e.map(|e| match e {
-                    codec::CodecError::Input(e) => e,
+                    codec::CodecError::Content(e) => e,
                 })
             })
         })? {
-            codec::Codec::Input(inner) => Ok(Input {
-                id: inner.id,
-                index: inner.index,
+            codec::Codec::Content(inner) => Ok(FeePolicy {
+                constant: inner.constant,
+                coefficient: inner.coefficient,
             }),
         }
     }
 }
 
-impl CborLen for Input {
+impl CborLen for FeePolicy {
     fn cbor_len(&self) -> usize {
         codec::Codec::from(*self).cbor_len()
     }
@@ -44,27 +44,26 @@ impl CborLen for Input {
 pub use codec::Error;
 
 mod codec {
-    use crate::byron::transaction;
     use tinycbor_derive::{CborLen, Decode, Encode};
 
     #[derive(Encode, Decode, CborLen)]
     pub(super) struct Inner {
-        pub id: transaction::Id,
-        pub index: u32,
+        pub constant: u64,
+        pub coefficient: u64,
     }
 
     #[derive(Encode, Decode, CborLen)]
     #[cbor(error = "CodecError")]
     pub(super) enum Codec {
         #[n(0)]
-        Input(#[cbor(with = "tinycbor::Encoded<Inner>")] Inner),
+        Content(#[cbor(with = "tinycbor::Encoded<Inner>")] Inner),
     }
 
-    impl From<super::Input> for Codec {
-        fn from(input: super::Input) -> Self {
-            Codec::Input(Inner {
-                id: input.id,
-                index: input.index,
+    impl From<super::FeePolicy> for Codec {
+        fn from(value: super::FeePolicy) -> Self {
+            Codec::Content(Inner {
+                constant: value.constant,
+                coefficient: value.coefficient,
             })
         }
     }
