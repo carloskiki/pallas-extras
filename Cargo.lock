@@ -1024,6 +1024,10 @@ dependencies = [
 [[package]]
 name = "pallas-extras"
 version = "0.1.0"
+dependencies = [
+ "ledger",
+ "tinycbor",
+]
 
 [[package]]
 name = "paste"

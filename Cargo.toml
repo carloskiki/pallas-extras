@@ -56,3 +56,5 @@ name = "pallas-extras"
 version = "0.1.0"
 
 [dependencies]
+tinycbor = { workspace = true }
+ledger = { path = "ledger" }
