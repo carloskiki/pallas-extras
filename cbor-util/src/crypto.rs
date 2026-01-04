@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use bip32::curve25519_dalek::edwards::CompressedEdwardsY;
 use macro_rules_attribute::apply;
 use tinycbor::{
@@ -13,22 +15,24 @@ impl Encode for ExtendedVerifyingKey {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         // CBOR bytestring len 64 header
         e.0.write_all(&[0x58, 0x40])?;
-        e.0.write_all(&self.0.key.compress().0)?;
+        e.0.write_all(&self.0.key.0)?;
         e.0.write_all(&self.0.chain_code)
     }
 }
 
 impl Decode<'_> for ExtendedVerifyingKey {
-    type Error = fixed::Error<bip32::InvalidKey>;
+    type Error = fixed::Error<Infallible>;
 
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
-        let bytes: [u8; 64] =
-            Decode::decode(d).map_err(|e: fixed::Error<_>| e.map(|e| match e {}))?;
+        let dbg_decoder = *d;
+        let bytes: [u8; 64] = Decode::decode(d).map_err(|e: fixed::Error<_>| {
+            let bytes: &[u8] = Decode::decode(&mut Decoder(dbg_decoder.0)).unwrap();
+            dbg!("decoded this many bytes: ", bytes.len());
+            
+            e.map(|e| match e {})
+        })?;
         let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
-        let key = CompressedEdwardsY(key)
-            .decompress()
-            .ok_or(collections::Error::Element(bip32::InvalidKey))?;
-        Ok(Self(bip32::ExtendedVerifyingKey { key, chain_code }))
+        Ok(Self(bip32::ExtendedVerifyingKey { key: CompressedEdwardsY(key), chain_code }))
     }
 }
 

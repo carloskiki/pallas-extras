@@ -4,9 +4,9 @@ use tinycbor_derive::{Encode, Decode, CborLen};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Attributes {
-    #[n(0)]
+    #[cbor(n(0), optional)]
     distribution: Option<Box<[u8]>>,
-    #[n(1)]
+    #[cbor(n(1), optional)]
     key_derivation_path: Option<Box<[u8]>>,
     #[cbor(n(2), with = "NetworkMagic", optional)]
     network_magic: Option<u32>,

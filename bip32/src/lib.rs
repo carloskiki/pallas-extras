@@ -34,8 +34,9 @@ impl SoftIndex {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExtendedSecretKey {
-    // Invariant: Must be a valid scalar (clamped by maybe unreduced).
+    // Invariant: Must be clamped.
     key: [u8; 32],
     pub hash_prefix: [u8; 32],
     pub chain_code: [u8; 32],
@@ -79,9 +80,9 @@ impl ExtendedSecretKey {
     pub fn derive_child(&self, index: HardIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
-            .expect("chain code should be small enough in size");
+            .expect("chain code is small enough");
         let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
-            .expect("chain code should be small enough in size");
+            .expect("chain code is small enough");
 
         key_hmac.update(&[0u8]);
         key_hmac.update(&self.key);
@@ -140,7 +141,7 @@ impl ExtendedSecretKey {
     }
 
     pub fn verifying_key(&self) -> ExtendedVerifyingKey {
-        let key = EdwardsPoint::mul_base_clamped(self.key);
+        let key = EdwardsPoint::mul_base_clamped(self.key).compress();
         ExtendedVerifyingKey {
             key,
             chain_code: self.chain_code,
@@ -150,30 +151,27 @@ impl ExtendedSecretKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExtendedVerifyingKey {
-    pub key: EdwardsPoint,
+    pub key: CompressedEdwardsY,
     pub chain_code: [u8; 32],
 }
 
 impl ExtendedVerifyingKey {
-    pub fn new(key: [u8; 32], chain_code: [u8; 32]) -> Result<Self, InvalidKey> {
-        let key = CompressedEdwardsY(key);
-        let key = key.decompress().ok_or(InvalidKey)?;
-        Ok(Self { key, chain_code })
-    }
-
-    pub fn derive_child(&self, index: SoftIndex) -> Self {
+    pub fn derive_child(&self, index: SoftIndex) -> Result<Self, InvalidKey> {
         use digest::{FixedOutput, KeyInit, Update};
         let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
         let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
-        let CompressedEdwardsY(compressed_key) = self.key.compress();
+        let point = self
+            .key
+            .decompress()
+            .ok_or(InvalidKey)?;
 
         key_hmac.update(&[2u8]);
-        key_hmac.update(&compressed_key);
+        key_hmac.update(&self.key.0);
         key_hmac.update(&index.0.to_le_bytes());
         chain_code_hmac.update(&[3u8]);
-        chain_code_hmac.update(&compressed_key);
+        chain_code_hmac.update(&self.key.0);
         chain_code_hmac.update(&index.0.to_le_bytes());
 
         let z: [u8; 64] = key_hmac.finalize_fixed().into();
@@ -189,18 +187,18 @@ impl ExtendedVerifyingKey {
             *elem = 0;
         });
 
-        let child_key = self.key + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
+        let child_key = point + EdwardsPoint::mul_base(&Scalar::from_bytes_mod_order(z_left));
         let chain_code_hash: [u8; 64] = chain_code_hmac.finalize_fixed().into();
         let [_, child_chain_code]: [[u8; 32]; 2] = transmute!(chain_code_hash);
 
-        Self {
-            key: child_key,
+        Ok(Self {
+            key: child_key.compress(),
             chain_code: child_chain_code,
-        }
+        })
     }
 }
 
-/// The key does not represent a valid secret key.
+/// The key used is not valid.
 ///
 /// A valid secret key must be a clamped scalar, see [`curve25519_dalek::scalar::clamp_integer`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -246,7 +244,6 @@ mod tests {
     fn derive() {
         let [scalar, hash_prefix, chain_code]: [[u8; 32]; 3] = transmute!(D1);
 
-        eprintln!("{:?}", scalar);
         let skey = ExtendedSecretKey {
             chain_code,
             key: scalar,
@@ -294,21 +291,21 @@ mod tests {
 
             assert_eq!(&impl_pub.chain_code, ref_pub.chain_code());
             assert_eq!(
-                impl_pub.key.compress().as_bytes(),
+                impl_pub.key.as_bytes(),
                 ref_pub.public_key_bytes()
             );
 
             for _ in 0..5 {
                 let index = random::<u32>() >> 1;
 
-                let impl_child = impl_pub.derive_child(SoftIndex::new(index));
+                let impl_child = impl_pub.derive_child(SoftIndex::new(index)).unwrap();
                 let ref_child = ref_pub
                     .derive(ed25519_bip32::DerivationScheme::V2, index)
                     .unwrap();
 
                 assert_eq!(&impl_child.chain_code, ref_child.chain_code());
                 assert_eq!(
-                    impl_child.key.compress().as_bytes(),
+                    impl_child.key.as_bytes(),
                     ref_child.public_key_bytes()
                 );
             }

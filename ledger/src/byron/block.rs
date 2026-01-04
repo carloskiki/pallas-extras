@@ -23,8 +23,8 @@ pub type Id = crate::crypto::Blake2b256Digest;
 pub type Difficulty = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
-pub struct Block {
-    pub header: Header,
-    pub body: Body,
-    pub extra: [Attributes; 1],
+pub struct Block<'a> {
+    pub header: Header<'a>,
+    pub body: Body<'a>,
+    pub extra: [Attributes<'a>; 1],
 }

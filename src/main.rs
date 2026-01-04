@@ -1,10 +1,4 @@
-use std::{
-    error::Error,
-    ffi::{OsStr, OsString},
-    fs::File,
-    io::Read,
-    os::unix::ffi::OsStrExt,
-};
+use std::{error::Error, ffi::OsStr, fs::File, io::Read, os::unix::ffi::OsStrExt};
 
 use tinycbor::{Decode, Decoder};
 
@@ -13,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut files_ordered = std::fs::read_dir(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/snapshots/mainnet/immutable"
+        "/snapshots/mainnet-byron"
     ))?
     .filter_map(|res| {
         res.ok()
@@ -31,30 +25,30 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         let mut file = File::open(file.path())?;
-        let mut start = [0u8; 2];
-        file.read_exact(&mut start)?;
+        file.read_to_end(&mut buffer)?;
+        let mut decoder = Decoder(&buffer);
 
-        if start[1] > 1 {
-            println!("Shelly era: {file_name}");
-            continue;
+        loop {
+            let bytes = decoder.0;
+            if decoder.0.is_empty() {
+                break;
+            };
+
+            match ledger::byron::Block::decode(&mut decoder) {
+                Ok(_) => {},
+                Err(e) => {
+                    let next_item = tinycbor::Any::decode(&mut Decoder(bytes))?;
+                    for token in Decoder(next_item.as_ref()) {
+                        let token = token?;
+                        println!("{token}");
+                    }
+
+                    panic!("{e}")
+                }
+            };
         }
-        
-        // file.read_to_end(&mut buffer)?;
-        // let mut decoder = Decoder(&buffer);
-        // loop {
-        //     if decoder.0.is_empty() {
-        //         break;
-        //     };
 
-        //     match ledger::byron::Block::decode(&mut decoder) {
-        //         Ok(_) => {
-        //             println!("Decoded block");
-        //         }
-        //         Err(e) => panic!("{e}"),
-        //     };
-        // }
-        // 
-        // buffer.clear();
+        buffer.clear();
     }
     Ok(())
 }
