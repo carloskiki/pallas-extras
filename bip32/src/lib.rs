@@ -4,7 +4,7 @@ use curve25519_dalek::{
 use hmac::Hmac;
 use pbkdf2::pbkdf2_hmac;
 use sha2::{Digest, Sha512};
-use zerocopy::transmute;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned, transmute};
 
 pub use curve25519_dalek;
 
@@ -79,10 +79,10 @@ impl ExtendedSecretKey {
 
     pub fn derive_child(&self, index: HardIndex) -> Self {
         use digest::{FixedOutput, KeyInit, Update};
-        let mut key_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
-            .expect("chain code is small enough");
-        let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
-            .expect("chain code is small enough");
+        let mut key_hmac: Hmac<Sha512> =
+            hmac::Hmac::new_from_slice(&self.chain_code).expect("chain code is small enough");
+        let mut chain_code_hmac: Hmac<Sha512> =
+            hmac::Hmac::new_from_slice(&self.chain_code).expect("chain code is small enough");
 
         key_hmac.update(&[0u8]);
         key_hmac.update(&self.key);
@@ -141,7 +141,7 @@ impl ExtendedSecretKey {
     }
 
     pub fn verifying_key(&self) -> ExtendedVerifyingKey {
-        let key = EdwardsPoint::mul_base_clamped(self.key).compress();
+        let key = EdwardsPoint::mul_base_clamped(self.key).compress().0;
         ExtendedVerifyingKey {
             key,
             chain_code: self.chain_code,
@@ -149,9 +149,12 @@ impl ExtendedSecretKey {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Immutable, IntoBytes, FromBytes, Unaligned, KnownLayout,
+)]
+#[repr(C)]
 pub struct ExtendedVerifyingKey {
-    pub key: CompressedEdwardsY,
+    pub key: [u8; 32],
     pub chain_code: [u8; 32],
 }
 
@@ -162,16 +165,15 @@ impl ExtendedVerifyingKey {
             .expect("chain code should be small enough in size");
         let mut chain_code_hmac: Hmac<Sha512> = hmac::Hmac::new_from_slice(&self.chain_code)
             .expect("chain code should be small enough in size");
-        let point = self
-            .key
+        let point = CompressedEdwardsY(self.key)
             .decompress()
             .ok_or(InvalidKey)?;
 
         key_hmac.update(&[2u8]);
-        key_hmac.update(&self.key.0);
+        key_hmac.update(&self.key);
         key_hmac.update(&index.0.to_le_bytes());
         chain_code_hmac.update(&[3u8]);
-        chain_code_hmac.update(&self.key.0);
+        chain_code_hmac.update(&self.key);
         chain_code_hmac.update(&index.0.to_le_bytes());
 
         let z: [u8; 64] = key_hmac.finalize_fixed().into();
@@ -192,7 +194,7 @@ impl ExtendedVerifyingKey {
         let [_, child_chain_code]: [[u8; 32]; 2] = transmute!(chain_code_hash);
 
         Ok(Self {
-            key: child_key.compress(),
+            key: child_key.compress().0,
             chain_code: child_chain_code,
         })
     }
@@ -290,10 +292,7 @@ mod tests {
             let ref_pub = reference.public();
 
             assert_eq!(&impl_pub.chain_code, ref_pub.chain_code());
-            assert_eq!(
-                impl_pub.key.as_bytes(),
-                ref_pub.public_key_bytes()
-            );
+            assert_eq!(&impl_pub.key, ref_pub.public_key_bytes());
 
             for _ in 0..5 {
                 let index = random::<u32>() >> 1;
@@ -304,10 +303,7 @@ mod tests {
                     .unwrap();
 
                 assert_eq!(&impl_child.chain_code, ref_child.chain_code());
-                assert_eq!(
-                    impl_child.key.as_bytes(),
-                    ref_child.public_key_bytes()
-                );
+                assert_eq!(&impl_child.key, ref_child.public_key_bytes());
             }
         }
     }

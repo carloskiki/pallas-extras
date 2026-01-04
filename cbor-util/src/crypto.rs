@@ -1,22 +1,32 @@
 use std::convert::Infallible;
 
-use bip32::curve25519_dalek::edwards::CompressedEdwardsY;
 use macro_rules_attribute::apply;
 use tinycbor::{
     CborLen, Decode, Decoder, Encode, Encoder, Write,
     collections::{self, fixed},
 };
-use zerocopy::transmute;
+use zerocopy::{transmute, transmute_ref};
 
 #[apply(super::wrapper)]
 pub struct ExtendedVerifyingKey(pub bip32::ExtendedVerifyingKey);
 
 impl Encode for ExtendedVerifyingKey {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
-        // CBOR bytestring len 64 header
-        e.0.write_all(&[0x58, 0x40])?;
-        e.0.write_all(&self.0.key.0)?;
-        e.0.write_all(&self.0.chain_code)
+        let bytes: &[u8; 64] = transmute_ref!(&self.0);
+        bytes.encode(e)
+    }
+}
+
+impl<'a, 'b> Decode<'b> for &'a ExtendedVerifyingKey
+where
+    'b: 'a,
+{
+    type Error = fixed::Error<Infallible>;
+
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+        let bytes: &[u8; 64] = Decode::decode(d)?;
+        let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
+        Ok(ExtendedVerifyingKey::ref_cast(&bip32::ExtendedVerifyingKey { key, chain_code }))
     }
 }
 
@@ -32,7 +42,7 @@ impl Decode<'_> for ExtendedVerifyingKey {
             e.map(|e| match e {})
         })?;
         let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
-        Ok(Self(bip32::ExtendedVerifyingKey { key: CompressedEdwardsY(key), chain_code }))
+        Ok(Self(bip32::ExtendedVerifyingKey { key, chain_code }))
     }
 }
 
