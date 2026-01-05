@@ -5,21 +5,21 @@ use tinycbor::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Input {
-    id: super::Id,
+pub struct Input<'a> {
+    id: &'a super::Id,
     index: u32,
 }
 
-impl Encode for Input {
+impl Encode for Input<'_> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         codec::Codec::from(*self).encode(e)
     }
 }
 
-impl<'a> Decode<'a> for Input {
+impl<'a, 'b: 'a> Decode<'b> for Input<'a> {
     type Error = fixed::Error<tag::Error<tag::Error<collections::Error<fixed::Error<Error>>>>>;
 
-    fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         match codec::Codec::decode(d).map_err(|e| {
             e.map(|e| {
                 e.map(|e| match e {
@@ -35,7 +35,7 @@ impl<'a> Decode<'a> for Input {
     }
 }
 
-impl CborLen for Input {
+impl CborLen for Input<'_> {
     fn cbor_len(&self) -> usize {
         codec::Codec::from(*self).cbor_len()
     }
@@ -48,20 +48,20 @@ mod codec {
     use tinycbor_derive::{CborLen, Decode, Encode};
 
     #[derive(Encode, Decode, CborLen)]
-    pub(super) struct Inner {
-        pub id: transaction::Id,
+    pub(super) struct Inner<'a> {
+        pub id: &'a transaction::Id,
         pub index: u32,
     }
 
     #[derive(Encode, Decode, CborLen)]
     #[cbor(error = "CodecError")]
-    pub(super) enum Codec {
+    pub(super) enum Codec<'a> {
         #[n(0)]
-        Input(#[cbor(with = "tinycbor::Encoded<Inner>")] Inner),
+        Input(#[cbor(with = "tinycbor::Encoded<Inner<'a>>")] Inner<'a>),
     }
 
-    impl From<super::Input> for Codec {
-        fn from(input: super::Input) -> Self {
+    impl<'a> From<super::Input<'a>> for Codec<'a> {
+        fn from(input: super::Input<'a>) -> Self {
             Codec::Input(Inner {
                 id: input.id,
                 index: input.index,

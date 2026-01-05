@@ -9,5 +9,5 @@ pub struct Data<'a> {
     pub version: protocol::Version,
     pub software_version: protocol::version::Software<'a>,
     pub attributes: Attributes<'a>,
-    pub extra_proof: crypto::Blake2b256Digest,
+    pub extra_proof: &'a crypto::Blake2b256Digest,
 }
