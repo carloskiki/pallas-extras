@@ -4,7 +4,7 @@ name = "bip32"
 version = "0.1.0"
 
 [dependencies]
-zerocopy = { workspace = true }
+zerocopy = { workspace = true, features = ["derive"] }
 
 curve25519-dalek = { workspace = true }
 digest = { workspace = true }

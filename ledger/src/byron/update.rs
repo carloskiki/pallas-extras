@@ -13,5 +13,5 @@ pub use data::Data;
 pub struct Update<'a> {
     #[cbor(with = "cbor_util::ArrayOption<Proposal<'a>>")]
     pub proposal: Option<Proposal<'a>>,
-    pub votes: Vec<Vote>,
+    pub votes: Vec<Vote<'a>>,
 }

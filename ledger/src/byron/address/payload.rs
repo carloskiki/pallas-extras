@@ -21,9 +21,9 @@ impl Payload {
         address_type: u32,
     ) -> Self {
         #[derive(Encode)]
-        struct Root {
+        struct Root<'a> {
             address_type: u32,
-            spending_data: super::Data,
+            spending_data: super::Data<'a>,
             attributes: super::Attributes,
         }
 

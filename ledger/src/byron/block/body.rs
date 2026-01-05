@@ -7,6 +7,6 @@ use crate::byron::{Update, delegation, transaction};
 pub struct Body<'a> {
     transactions: Vec<transaction::Payload<'a>>,
     ssc: Any<'a>,
-    delegations: Vec<delegation::Certificate>,
+    delegations: Vec<delegation::Certificate<'a>>,
     update: Update<'a>,
 }

@@ -1,52 +1,48 @@
 use std::convert::Infallible;
 
-use macro_rules_attribute::apply;
 use tinycbor::{
     CborLen, Decode, Decoder, Encode, Encoder, Write,
     collections::{self, fixed},
 };
-use zerocopy::{transmute, transmute_ref};
+use zerocopy::transmute_ref;
 
-#[apply(super::wrapper)]
-pub struct ExtendedVerifyingKey(pub bip32::ExtendedVerifyingKey);
+#[derive(ref_cast::RefCast)]
+#[repr(transparent)]
+pub struct ExtendedVerifyingKey<'a>(pub &'a bip32::ExtendedVerifyingKey);
 
-impl Encode for ExtendedVerifyingKey {
+impl<'a> From<ExtendedVerifyingKey<'a>> for &'a bip32::ExtendedVerifyingKey {
+    fn from(wrapper: ExtendedVerifyingKey<'a>) -> Self {
+        wrapper.0
+    }
+}
+
+impl<'a, 'b> From<&'b &'a bip32::ExtendedVerifyingKey> for &'b ExtendedVerifyingKey<'a> {
+    fn from(value: &'b &'a bip32::ExtendedVerifyingKey) -> Self {
+        use ref_cast::RefCast;
+        ExtendedVerifyingKey::ref_cast(value)
+    }
+}
+
+impl Encode for ExtendedVerifyingKey<'_> {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
-        let bytes: &[u8; 64] = transmute_ref!(&self.0);
+        let bytes: &[u8; 64] = transmute_ref!(self.0);
         bytes.encode(e)
     }
 }
 
-impl<'a, 'b> Decode<'b> for &'a ExtendedVerifyingKey
+impl<'a, 'b> Decode<'b> for ExtendedVerifyingKey<'a>
 where
     'b: 'a,
 {
     type Error = fixed::Error<Infallible>;
 
-    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
         let bytes: &[u8; 64] = Decode::decode(d)?;
-        let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
-        Ok(ExtendedVerifyingKey::ref_cast(&bip32::ExtendedVerifyingKey { key, chain_code }))
+        Ok(ExtendedVerifyingKey(transmute_ref!(bytes)))
     }
 }
 
-impl Decode<'_> for ExtendedVerifyingKey {
-    type Error = fixed::Error<Infallible>;
-
-    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
-        let dbg_decoder = *d;
-        let bytes: [u8; 64] = Decode::decode(d).map_err(|e: fixed::Error<_>| {
-            let bytes: &[u8] = Decode::decode(&mut Decoder(dbg_decoder.0)).unwrap();
-            dbg!("decoded this many bytes: ", bytes.len());
-            
-            e.map(|e| match e {})
-        })?;
-        let [key, chain_code]: [[u8; 32]; 2] = transmute!(bytes);
-        Ok(Self(bip32::ExtendedVerifyingKey { key, chain_code }))
-    }
-}
-
-impl CborLen for ExtendedVerifyingKey {
+impl<'a> CborLen for ExtendedVerifyingKey<'a> {
     fn cbor_len(&self) -> usize {
         64.cbor_len() + 64
     }

@@ -32,6 +32,12 @@ macro_rules! wrapper {
                 $name::ref_cast(value)
             }
         }
+
+        impl<'a> From<&'a $name> for &'a $inner {
+            fn from(value: &'a $name) -> Self {
+                &value.0
+            }
+        }
     };
 }
 use wrapper;
