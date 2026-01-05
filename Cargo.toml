@@ -1,16 +1,16 @@
 [workspace]
 members = [
-  "bip32",
-  "bip39",
-  "cbor-util",
-  "database",
-  "kes",
-  "ledger",
-  #     "network",
-  #     "vrf",
-  #     "ledger/minicbor-derive",
-  #     "ledger/sparse-struct",
-  "plutus",
+    "bip32",
+    "bip39",
+    "cbor-util",
+    "database",
+    "kes",
+    "ledger",
+    #     "network",
+    #     "vrf",
+    #     "ledger/minicbor-derive",
+    #     "ledger/sparse-struct",
+    "plutus",
 ]
 
 # TODO: Figure out features to enable for each dep.
@@ -29,8 +29,8 @@ signature = { version = "3.0.0-rc.6", default-features = false }
 either = "1.15"
 mitsein = "0.8"
 rug = { version = "1.28.0", default-features = false, features = [
-  "integer",
-  "std",
+    "integer",
+    "std",
 ] }
 
 # Hashing
@@ -39,8 +39,10 @@ sha2 = { version = "0.11.0-rc.3", default-features = false }
 sha3 = { version = "0.11.0-rc.3", default-features = false }
 
 # Public Key Cryptography
-curve25519-dalek = { version = "5.0.0-pre.3", default-features = false }
-ed25519-dalek = { version = "3.0.0-pre.3", default-features = false }
+curve25519-dalek = { version = "5.0.0-pre.4", default-features = false }
+ed25519-dalek = { version = "3.0.0-pre.4", default-features = false }
+# TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
+ed25519 = { version = "3.0.0-rc.2", features = ["zerocopy"] }
 
 # Utilities
 const-hex = { version = "1" }
@@ -50,11 +52,15 @@ ref-cast = "1.0"
 thiserror = "2.0"
 zerocopy = "0.8"
 
+[patch.crates-io]
+# TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
+ed25519 = { git = "https://github.com/carloskiki/signatures.git", rev = "bd5e16bb8e5afd04b8dde2b3075ff802e849d748" }
+
 [package]
 edition = "2024"
 name = "pallas-extras"
 version = "0.1.0"
 
 [dependencies]
-tinycbor = { workspace = true }
 ledger = { path = "ledger" }
+tinycbor = { workspace = true }

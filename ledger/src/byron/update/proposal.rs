@@ -10,7 +10,7 @@ pub type Id = crypto::Blake2b256Digest;
 pub struct Proposal<'a> {
     pub protocol_version: protocol::Version,
     pub modifications: protocol::Parameters,
-    pub software_version: protocol::version::Software,
+    pub software_version: protocol::version::Software<'a>,
     pub data: Vec<(String, super::Data)>,
     pub attributes: Attributes<'a>,
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]

@@ -8,11 +8,15 @@ pub mod bounded_bytes;
 pub use bounded_bytes::BoundedBytes;
 
 pub mod crypto;
-pub use crypto::ExtendedVerifyingKey;
 pub use crypto::Signature;
 
 pub mod mitsein;
 pub use mitsein::NonEmpty;
+
+pub mod bytes;
+pub use bytes::Bytes;
+
+pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
 
 macro_rules! wrapper {
     ($vis:vis struct $name:ident(pub $inner:ty);) => {
