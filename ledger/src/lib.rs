@@ -6,4 +6,5 @@ pub mod crypto;
 pub mod slot;
 pub mod epoch;
 
+pub mod shelley;
 pub mod byron;
