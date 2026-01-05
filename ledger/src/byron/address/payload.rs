@@ -8,23 +8,23 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Payload {
+pub struct Payload<'a> {
     pub root_digest: Blake2b224Digest,
-    pub attributes: Attributes,
+    pub attributes: Attributes<'a>,
     pub address_type: u32,
 }
 
-impl Payload {
+impl<'a> Payload<'a> {
     pub fn new(
         spending_data: super::Data,
-        attributes: super::Attributes,
+        attributes: super::Attributes<'a>,
         address_type: u32,
     ) -> Self {
         #[derive(Encode)]
-        struct Root<'a> {
+        struct Root<'a, 'b> {
             address_type: u32,
             spending_data: super::Data<'a>,
-            attributes: super::Attributes,
+            attributes: super::Attributes<'b>,
         }
 
         // Arbitrary size that should fit most encodings without resizing

@@ -25,7 +25,7 @@ pub type Id = crate::crypto::Blake2b256Digest;
 pub struct Transaction<'a> {
     #[cbor(with = "cbor_util::NonEmpty<Vec<Input<'a>>>")]
     pub inputs: Vec1<Input<'a>>,
-    #[cbor(with = "cbor_util::NonEmpty<Vec<Output>>")]
-    pub outputs: Vec1<Output>,
+    #[cbor(with = "cbor_util::NonEmpty<Vec<Output<'a>>>")]
+    pub outputs: Vec1<Output<'a>>,
     pub attributes: super::Attributes<'a>,
 }

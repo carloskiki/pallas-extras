@@ -15,14 +15,14 @@ pub use data::Data;
 
 /// Byron Era address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Address {
-    #[cbor(with = "Encoded<Payload>")]
-    pub payload: Payload,
+pub struct Address<'a> {
+    #[cbor(with = "Encoded<Payload<'a>>")]
+    pub payload: Payload<'a>,
     pub checksum: u32,
 }
 
-impl Address {
-    pub fn new(payload: Payload) -> Self {
+impl<'a> Address<'a> {
+    pub fn new(payload: Payload<'a>) -> Self {
         // We know this cannot error because of Vec.
         let cbor_payload = tinycbor::to_vec(&payload);
         let checksum = crc32fast::hash(&cbor_payload);

@@ -3,11 +3,11 @@ use tinycbor_derive::{Encode, Decode, CborLen};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
-pub struct Attributes {
+pub struct Attributes<'a> {
     #[cbor(n(0), optional)]
-    distribution: Option<Box<[u8]>>,
+    distribution: Option<&'a [u8]>,
     #[cbor(n(1), optional)]
-    key_derivation_path: Option<Box<[u8]>>,
+    key_derivation_path: Option<&'a [u8]>,
     #[cbor(n(2), with = "NetworkMagic", optional)]
     network_magic: Option<u32>,
 }
