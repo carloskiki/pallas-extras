@@ -5,7 +5,7 @@ use crate::crypto;
 pub struct VerifyingKey<'a> {
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]
     pub key: &'a crypto::ExtendedVerifyingKey,
-    #[cbor(with = "cbor_util::Signature<crypto::Signature>")]
-    pub signature: crypto::Signature,
+    #[cbor(with = "cbor_util::Bytes<'a, crypto::Signature>")]
+    pub signature: &'a crypto::Signature,
 }
 

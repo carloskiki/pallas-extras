@@ -9,5 +9,5 @@ pub enum Witness<'a> {
         #[cbor(with = "tinycbor::Encoded<data::VerifyingKey<'a>>")] data::VerifyingKey<'a>,
     ),
     #[n(2)]
-    Redeemer(#[cbor(with = "tinycbor::Encoded<data::Redeemer>")] data::Redeemer),
+    Redeemer(#[cbor(with = "tinycbor::Encoded<data::Redeemer<'a>>")] data::Redeemer<'a>),
 }
