@@ -1,14 +1,14 @@
 use std::{
-    fmt::{Display, Write},
+    fmt::Display,
     iter,
     str::FromStr,
 };
 
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
-use minicbor::{CborLen, Decode, Encode, decode, encode};
+use tinycbor::{Encoder, Write};
 
 use crate::crypto::Blake2b224Digest;
-use crate::{
+use crate::shelley::{
     Credential,
     credential::{self, ChainPointerIter},
 };
@@ -16,14 +16,16 @@ use crate::{
 const HASH_SIZE: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Address {
-    pub payment: Credential,
-    pub stake: Option<credential::Delegation>,
+pub struct Address<'a> {
+    pub payment: Credential<'a>,
+    pub stake: Option<credential::Delegation<'a>>,
     pub network: Network,
 }
 
-impl Address {
-    pub(super) fn from_bytes(bytes: impl IntoIterator<Item = u8>) -> Result<Self, AddressFromBytesError> {
+impl Address<'_> {
+    pub(super) fn from_bytes(
+        bytes: impl IntoIterator<Item = u8>,
+    ) -> Result<Self, AddressFromBytesError> {
         let mut data = bytes.into_iter();
 
         let first_byte = data.next().ok_or(AddressFromBytesError::TooShort)?;
@@ -91,7 +93,7 @@ impl Address {
                 // TODO: Only enforced starting with Babbage ERA
                 // return Err(AddressFromBytesError::TooLong);
             }
-            
+
             let payment = match header {
                 0b0100 => Credential::VerificationKey(first_hash),
                 0b0101 => Credential::Script(first_hash),
@@ -126,12 +128,11 @@ impl Address {
     }
 }
 
-impl<C> Encode<C> for Address {
-    fn encode<W: encode::Write>(
+impl Encode for Address<'_> {
+    fn encode<W: Write>(
         &self,
-        e: &mut encode::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
+        e: &mut Encoder<W>,
+    ) -> Result<(), W::Error> {
         let bytes = self.into_iter().collect::<Box<[_]>>();
         e.bytes(&bytes)?.ok()
     }
@@ -158,7 +159,11 @@ impl<C> CborLen<C> for Address {
 
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.network.main() { "addr" } else { "addr_test" });
+        let hrp = Hrp::parse_unchecked(if self.network.main() {
+            "addr"
+        } else {
+            "addr_test"
+        });
         self.into_iter()
             .bytes_to_fes()
             .with_checksum::<Bech32>(&hrp)
@@ -230,7 +235,7 @@ impl StakeAddress {
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
         let network = Network(network_magic);
-        
+
         let mut hash: Blake2b224Digest = Default::default();
         let mut len = 0;
         data.take(HASH_SIZE)
@@ -260,7 +265,11 @@ impl StakeAddress {
 
 impl Display for StakeAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.network.main() { "stake" } else { "stake_test" });
+        let hrp = Hrp::parse_unchecked(if self.network.main() {
+            "stake"
+        } else {
+            "stake_test"
+        });
 
         self.into_iter()
             .bytes_to_fes()
@@ -332,7 +341,7 @@ pub struct Network(u8);
 impl Network {
     pub const MAIN: Self = Network(1);
     pub const TEST: Self = Network(0);
-    
+
     pub fn main(&self) -> bool {
         self.0 == 1
     }

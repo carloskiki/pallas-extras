@@ -1,17 +1,16 @@
-use minicbor::{CborLen, Decode, Encode};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b224Digest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(flat)]
-pub enum Credential {
+pub enum Credential<'a> {
     #[n(0)]
-    Script(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
+    Script(&'a Blake2b224Digest),
     #[n(1)]
-    VerificationKey(#[cbor(n(0), with = "minicbor::bytes")] Blake2b224Digest),
+    VerificationKey(&'a Blake2b224Digest),
 }
 
-impl AsRef<Blake2b224Digest> for Credential {
+impl AsRef<Blake2b224Digest> for Credential<'_> {
     fn as_ref(&self) -> &Blake2b224Digest {
         match self {
             Credential::Script(digest) | Credential::VerificationKey(digest) => digest,
@@ -20,9 +19,9 @@ impl AsRef<Blake2b224Digest> for Credential {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Delegation {
-    StakeKey(Blake2b224Digest),
-    Script(Blake2b224Digest),
+pub enum Delegation<'a> {
+    StakeKey(&'a Blake2b224Digest),
+    Script(&'a Blake2b224Digest),
     Pointer(ChainPointer),
 }
 

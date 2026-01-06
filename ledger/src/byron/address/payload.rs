@@ -7,11 +7,12 @@ use crate::{
     crypto::{Blake2b224, Blake2b224Digest},
 };
 
+// TODO: Check which fields are actually used here on mainnet.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Payload<'a> {
     pub root_digest: Blake2b224Digest,
     pub attributes: Attributes<'a>,
-    pub address_type: u32,
+    pub address_type: u32, // TODO: This should only be 0 or 2, make sure of that.
 }
 
 impl<'a> Payload<'a> {

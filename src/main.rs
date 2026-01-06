@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             };
 
             match ledger::byron::Block::decode(&mut decoder) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     let next_item = tinycbor::Any::decode(&mut Decoder(bytes))?;
                     for token in Decoder(next_item.as_ref()) {
@@ -50,5 +50,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         buffer.clear();
     }
+
     Ok(())
 }

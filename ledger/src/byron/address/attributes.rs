@@ -1,6 +1,7 @@
 use tinycbor::{CborLen, Decode, Encode, Encoder, Write};
 use tinycbor_derive::{Encode, Decode, CborLen};
 
+// TODO: Make sure that all three fields are actually used on mainnet.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Attributes<'a> {

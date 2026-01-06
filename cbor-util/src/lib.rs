@@ -16,6 +16,10 @@ pub use mitsein::NonEmpty;
 pub mod bytes;
 pub use bytes::Bytes;
 
+// TODO: remove once useless
+pub mod inspect;
+pub use inspect::{Inspect, Inspector};
+
 pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
 
 macro_rules! wrapper {

@@ -1,28 +1,19 @@
-use minicbor::{CborLen, Decode, Decoder, Encode};
+use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write};
 
-pub mod byron;
-pub mod shelley;
+pub mod native;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Address {
-    Shelley(shelley::Address),
-    Byron(byron::Address),
+pub enum Address<'a> {
+    Shelley(native::Address),
+    Byron(crate::byron::Address<'a>),
 }
 
-impl<C> Encode<C> for Address {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
+impl Encode for Address<'_> {
+    fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         match self {
-            Address::Shelley(address) => e.encode(address),
-            Address::Byron(address) => {
-                e.bytes_len(address.cbor_len(ctx) as u64)?;
-                e.encode(address)
-            }
+            Address::Shelley(address) => address.encode(e),
+            Address::Byron(address) => address.encode(e),
         }?
-        .ok()
     }
 }
 
@@ -40,7 +31,7 @@ impl<C> Decode<'_, C> for Address {
                     Ok(Address::Byron(inner_d.decode()?))
                 } else {
                     Ok(Address::Shelley(
-                        shelley::Address::from_bytes(data)
+                        native::Address::from_bytes(data)
                             .map_err(|e| minicbor::decode::Error::custom(e).at(d.position()))?,
                     ))
                 }
