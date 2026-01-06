@@ -4,8 +4,13 @@ pub mod native;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Address<'a> {
-    Shelley(native::Address),
+    Shelley(native::Address<'a>),
     Byron(crate::byron::Address<'a>),
+}
+
+pub enum Error {
+    Shelley(<native::Address<'static> as Decode<'static>>::Error),
+    Byron(<crate::byron::Address<'static> as Decode<'static>>::Error),
 }
 
 impl Encode for Address<'_> {
@@ -17,13 +22,21 @@ impl Encode for Address<'_> {
     }
 }
 
-impl<C> Decode<'_, C> for Address {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        // This ignores decoding errors of the inner slices, but does not matter because if the
-        // inner slice errors then the value wont parse correctly anyway.
-        let mut data = d.bytes_iter()?.flatten().flatten().copied().peekable();
+impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
+    type Error = Error;
 
-        match data.peek() {
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
+        let bytes: &[u8] = Decode::decode(d)?;
+        
+        if bytes.first().is_some_and(|b| (b >> 4) == 0b1000) {
+            Address::Byron(Decode::decode(&mut Decoder(bytes)).map_err(Error::Byron)?)
+        } else {
+            let shelley_address = native::Address::from_bytes(bytes)
+                .map_err(|e| Error::Shelley(minicbor::decode::Error::custom(e)))?;
+            Ok(Address::Shelley(shelley_address))
+        }
+
+        match bytes.first() {
             Some(b) => {
                 if (b >> 4) == 0b1000 {
                     let bytes: Box<[u8]> = data.collect();
