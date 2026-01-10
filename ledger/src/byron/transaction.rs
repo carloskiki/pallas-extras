@@ -1,9 +1,6 @@
 use mitsein::vec1::Vec1;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod fee_policy;
-pub use fee_policy::FeePolicy;
-
 pub mod input;
 pub use input::Input;
 

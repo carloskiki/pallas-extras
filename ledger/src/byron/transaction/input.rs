@@ -17,21 +17,24 @@ impl Encode for Input<'_> {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for Input<'a> {
-    type Error = fixed::Error<tag::Error<tag::Error<collections::Error<fixed::Error<Error>>>>>;
+    type Error = collections::Error<
+        fixed::Error<
+            tag::Error<tag::Error<collections::Error<collections::Error<fixed::Error<Error>>>>>,
+        >,
+    >;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        match codec::Codec::decode(d).map_err(|e| {
-            e.map(|e| {
-                e.map(|e| match e {
-                    codec::CodecError::Input(e) => e,
+        let codec::Codec::Input(codec::Inner { id, index }) =
+            codec::Codec::decode(d).map_err(|e| {
+                e.map(|e| {
+                    e.map(|e| {
+                        e.map(|e| match e {
+                            codec::CodecError::Input(e) => e,
+                        })
+                    })
                 })
-            })
-        })? {
-            codec::Codec::Input(inner) => Ok(Input {
-                id: inner.id,
-                index: inner.index,
-            }),
-        }
+            })?;
+        Ok(Input { id, index })
     }
 }
 

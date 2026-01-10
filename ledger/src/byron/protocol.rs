@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{byron::transaction, epoch};
+use crate::epoch;
 use cbor_util::ArrayOption;
 use sparse_struct::SparseStruct;
 use tinycbor::{
@@ -11,6 +11,9 @@ use tinycbor::{
 
 pub mod version;
 pub use version::Version;
+
+pub mod fee_policy;
+pub use fee_policy::FeePolicy;
 
 pub mod soft_fork;
 
@@ -42,11 +45,13 @@ pub enum Parameter {
     UpdateProposalThreshold(u64),
     UpdateProposalTTL(u64),
     SoftForkRule(soft_fork::Rule),
-    TransactionFeePolicy(transaction::FeePolicy),
+    TransactionFeePolicy(FeePolicy),
     UnlockStakeEpoch(epoch::Number),
 }
 
 const PARAMETER_COUNT: usize = 14;
+
+type FixedCollectionError<T> = collections::Error<fixed::Error<T>>;
 
 impl Encode for Parameters {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
@@ -91,21 +96,21 @@ impl CborLen for Parameters {
 }
 
 impl Decode<'_> for Parameters {
-    type Error = fixed::Error<Error>;
+    type Error = FixedCollectionError<Error>;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         fn decode_opt<'a, T: Decode<'a>>(
             v: &mut tinycbor::ArrayVisitor<'_, 'a>,
             f: impl Fn(<ArrayOption<T> as Decode<'a>>::Error) -> Error,
-        ) -> Result<Option<T>, fixed::Error<Error>> {
-            v.visit::<ArrayOpt<_>>()
-                .ok_or(fixed::Error::Missing)?
-                .map_err(|e| fixed::Error::Collection(collections::Error::Element(f(e))))
+        ) -> Result<Option<T>, FixedCollectionError<Error>> {
+            v.visit::<ArrayOption<_>>()
+                .ok_or(collections::Error::Element(fixed::Error::Missing))?
+                .map_err(|e| collections::Error::Element(fixed::Error::Inner(f(e))))
                 .map(|a| a.0)
         }
 
         let mut parameters: Self = Self::default();
-        let mut visitor = d.array_visitor().map_err(collections::Error::Malformed)?;
+        let mut visitor = d.array_visitor()?;
 
         if let Some(script_version) = decode_opt(&mut visitor, Error::ScriptVersion)? {
             parameters.insert(Parameter::ScriptVersion(script_version));
@@ -169,20 +174,20 @@ impl Decode<'_> for Parameters {
 
 #[derive(Debug)]
 pub enum Error {
-    ScriptVersion(fixed::Error<num::Error>),
-    SlotDuration(fixed::Error<primitive::Error>),
-    MaxBlockSize(fixed::Error<primitive::Error>),
-    MaxHeaderSize(fixed::Error<primitive::Error>),
-    MaxTransactionSize(fixed::Error<primitive::Error>),
-    MaxProposalSize(fixed::Error<primitive::Error>),
-    MultiPartyComputationThreshold(fixed::Error<primitive::Error>),
-    HeavyDelegationThreshold(fixed::Error<primitive::Error>),
-    UpdateVoteThreshold(fixed::Error<primitive::Error>),
-    UpdateProposalThreshold(fixed::Error<primitive::Error>),
-    UpdateProposalTTL(fixed::Error<primitive::Error>),
-    SoftForkRule(fixed::Error<<soft_fork::Rule as Decode<'static>>::Error>),
-    TransactionFeePolicy(fixed::Error<<transaction::FeePolicy as Decode<'static>>::Error>),
-    UnlockStakeEpoch(fixed::Error<<epoch::Number as Decode<'static>>::Error>),
+    ScriptVersion(FixedCollectionError<num::Error>),
+    SlotDuration(FixedCollectionError<primitive::Error>),
+    MaxBlockSize(FixedCollectionError<primitive::Error>),
+    MaxHeaderSize(FixedCollectionError<primitive::Error>),
+    MaxTransactionSize(FixedCollectionError<primitive::Error>),
+    MaxProposalSize(FixedCollectionError<primitive::Error>),
+    MultiPartyComputationThreshold(FixedCollectionError<primitive::Error>),
+    HeavyDelegationThreshold(FixedCollectionError<primitive::Error>),
+    UpdateVoteThreshold(FixedCollectionError<primitive::Error>),
+    UpdateProposalThreshold(FixedCollectionError<primitive::Error>),
+    UpdateProposalTTL(FixedCollectionError<primitive::Error>),
+    SoftForkRule(FixedCollectionError<<soft_fork::Rule as Decode<'static>>::Error>),
+    TransactionFeePolicy(FixedCollectionError<<FeePolicy as Decode<'static>>::Error>),
+    UnlockStakeEpoch(FixedCollectionError<<epoch::Number as Decode<'static>>::Error>),
 }
 
 impl Display for Error {
@@ -226,47 +231,5 @@ impl core::error::Error for Error {
             Error::TransactionFeePolicy(e) => e,
             Error::UnlockStakeEpoch(e) => e,
         })
-    }
-}
-
-struct ArrayOpt<T>(Option<T>);
-
-impl<T> Encode for ArrayOpt<T>
-where
-    T: Encode,
-{
-    fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        match &self.0 {
-            Some(v) => {
-                e.array(1)?;
-                v.encode(e)
-            }
-            None => e.array(0),
-        }
-    }
-}
-
-impl<'a, T: Decode<'a>> Decode<'a> for ArrayOpt<T> {
-    type Error = fixed::Error<T::Error>;
-
-    fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
-        let mut visitor = d.array_visitor().map_err(collections::Error::Malformed)?;
-        let ret = visitor
-            .visit()
-            .transpose()
-            .map_err(collections::Error::Element)?;
-        if visitor.remaining() != Some(0) {
-            return Err(fixed::Error::Surplus);
-        }
-        Ok(ArrayOpt(ret))
-    }
-}
-
-impl<T: CborLen> CborLen for ArrayOpt<T> {
-    fn cbor_len(&self) -> usize {
-        match &self.0 {
-            Some(v) => 1 + v.cbor_len(),
-            None => 1,
-        }
     }
 }

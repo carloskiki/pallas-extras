@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use tinycbor::{
     CborLen, Decode, Encode, Encoder, Write,
     collections::{self, fixed},
@@ -36,19 +34,20 @@ impl<T: IntoBytes + Immutable> CborLen for Bytes<'_, T> {
 }
 
 impl<'a, 'b: 'a, T: FromBytes + KnownLayout + Immutable + Unaligned> Decode<'b> for Bytes<'a, T> {
-    type Error = fixed::Error<Infallible>;
+    type Error = <&'a [u8; 0] as Decode<'b>>::Error;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        let bytes: &[u8] = Decode::decode(d)
-            .map_err(|e| fixed::Error::Collection(collections::Error::Malformed(e)))?;
+        let bytes: &[u8] = Decode::decode(d)?;
 
         T::ref_from_bytes(bytes)
             .map_err(|e| {
-                if zerocopy::SizeError::from(e).into_src().len() > core::mem::size_of::<T>() {
-                    fixed::Error::Surplus
-                } else {
-                    fixed::Error::Missing
-                }
+                collections::Error::Element(
+                    if zerocopy::SizeError::from(e).into_src().len() > core::mem::size_of::<T>() {
+                        fixed::Error::Surplus
+                    } else {
+                        fixed::Error::Missing
+                    },
+                )
             })
             .map(|v| Bytes(v))
     }

@@ -30,6 +30,8 @@ kes = { path = "../kes" }
 
 # Utilities
 bech32 = "0.11"
+thiserror = { workspace = true }
+displaydoc = { workspace = true }
 zerocopy = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
 

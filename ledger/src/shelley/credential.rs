@@ -64,28 +64,34 @@ impl IntoIterator for ChainPointer {
             slot: self.slot,
             tx_index: self.tx_index,
             cert_index: self.cert_index,
+            state: State::Slot,
         }
     }
+}
+
+enum State {
+    Slot,
+    TxIndex,
+    CertIndex,
+    Done,
 }
 
 pub struct ChainPointerIter {
     slot: u64,
     tx_index: u64,
     cert_index: u64,
+    state: State,
 }
 
 impl Iterator for ChainPointerIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let num = if self.slot != 0 {
-            &mut self.slot
-        } else if self.tx_index != 0 {
-            &mut self.tx_index
-        } else if self.cert_index != 0 {
-            &mut self.cert_index
-        } else {
-            return None;
+        let num = &mut match self.state {
+            State::Slot => self.slot,
+            State::TxIndex => self.tx_index,
+            State::CertIndex => self.cert_index,
+            State::Done => return None,
         };
 
         let bit_count = 64 - num.leading_zeros();
@@ -98,6 +104,13 @@ impl Iterator for ChainPointerIter {
         *num &= mask;
         if *num != 0 {
             value |= 0x80;
+        } else {
+            self.state = match self.state {
+                State::Slot => State::TxIndex,
+                State::TxIndex => State::CertIndex,
+                State::CertIndex => State::Done,
+                State::Done => unreachable!(),
+            };
         }
         Some(value as u8)
     }

@@ -16,14 +16,20 @@ impl Encode for FeePolicy {
     }
 }
 
-impl Decode<'_> for FeePolicy {
-    type Error = fixed::Error<tag::Error<tag::Error<collections::Error<fixed::Error<Error>>>>>;
+impl<'a> Decode<'a> for FeePolicy {
+    type Error = collections::Error<
+        fixed::Error<
+            tag::Error<tag::Error<collections::Error<collections::Error<fixed::Error<Error>>>>>,
+        >,
+    >;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         match codec::Codec::decode(d).map_err(|e| {
             e.map(|e| {
-                e.map(|e| match e {
-                    codec::CodecError::Content(e) => e,
+                e.map(|e| {
+                    e.map(|e| match e {
+                        codec::CodecError::Content(e) => e,
+                    })
                 })
             })
         })? {

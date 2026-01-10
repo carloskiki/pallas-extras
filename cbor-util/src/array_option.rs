@@ -36,16 +36,16 @@ where
 }
 
 impl<'a, T: Decode<'a>> Decode<'a> for ArrayOption<T> {
-    type Error = fixed::Error<T::Error>;
+    type Error = collections::Error<fixed::Error<T::Error>>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
-        let mut visitor = d.array_visitor().map_err(collections::Error::Malformed)?;
+        let mut visitor = d.array_visitor()?;
         let ret = visitor
             .visit()
             .transpose()
-            .map_err(collections::Error::Element)?;
+            .map_err(|e| collections::Error::Element(fixed::Error::Inner(e)))?;
         if visitor.remaining() != Some(0) {
-            return Err(fixed::Error::Surplus);
+            return Err(collections::Error::Element(fixed::Error::Surplus));
         }
         Ok(ArrayOption(ret))
     }

@@ -10,5 +10,5 @@ pub struct Data<'a> {
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]
     pub genesis_key: &'a crypto::ExtendedVerifyingKey,
     pub difficulty: [Difficulty; 1],
-    pub signature: block::Signature<'a>,
+    pub signature: block::main::Signature<'a>,
 }

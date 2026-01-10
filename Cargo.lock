@@ -526,6 +526,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "displaydoc"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "dissimilar"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -825,6 +836,7 @@ dependencies = [
  "const-hex",
  "crc32fast",
  "digest",
+ "displaydoc",
  "ed25519",
  "ed25519-dalek",
  "either",
@@ -832,6 +844,7 @@ dependencies = [
  "mitsein",
  "sha3",
  "sparse-struct",
+ "thiserror",
  "tinycbor",
  "tinycbor-derive",
  "zerocopy",
@@ -1584,18 +1597,18 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.5.4"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4427ccfb021e38b83d3b8db390a8341a0a0bab608581eaf2516d7409b1f48add"
+checksum = "14e7e864ed179bc6be82690cbdeeb0bd471dfea2ee260843a74f660e042fa39a"
 dependencies = [
  "embedded-io",
 ]
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c230c81539908ce692561b0c1446512b8046106fcd04c4b0632fcf6e1b03751e"
+checksum = "93da4fa032e9d44c191445d698afed04a511c6735890d58bfa0705d7f2576304"
 dependencies = [
  "heck",
  "proc-macro2",

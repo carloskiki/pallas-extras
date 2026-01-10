@@ -1,13 +1,5 @@
-   0.052502084s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: dependency on `sparse_struct` is newer than we are 1767640388.183711092s > 1767639931.465002042s "/Users/charles/Code/pallas-extras/ledger"
-   0.052547834s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint dirty for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
-   0.052553875s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDependency { name: "sparse_struct", dep_mtime: FileTime { seconds: 1767640388, nanos: 183711092 }, max_mtime: FileTime { seconds: 1767639931, nanos: 465002042 } })
-   0.053345792s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: stale: changed "/Users/charles/Code/pallas-extras/ledger/src/shelley.rs"
-   0.053351042s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:           (vs) "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-9b44c0c2f6e39fd0/dep-test-lib-ledger"
-   0.053352375s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1767640388, nanos: 189682325 } < FileTime { seconds: 1767640430, nanos: 976172467 }
-   0.053385917s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint dirty for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
-   0.053388625s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-9b44c0c2f6e39fd0/dep-test-lib-ledger", reference_mtime: FileTime { seconds: 1767640388, nanos: 189682325 }, stale: "/Users/charles/Code/pallas-extras/ledger/src/shelley.rs", stale_mtime: FileTime { seconds: 1767640430, nanos: 976172467 } }))
-   0.053981834s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
-   0.053986792s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-f0e691138c50144b/test-integration-test-cbor_len`
+   0.071540625s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.071552583s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-7ad074ee53c1266c/lib-ledger`
 
 Caused by:
     No such file or directory (os error 2)
@@ -31,8 +23,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.055982917s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
-   0.055986084s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-f5489de550cb0a3e/test-integration-test-codec`
+   0.073920250s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.073924333s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-ab5e78181442d586/test-lib-ledger`
 
 Caused by:
     No such file or directory (os error 2)
@@ -56,12 +48,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.056345125s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint dirty for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: false }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
-   0.056348459s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "ledger" })
-   0.056485125s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint dirty for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: true }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
-   0.056487417s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "ledger" })
-   0.057845167s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
-   0.057851542s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-6da41fa7f0291291/lib-plutus`
+   0.074408750s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
+   0.074411916s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-848bab8a96e9078d/test-integration-test-cbor_len`
 
 Caused by:
     No such file or directory (os error 2)
@@ -85,8 +73,108 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.059066917s  INFO prepare_target{force=false package_id=k256 v0.14.0-rc.3 target="k256"}: cargo::core::compiler::fingerprint: fingerprint error for k256 v0.14.0-rc.3/Check { test: false }/TargetInner { ..: lib_target("k256", ["lib"], "/Users/charles/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/k256-0.14.0-rc.3/src/lib.rs", Edition2024) }
-   0.059070417s  INFO prepare_target{force=false package_id=k256 v0.14.0-rc.3 target="k256"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/k256-ec01d9457a561029/lib-k256`
+   0.074804458s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
+   0.074812208s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-5a818f5513674614/test-integration-test-codec`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.075173291s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint error for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: false }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.075176041s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/pallas-extras-97945c3c8c9ae70a/bin-pallas-extras`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.075311958s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint error for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: true }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.075314208s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/pallas-extras-47ea646e5a8e862f/test-bin-pallas-extras`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.076633125s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
+   0.076639375s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-9944b7f54bab5831/lib-plutus`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.077832750s  INFO prepare_target{force=false package_id=k256 v0.14.0-rc.3 target="k256"}: cargo::core::compiler::fingerprint: fingerprint error for k256 v0.14.0-rc.3/Check { test: false }/TargetInner { ..: lib_target("k256", ["lib"], "/Users/charles/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/k256-0.14.0-rc.3/src/lib.rs", Edition2024) }
+   0.077838458s  INFO prepare_target{force=false package_id=k256 v0.14.0-rc.3 target="k256"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/k256-ec01d9457a561029/lib-k256`
 
 Caused by:
     No such file or directory (os error 2)
@@ -111,8 +199,8 @@ Stack backtrace:
   16: std::rt::lang_start::<()>::{closure#0}
   17: std::rt::lang_start_internal
   18: _main
-   0.060108792s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
-   0.060111667s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-ce890a20296f272c/test-lib-plutus`
+   0.078848250s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
+   0.078854750s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-b3366554f5c07742/test-lib-plutus`
 
 Caused by:
     No such file or directory (os error 2)
@@ -136,8 +224,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   0.060857917s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { kind: "test", name: "conformance", benched: false, harness: false, ..: with_path("/Users/charles/Code/pallas-extras/plutus/tests/conformance.rs", Edition2024) }
-   0.060860834s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-bb1c20e3b197d3d1/test-integration-test-conformance`
+   0.079535541s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { kind: "test", name: "conformance", benched: false, harness: false, ..: with_path("/Users/charles/Code/pallas-extras/plutus/tests/conformance.rs", Edition2024) }
+   0.079538208s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-70d0515c5920a215/test-integration-test-conformance`
 
 Caused by:
     No such file or directory (os error 2)
@@ -165,5 +253,5 @@ Stack backtrace:
     Checking k256 v0.14.0-rc.3
 error: could not compile `k256` (lib) due to 1 previous error
 warning: build failed, waiting for other jobs to finish...
-error: could not compile `ledger` (lib) due to 622 previous errors; 1 warning emitted
-error: could not compile `ledger` (lib test) due to 617 previous errors; 1 warning emitted
+error: could not compile `ledger` (lib) due to 1 previous error
+error: could not compile `ledger` (lib test) due to 1 previous error

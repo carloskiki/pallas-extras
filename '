@@ -55,7 +55,8 @@
 //! attributes, and modify them.
 
 use heck::ToSnakeCase;
-use proc_macro2::{Span, TokenStream};
+use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
     Data, DataStruct, DataUnion, DeriveInput, Fields, Ident, parse_macro_input, spanned::Spanned,
@@ -63,7 +64,7 @@ use syn::{
 };
 
 #[proc_macro_derive(SparseStruct, attributes(struct_name, struct_derive))]
-pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn derive(input: TokenStream) -> TokenStream {
     expand(parse_macro_input!(input as DeriveInput))
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
@@ -77,7 +78,7 @@ fn expand(
         generics,
         data,
     }: DeriveInput,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let syn::DataEnum { variants, .. } = match data {
         Data::Enum(e) => e,
         Data::Struct(DataStruct {
@@ -101,13 +102,12 @@ fn expand(
         ));
     }
 
-    // Use Option collect for tags.
-    let (methods, index_arms) = variants
+    let fields = variants
         .iter()
         .enumerate()
         .map(|(i, variant)| {
             let span = variant.span();
-            let field = match &variant.fields {
+            match &variant.fields {
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0],
                 _ => {
                     return Err(syn::Error::new(
@@ -115,7 +115,11 @@ fn expand(
                     "`SparseStruct` can only be derived for enums containing newtype variants (tuple variants with a single type).",
                     ));
                 }
-            };
+            }
+        });
+
+        
+    let methods = ;
             if let Some(err) = variant.attrs.iter().find_map(|attr| {
                 ["struct_name", "struct_derive"].iter().find_map(|attr_name| {
                     attr.path().is_ident(attr_name).then_some(syn::Error::new(
@@ -150,7 +154,7 @@ fn expand(
             );
             let fn_ident_mut = Ident::new(&format!("{fn_ident}_mut"), Span::call_site());
             let remove_ident = Ident::new(&format!("remove_{fn_ident}"), Span::call_site());
-            Ok((quote! {
+            Ok(quote! {
                 /// Returns a reference to the field if it is present.
                 pub fn #fn_ident(&self) -> Option<&#field> #fn_ref
                 /// Returns a mutable reference to the field if it is present.
@@ -170,11 +174,9 @@ fn expand(
                     self.present &= !significant_bit;
                     Some(data)
                 }
-            }, quote! {
-            #enum_ident::#variant_ident { .. } => #i,
-        }))
+            })
         })
-        .collect::<syn::Result<(TokenStream, TokenStream)>>()?;
+        .collect::<syn::Result<proc_macro2::TokenStream>>()?;
 
     let mut struct_ident: Ident = format_ident!("{}Set", enum_ident);
     let mut struct_derives = quote! {};
@@ -207,52 +209,19 @@ fn expand(
         }
     }
 
+    let index_arms = variants.iter().enumerate().map(|(i, variant)| {
+        let variant_ident = &variant.ident;
+        quote! {
+            #enum_ident::#variant_ident { .. } => #i,
+        }
+    });
+
     Ok(quote! {
         #[derive(#struct_derives)]
         #vis struct #struct_ident #generics {
-            data: ::alloc::vec::Vec<#enum_ident #generics>,
-            present: ::core::primitive::u64,
+            data: Vec<#enum_ident #generics>,
+            present: u64,
         }
-
-        impl #generics #struct_ident #generics {
-            #methods
-        }
-
-        impl #generics #struct_ident #generics {
-            /// Inserts a new value into the set.
-            ///
-            /// Returns whether the value was newly inserted. That is:
-            /// - `true` if the value was not present and has been added.
-            /// - `false` if the value was already present and has been updated.
-            pub fn insert(&mut self, value: #enum_ident #generics) -> ::core::primitive::bool {
-                let variant_index = match &value {
-                    #index_arms
-                };
-                let significant_bit = (1 << variant_index) as ::core::primitive::u64;
-                let was_present = self.present & significant_bit != 0;
-                if was_present {
-                    // Update existing value.
-                    let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
-                    self.data[index] = value;
-                    false
-                } else {
-                    // Insert new value.
-                    let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
-                    self.data.insert(index, value);
-                    self.present |= significant_bit;
-                    true
-                }
-            }
-
-        }
-
-        const _: () = {
-        use ::core::{
-            default::Default,
-            convert::AsRef,
-            iter::{FromIterator, IntoIterator, Iterator},
-        };
-        use ::alloc::vec::Vec;
 
         impl #generics Default for #struct_ident #generics {
             fn default() -> Self {
@@ -273,6 +242,38 @@ fn expand(
             }
         }
 
+        impl #generics #struct_ident #generics {
+            #methods
+        }
+
+        impl #generics #struct_ident #generics {
+            /// Inserts a new value into the set.
+            ///
+            /// Returns whether the value was newly inserted. That is:
+            /// - `true` if the value was not present and has been added.
+            /// - `false` if the value was already present and has been updated.
+            pub fn insert(&mut self, value: #enum_ident #generics) -> bool {
+                let variant_index = match &value {
+                    #(#index_arms)*
+                };
+                let significant_bit = (1 << variant_index) as u64;
+                let was_present = self.present & significant_bit != 0;
+                if was_present {
+                    // Update existing value.
+                    let index = (self.present & (significant_bit - 1)).count_ones() as usize;
+                    self.data[index] = value;
+                    false
+                } else {
+                    // Insert new value.
+                    let index = (self.present & (significant_bit - 1)).count_ones() as usize;
+                    self.data.insert(index, value);
+                    self.present |= significant_bit;
+                    true
+                }
+            }
+
+        }
+
         impl #generics FromIterator<#enum_ident #generics> for #struct_ident #generics {
             fn from_iter<T: IntoIterator<Item = #enum_ident #generics>>(iter: T) -> Self {
                 iter.into_iter().fold(
@@ -286,7 +287,6 @@ fn expand(
                     },
                 )
             }
-        }
         }
     })
 }
