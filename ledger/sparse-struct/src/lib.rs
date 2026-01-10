@@ -101,7 +101,6 @@ fn expand(
         ));
     }
 
-    // Use Option collect for tags.
     let (methods, index_arms) = variants
         .iter()
         .enumerate()
