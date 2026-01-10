@@ -1,9 +1,12 @@
 use crate::{epoch, shelley::{UnitInterval, transaction::Coin}};
 
 pub mod version;
+use sparse_struct::SparseStruct;
 pub use version::Version;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
+#[struct_name = "Parameters"]
+#[struct_derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Parameter {
     MinimumFeeA(Coin),
     MinimumFeeB(Coin),
@@ -23,6 +26,7 @@ pub enum Parameter {
     MinimumUtxoValue(Coin),
     MinimumPoolCost(Coin),
 }
+
 
 //     AdaPerUtxoByte(Coin),
 //     ScriptCostModel(CostModels),

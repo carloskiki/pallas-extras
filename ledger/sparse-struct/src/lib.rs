@@ -209,7 +209,7 @@ fn expand(
     Ok(quote! {
         #[derive(#struct_derives)]
         #vis struct #struct_ident #generics {
-            data: ::alloc::vec::Vec<#enum_ident #generics>,
+            data: ::std::vec::Vec<#enum_ident #generics>,
             present: ::core::primitive::u64,
         }
 
@@ -251,7 +251,7 @@ fn expand(
             convert::AsRef,
             iter::{FromIterator, IntoIterator, Iterator},
         };
-        use ::alloc::vec::Vec;
+        use ::std::vec::Vec;
 
         impl #generics Default for #struct_ident #generics {
             fn default() -> Self {
