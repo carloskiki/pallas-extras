@@ -1,9 +1,18 @@
-use crate::era::Era;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(tag_only)]
-pub enum Major {
+pub struct Version {
+    pub major: Fork,
+    #[cbor(with = "tinycbor::num::U8")]
+    pub minor: u8,
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
+pub enum Fork {
+    #[n(1)]
+    Byron,
     #[n(2)]
     Shelley,
     #[n(3)]
@@ -24,13 +33,4 @@ pub enum Major {
     // Plomin,
     // #[n(11)]
     // Next,
-}
-
-impl Major {
-    pub fn era(self) -> Era {
-        match self {
-            Major::Shelley => Era::Shelley,
-            Major::Allegra => Era::Allegra,
-        }
-    }
 }

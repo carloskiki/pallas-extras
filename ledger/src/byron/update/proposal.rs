@@ -15,6 +15,6 @@ pub struct Proposal<'a> {
     pub attributes: Attributes<'a>,
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]
     pub issuer: &'a crypto::ExtendedVerifyingKey,
-    #[cbor(with = "cbor_util::Bytes<'a, crypto::Signature>")]
+    #[cbor(with = "cbor_util::Signature<'a>")]
     pub signature: &'a crypto::Signature,
 }

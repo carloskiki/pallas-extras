@@ -15,6 +15,7 @@ digest = { workspace = true }
 # Data types
 either = { workspace = true }
 mitsein = { workspace = true }
+rug = { workspace = true }
 
 # Hashing
 blake2 = { workspace = true }
@@ -33,6 +34,7 @@ bech32 = "0.11"
 thiserror = { workspace = true }
 displaydoc = { workspace = true }
 zerocopy = { workspace = true }
+ref-cast = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
 
 [dev-dependencies]

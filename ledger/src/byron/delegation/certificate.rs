@@ -8,6 +8,6 @@ pub struct Certificate<'a> {
     issuer: &'a crypto::ExtendedVerifyingKey,
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]
     delegate: &'a crypto::ExtendedVerifyingKey,
-    #[cbor(with = "cbor_util::Bytes<'a, crypto::Signature>")]
+    #[cbor(with = "cbor_util::Signature<'a>")]
     signature: &'a crypto::Signature,
 }

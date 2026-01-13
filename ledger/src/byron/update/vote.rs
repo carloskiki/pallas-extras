@@ -7,6 +7,6 @@ pub struct Vote<'a> {
     pub voter: &'a crypto::ExtendedVerifyingKey,
     pub proposal_id: &'a super::proposal::Id,
     pub vote: bool,
-    #[cbor(with = "cbor_util::Bytes<'a, crypto::Signature>")]
+    #[cbor(with = "cbor_util::Signature<'a>")]
     pub signature: &'a crypto::Signature,
 }

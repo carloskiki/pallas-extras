@@ -1,7 +1,7 @@
 // use std::num::{NonZeroI64, NonZeroU64};
 // 
 // use cbor_util::{bytes_iter_collect, str_iter_collect};
-// use minicbor::{CborLen, Decode, Encode};
+use tinycbor_derive::{CborLen, Decode, Encode};
 // 
 // use super::{
 //     address::{Address, shelley::StakeAddress},
@@ -15,18 +15,28 @@
 //     slot,
 // };
 
+pub mod body;
+
+pub mod datum;
+
+pub mod input;
+pub use input::Input;
+
+pub mod output;
+pub use output::Output;
+
+pub mod value;
+pub use value::Value;
+
+
 pub type Id = crate::crypto::Blake2b256Digest;
 pub type Coin = u64;
 
-// #[derive(Debug, Clone, PartialEq, Eq, Encode)]
+// #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 // pub struct Transaction {
-//     #[n(0)]
 //     pub body: Body,
-//     #[n(1)]
 //     pub witness_set: witness::Set,
-//     #[n(2)]
 //     pub valid_scripts: bool,
-//     #[n(3)]
 //     pub data: Option<Data>,
 // }
 // 

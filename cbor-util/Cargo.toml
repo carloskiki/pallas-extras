@@ -16,6 +16,7 @@ mitsein = { workspace = true }
 
 # Public Key Cryptography
 bip32 = { path = "../bip32" }
+ed25519-dalek = { workspace = true }
 
 # Utilities
 macro_rules_attribute = { workspace = true }

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::epoch;
-use cbor_util::ArrayOption;
+use cbor_util::Array;
 use sparse_struct::SparseStruct;
 use tinycbor::{
     CborLen, Decode, Encode,
@@ -56,20 +56,20 @@ type FixedCollectionError<T> = collections::Error<fixed::Error<T>>;
 impl Encode for Parameters {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         e.array(PARAMETER_COUNT)?;
-        ArrayOption(self.script_version()).encode(e)?;
-        ArrayOption(self.slot_duration()).encode(e)?;
-        ArrayOption(self.max_block_size()).encode(e)?;
-        ArrayOption(self.max_header_size()).encode(e)?;
-        ArrayOption(self.max_transaction_size()).encode(e)?;
-        ArrayOption(self.max_proposal_size()).encode(e)?;
-        ArrayOption(self.multi_party_computation_threshold()).encode(e)?;
-        ArrayOption(self.heavy_delegation_threshold()).encode(e)?;
-        ArrayOption(self.update_vote_threshold()).encode(e)?;
-        ArrayOption(self.update_proposal_threshold()).encode(e)?;
-        ArrayOption(self.update_proposal_ttl()).encode(e)?;
-        ArrayOption(self.soft_fork_rule()).encode(e)?;
-        ArrayOption(self.transaction_fee_policy()).encode(e)?;
-        ArrayOption(self.unlock_stake_epoch()).encode(e)?;
+        Array::<_, false>(self.script_version()).encode(e)?;
+        Array::<_, false>(self.slot_duration()).encode(e)?;
+        Array::<_, false>(self.max_block_size()).encode(e)?;
+        Array::<_, false>(self.max_header_size()).encode(e)?;
+        Array::<_, false>(self.max_transaction_size()).encode(e)?;
+        Array::<_, false>(self.max_proposal_size()).encode(e)?;
+        Array::<_, false>(self.multi_party_computation_threshold()).encode(e)?;
+        Array::<_, false>(self.heavy_delegation_threshold()).encode(e)?;
+        Array::<_, false>(self.update_vote_threshold()).encode(e)?;
+        Array::<_, false>(self.update_proposal_threshold()).encode(e)?;
+        Array::<_, false>(self.update_proposal_ttl()).encode(e)?;
+        Array::<_, false>(self.soft_fork_rule()).encode(e)?;
+        Array::<_, false>(self.transaction_fee_policy()).encode(e)?;
+        Array::<_, false>(self.unlock_stake_epoch()).encode(e)?;
         Ok(())
     }
 }
@@ -77,20 +77,20 @@ impl Encode for Parameters {
 impl CborLen for Parameters {
     fn cbor_len(&self) -> usize {
         let mut len = PARAMETER_COUNT.cbor_len();
-        len += ArrayOption(self.script_version()).cbor_len();
-        len += ArrayOption(self.slot_duration()).cbor_len();
-        len += ArrayOption(self.max_block_size()).cbor_len();
-        len += ArrayOption(self.max_header_size()).cbor_len();
-        len += ArrayOption(self.max_transaction_size()).cbor_len();
-        len += ArrayOption(self.max_proposal_size()).cbor_len();
-        len += ArrayOption(self.multi_party_computation_threshold()).cbor_len();
-        len += ArrayOption(self.heavy_delegation_threshold()).cbor_len();
-        len += ArrayOption(self.update_vote_threshold()).cbor_len();
-        len += ArrayOption(self.update_proposal_threshold()).cbor_len();
-        len += ArrayOption(self.update_proposal_ttl()).cbor_len();
-        len += ArrayOption(self.soft_fork_rule()).cbor_len();
-        len += ArrayOption(self.transaction_fee_policy()).cbor_len();
-        len += ArrayOption(self.unlock_stake_epoch()).cbor_len();
+        len += Array::<_, false>(self.script_version()).cbor_len();
+        len += Array::<_, false>(self.slot_duration()).cbor_len();
+        len += Array::<_, false>(self.max_block_size()).cbor_len();
+        len += Array::<_, false>(self.max_header_size()).cbor_len();
+        len += Array::<_, false>(self.max_transaction_size()).cbor_len();
+        len += Array::<_, false>(self.max_proposal_size()).cbor_len();
+        len += Array::<_, false>(self.multi_party_computation_threshold()).cbor_len();
+        len += Array::<_, false>(self.heavy_delegation_threshold()).cbor_len();
+        len += Array::<_, false>(self.update_vote_threshold()).cbor_len();
+        len += Array::<_, false>(self.update_proposal_threshold()).cbor_len();
+        len += Array::<_, false>(self.update_proposal_ttl()).cbor_len();
+        len += Array::<_, false>(self.soft_fork_rule()).cbor_len();
+        len += Array::<_, false>(self.transaction_fee_policy()).cbor_len();
+        len += Array::<_, false>(self.unlock_stake_epoch()).cbor_len();
         len
     }
 }
@@ -101,9 +101,9 @@ impl Decode<'_> for Parameters {
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         fn decode_opt<'a, T: Decode<'a>>(
             v: &mut tinycbor::ArrayVisitor<'_, 'a>,
-            f: impl Fn(<ArrayOption<T> as Decode<'a>>::Error) -> Error,
+            f: impl Fn(<Array<T, false> as Decode<'a>>::Error) -> Error,
         ) -> Result<Option<T>, FixedCollectionError<Error>> {
-            v.visit::<ArrayOption<_>>()
+            v.visit::<Array<_, false>>()
                 .ok_or(collections::Error::Element(fixed::Error::Missing))?
                 .map_err(|e| collections::Error::Element(fixed::Error::Inner(f(e))))
                 .map(|a| a.0)

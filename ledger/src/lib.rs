@@ -6,10 +6,9 @@ pub mod crypto;
 pub mod slot;
 pub mod epoch;
 
-pub mod era;
-pub use era::Era;
-
 pub mod address;
+pub use address::Address;
 
+pub mod conway;
 pub mod shelley;
 pub mod byron;

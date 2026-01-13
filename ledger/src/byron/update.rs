@@ -11,7 +11,7 @@ pub use data::Data;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Update<'a> {
-    #[cbor(with = "cbor_util::ArrayOption<Proposal<'a>>")]
+    #[cbor(with = "cbor_util::option::Array<Proposal<'a>, false>")]
     pub proposal: Option<Proposal<'a>>,
     pub votes: Vec<Vote<'a>>,
 }

@@ -107,7 +107,7 @@ fn expand(
         .map(|(i, variant)| {
             let span = variant.span();
             let field = match &variant.fields {
-                Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0],
+                Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0].ty,
                 _ => {
                     return Err(syn::Error::new(
                         variant.span(),
@@ -126,15 +126,18 @@ fn expand(
                 return Err(err);
             }
 
-            let variant_ident = &variant.ident;
-            let get_fn_body = |ref_type| quote! {{
+            let index_computation = quote! {
                 let significant_bit = (1 << #i) as u64;
                 if self.present & significant_bit == 0 {
                     return None;
                 }
-                let index = (self.present & (significant_bit - 1)).count_ones() as usize;
+                let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
+            };
+            let variant_ident = &variant.ident;
+            let get_fn_body = |ref_type| quote! {{
+                #index_computation
                 let #enum_ident::#variant_ident(data) = #ref_type self.data[index] else {
-                    unreachable!(
+                    ::core::unreachable!(
                         "The variant should be present in the data array if the bit is set."
                     );
                 };
@@ -148,6 +151,7 @@ fn expand(
                 Span::call_site(),
             );
             let fn_ident_mut = Ident::new(&format!("{fn_ident}_mut"), Span::call_site());
+            let set_ident = Ident::new(&format!("set_{fn_ident}"), Span::call_site());
             let remove_ident = Ident::new(&format!("remove_{fn_ident}"), Span::call_site());
             Ok((quote! {
                 /// Returns a reference to the field if it is present.
@@ -156,19 +160,38 @@ fn expand(
                 pub fn #fn_ident_mut(&mut self) -> Option<&mut #field> #fn_mut
                 /// Removes the field from the set, returning it if it was present.
                 pub fn #remove_ident(&mut self) -> Option<#field> {
-                    let significant_bit = (1 << #i) as u64;
-                    if self.present & significant_bit == 0 {
-                        return None;
-                    }
-                    let index = (self.present & (significant_bit - 1)).count_ones() as usize;
+                    #index_computation
                     let #enum_ident::#variant_ident(data) = self.data.remove(index) else {
-                        unreachable!(
+                        ::core::unreachable!(
                             "The variant should be present in the data array if the bit is set."
                         );
                     };
                     self.present &= !significant_bit;
                     Some(data)
                 }
+                /// Sets the field to the given value.
+                ///
+                /// Returns whether the value was newly inserted. That is:
+                /// - `true` if the value was not present and has been added.
+                /// - `false` if the value was already present and has been updated.
+                pub fn #set_ident(&mut self, value: #field) -> bool {
+                    let significant_bit = (1 << #i) as u64;
+                    let variant = #enum_ident::#variant_ident(value);
+                    
+                    if self.present & significant_bit != 0 {
+                        // Update existing value.
+                        let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
+                        self.data[index] = variant;
+                        false
+                    } else {
+                        // Insert new value.
+                        let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
+                        self.data.insert(index, variant);
+                        self.present |= significant_bit;
+                        true
+                    }
+                }
+                
             }, quote! {
             #enum_ident::#variant_ident { .. } => #i,
         }))
@@ -198,11 +221,6 @@ fn expand(
             }
         } else if attr.path().is_ident("struct_derive") {
             struct_derives = attr.parse_args()?;
-        } else {
-            return Err(syn::Error::new(
-                attr.span(),
-                "Unknown attribute for `SparseStruct`. Supported attributes are `struct_name` and `struct_derive`.",
-            ));
         }
     }
 
@@ -228,8 +246,7 @@ fn expand(
                     #index_arms
                 };
                 let significant_bit = (1 << variant_index) as ::core::primitive::u64;
-                let was_present = self.present & significant_bit != 0;
-                if was_present {
+                if self.present & significant_bit != 0 {
                     // Update existing value.
                     let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
                     self.data[index] = value;
@@ -286,6 +303,6 @@ fn expand(
                 )
             }
         }
-        }
+        };
     })
 }

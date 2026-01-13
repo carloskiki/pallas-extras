@@ -1,5 +1,5 @@
-pub mod array_option;
-pub use array_option::ArrayOption;
+pub mod option;
+pub use option::Array;
 
 pub mod big_int;
 pub use big_int::BigInt;
@@ -7,8 +7,8 @@ pub use big_int::BigInt;
 pub mod bounded_bytes;
 pub use bounded_bytes::BoundedBytes;
 
+// TODO: remove if useless
 pub mod crypto;
-pub use crypto::Signature;
 
 pub mod mitsein;
 pub use mitsein::NonEmpty;
@@ -21,6 +21,7 @@ pub mod inspect;
 pub use inspect::{Inspect, Inspector};
 
 pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
+pub type Signature<'a> = Bytes<'a, ed25519_dalek::Signature>;
 
 macro_rules! wrapper {
     ($vis:vis struct $name:ident(pub $inner:ty);) => {
