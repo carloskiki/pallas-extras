@@ -12,11 +12,8 @@ over any `Signer` and `Verifier`.
 
 ## Possible Future Work
 
+- `zerocopy` impls.
 - Make `Sum` more generic by allowing any seed extending algorithm.
 - Have a `CompactSignature` that does not require both sides of the sum to be the same type.
     This could be done at no cost using `union`s (unsafe code), but we would require that the period
     stored in the signature must be exact otherwise we would cause UB.
-
-## To report to `RustCrypto`
-
-The `SignatureEncoding` trait bad.

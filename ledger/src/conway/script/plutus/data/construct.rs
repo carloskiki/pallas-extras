@@ -15,7 +15,7 @@ impl Decode<'_> for Construct {
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
         fn wrap(e: Error) -> tag::Error<collections::Error<fixed::Error<Error>>> {
             tag::Error::Inner(collections::Error::Element(
-                collections::fixed::Error::Inner(Error::from(e)),
+                collections::fixed::Error::Inner(e),
             ))
         }
 
@@ -25,7 +25,7 @@ impl Decode<'_> for Construct {
                 EndOfInput,
             )))? {
             Ok(Token::Tag(t)) => t,
-            Ok(_) | Err(string::Error::Utf8(_)) => {
+            Ok(_) | Err(string::Error::Utf8) => {
                 return Err(tag::Error::Malformed(primitive::Error::InvalidHeader(
                     InvalidHeader,
                 )));

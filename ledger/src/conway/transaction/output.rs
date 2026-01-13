@@ -5,11 +5,9 @@ use crate::conway::{
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
-    Decode, Encoded,
-    collections::{self, fixed},
-    tag,
+    Decode, Encoded, collections::{self, fixed}, primitive, tag
 };
-use tinycbor_derive::{CborLen, Decode, Encode};
+use tinycbor_derive::{CborLen, Encode};
 
 use super::Value;
 
@@ -35,15 +33,34 @@ pub enum Error {
     /// while decoding `datum`
     Datum(#[from] <Datum<'static> as Decode<'static>>::Error),
     /// while decoding `script_ref`
-    ScriptRef(<Encoded<Script<'static>> as Decode<'static>>::Error),
+    ScriptRef(#[from] ScriptRefError),
+    /// while decoding map key
+    Key(#[from] primitive::Error),
 }
 
-// type Thing = <Encoded<Script<'static>> as Decode<'static>>::Error;
-
-// type ThingE =
-//     tag::Error<collections::Error<collections::Error<fixed::Error<tag::Error<script::Error>>>>>;
+// This is equivalent to:
+// ```
+// type ScriptRefError = <Encoded<Script<'static>> as Decode<'static>>::Error;
+// ```
+// but the compiler does not like this.
 // 
-// impl ::core::convert::From<ThingE> for Error {
+// My guess is that the compiler can't see
+// `<Encoded<Script<'static>> as Decode<'static>>::Error != Error`
+// but I don't know why.
+type ScriptRefError =
+    tag::Error<collections::Error<collections::Error<fixed::Error<tag::Error<script::Error>>>>>;
+
+
+impl<'a, 'b: 'a> Decode<'b> for Output<'a> {
+    type Error = collections::Error<fixed::Error<Error>>;
+
+    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+    }
+}
+//
+// type ThingE =
+//
+// impl ::core::convert::From<<Encoded<Script<'static>> as Decode<'static>>::Error> for Error {
 //     fn from(source: <Encoded<Script<'static>> as Decode<'static>>::Error) -> Self {
 //         Error::ScriptRef(source)
 //     }

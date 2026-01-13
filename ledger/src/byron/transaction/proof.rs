@@ -7,5 +7,3 @@ pub struct Proof<'a> {
     pub merkle_root: &'a Blake2b256Digest,
     pub witnesses_hash: &'a Blake2b256Digest,
 }
-
-type Thing = Error;

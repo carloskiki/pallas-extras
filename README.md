@@ -16,3 +16,5 @@ are developed and experimented with, and then merged into `pallas` once mature e
 
 
 ## TODOs
+
+- Make errors standard: https://blog.rust-lang.org/inside-rust/2021/07/01/What-the-error-handling-project-group-is-working-towards/

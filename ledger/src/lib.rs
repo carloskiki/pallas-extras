@@ -2,6 +2,9 @@
 //!
 //! All types serialize into the Babbage era of the specification, and can be deserialized from any
 //! era between and including Shelley and Babbage.
+
+extern crate alloc;
+
 pub mod crypto;
 pub mod slot;
 pub mod epoch;
@@ -10,5 +13,8 @@ pub mod address;
 pub use address::Address;
 
 pub mod conway;
+
+pub mod alonzo;
+pub mod mary;
 pub mod shelley;
 pub mod byron;
