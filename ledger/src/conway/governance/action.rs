@@ -1,73 +1,47 @@
-use minicbor::{CborLen, Decode, Encode};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::{
-    Credential,
-    address::shelley::StakeAddress,
+    conway::{UnitInterval, governance::Id, protocol, transaction::Coin},
     crypto::Blake2b224Digest,
     epoch,
-    protocol::{self, RealNumber},
-    transaction::{self, Coin},
+    shelley::{Credential, address::Account},
 };
 
 use super::Constitution;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(flat)]
-pub enum Action {
+pub enum Action<'a> {
     #[n(0)]
     ParameterChange {
-        #[n(0)]
-        id: Option<Id>,
-        #[n(1)]
-        update: protocol::ParameterUpdate,
-        #[cbor(n(2), with = "minicbor::bytes")]
-        policy_hash: Option<Blake2b224Digest>,
+        id: Option<Id<'a>>,
+        update: protocol::Parameters,
+        policy_hash: Option<&'a Blake2b224Digest>,
     },
     #[n(1)]
     HardForkInitialization {
-        #[n(0)]
-        id: Option<Id>,
-        #[n(1)]
+        id: Option<Id<'a>>,
         version: protocol::Version,
     },
     #[n(2)]
     TreasuryWithdrawals {
-        #[cbor(n(0), with = "cbor_util::list_as_map", has_nil)]
-        withdrawals: Box<[(StakeAddress, Coin)]>,
-        #[cbor(n(1), with = "minicbor::bytes")]
-        policy_hash: Option<Blake2b224Digest>,
+        withdrawals: Vec<(Account<'a>, Coin)>,
+        policy_hash: Option<&'a Blake2b224Digest>,
     },
     #[n(3)]
-    NoConfidence {
-        #[n(0)]
-        id: Option<Id>,
-    },
+    NoConfidence { id: Option<Id<'a>> },
     #[n(4)]
     UpdateCommittee {
-        #[n(0)]
-        id: Option<Id>,
-        #[cbor(n(1), with = "cbor_util::set")]
-        remove: Box<[Credential]>,
-        #[cbor(n(2), with = "cbor_util::list_as_map")]
-        add: Box<[(Credential, epoch::Number)]>,
-        #[n(3)]
-        signature_threshold: RealNumber,
+        id: Option<Id<'a>>,
+        #[cbor(with = "cbor_util::Set<Credential<'a>, false>")]
+        remove: Vec<Credential<'a>>,
+        add: Vec<(Credential<'a>, epoch::Number)>,
+        signature_threshold: UnitInterval,
     },
     #[n(5)]
     NewConstitution {
-        #[n(0)]
-        id: Option<Id>,
-        #[n(1)]
-        constitution: Constitution,
+        id: Option<Id<'a>>,
+        constitution: Constitution<'a>,
     },
     #[n(6)]
     Info,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Id {
-    #[cbor(n(0), with = "minicbor::bytes")]
-    transaction_id: transaction::Id,
-    #[n(1)]
-    index: u16,
 }

@@ -219,6 +219,7 @@ name = "cbor-util"
 version = "0.1.0"
 dependencies = [
  "bip32",
+ "displaydoc",
  "ed25519-dalek",
  "macro_rules_attribute",
  "mitsein",
@@ -1600,18 +1601,18 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.8.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e20d1fef7e991ce10e1bdbb7aa30c3d1a821c700bac5c33fc3baf4d27071464a"
+checksum = "a5194b017318f43f24dd6ee6dd777b1f7fc2540dc9ac0721f970eba2245df3f2"
 dependencies = [
  "embedded-io",
 ]
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.8.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9db7c8cc51cf8f5c839a8f4f2c8f65302fb4edc6bfcbac775c992865cc10bfeb"
+checksum = "6c1c983c6e8550493434099c780dcb2ed40fffd013421ead02ba568fff03e4e2"
 dependencies = [
  "heck",
  "proc-macro2",

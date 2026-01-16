@@ -1,6 +1,6 @@
 use tinycbor::{
     CborLen, Decode, Encode, Encoder, Write,
-    collections::{self, fixed},
+    container::{self, bounded},
 };
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
@@ -41,11 +41,11 @@ impl<'a, 'b: 'a, T: FromBytes + KnownLayout + Immutable + Unaligned> Decode<'b> 
 
         T::ref_from_bytes(bytes)
             .map_err(|e| {
-                collections::Error::Element(
+                container::Error::Content(
                     if zerocopy::SizeError::from(e).into_src().len() > core::mem::size_of::<T>() {
-                        fixed::Error::Surplus
+                        bounded::Error::Surplus
                     } else {
-                        fixed::Error::Missing
+                        bounded::Error::Missing
                     },
                 )
             })

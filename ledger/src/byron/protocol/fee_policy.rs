@@ -1,6 +1,6 @@
 use tinycbor::{
     CborLen, Decode, Encode,
-    collections::{self, fixed},
+    container::{self, bounded},
     tag,
 };
 
@@ -17,9 +17,9 @@ impl Encode for FeePolicy {
 }
 
 impl<'a> Decode<'a> for FeePolicy {
-    type Error = collections::Error<
-        fixed::Error<
-            tag::Error<tag::Error<collections::Error<collections::Error<fixed::Error<Error>>>>>,
+    type Error = container::Error<
+        bounded::Error<
+            tag::Error<tag::Error<container::Error<container::Error<bounded::Error<Error>>>>>,
         >,
     >;
 

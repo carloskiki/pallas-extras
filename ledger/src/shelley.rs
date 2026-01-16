@@ -1,8 +1,22 @@
 pub mod address;
 pub use address::Address;
 
+pub mod ceritificate;
+pub use ceritificate::Certificate;
+
 pub mod credential;
 pub use credential::Credential;
+
+pub mod pool;
+
+pub mod transaction;
+pub use transaction::Transaction;
+
+pub mod unit_interval;
+pub use unit_interval::UnitInterval;
+
+pub mod url;
+pub use url::Url;
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

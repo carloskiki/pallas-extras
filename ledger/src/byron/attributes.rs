@@ -28,11 +28,9 @@ where
             d.datatype()?,
             tinycbor::Type::Map | tinycbor::Type::MapIndef,
         ) {
-            return Err(tinycbor::string::Error::Malformed(
-                tinycbor::primitive::Error::InvalidHeader(tinycbor::InvalidHeader),
-            ));
+            return Err(tinycbor::InvalidHeader.into());
         }
-        
+
         Ok(Attributes(tinycbor::Any::decode(d)?))
     }
 }

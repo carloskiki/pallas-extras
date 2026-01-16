@@ -85,7 +85,7 @@ impl Decode<'_> for BigInt {
                         BigInt(-big_int - 1)
                     })
             }
-            _ => Err(Error::Int(primitive::Error::InvalidHeader(InvalidHeader))),
+            _ => Err(Error::Int(InvalidHeader.into())),
         }
     }
 }

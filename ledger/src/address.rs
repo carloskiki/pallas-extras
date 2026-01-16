@@ -1,6 +1,6 @@
 use displaydoc::Display;
 use thiserror::Error;
-use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, collections};
+use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, container};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Address<'a> {
@@ -27,7 +27,7 @@ impl Encode for Address<'_> {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
-    type Error = collections::Error<Error>;
+    type Error = container::Error<Error>;
 
     fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
         let bytes: &'b [u8] = Decode::decode(d)?;
@@ -35,11 +35,11 @@ impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
             && (first >> 4) == 0b1000
         {
             Decode::decode(&mut Decoder(bytes))
-                .map_err(|e| collections::Error::Element(Error::Byron(e)))
+                .map_err(|e| container::Error::Content(Error::Byron(e)))
                 .map(Address::Byron)
         } else {
             crate::shelley::Address::try_from(bytes)
-                .map_err(|e| collections::Error::Element(Error::Shelley(e)))
+                .map_err(|e| container::Error::Content(Error::Shelley(e)))
                 .map(Address::Shelley)
         }
     }

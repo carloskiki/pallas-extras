@@ -17,7 +17,7 @@ pub struct Procedure {
 pub struct Set(#[cbor(with = "cbor_util::list_as_map")] pub Box<[(action::Id, Procedure)]>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(index_only)]
+#[cbor(naked)]
 pub enum Vote {
     #[n(0)]
     No,

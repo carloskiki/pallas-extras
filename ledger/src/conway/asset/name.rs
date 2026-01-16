@@ -2,8 +2,33 @@ use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{CborLen, Decode, Encode, Encoder, Write, collections};
 
+use crate::TooLong;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Name<'a>(&'a [u8]);
+
+impl AsRef<[u8]> for Name<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.0
+    }
+}
+
+impl AsMut<[u8]> for Name<'_> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl TryFrom<&[u8]> for Name<'_> {
+    type Error = TooLong;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() > 32 {
+            return Err(TooLong);
+        }
+        Ok(Name(value))
+    }
+}
 
 impl Encode for Name<'_> {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
@@ -22,13 +47,6 @@ impl<'a, 'b: 'a> Decode<'b> for Name<'a> {
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         let bytes: &'b [u8] = Decode::decode(d)?;
-        if bytes.len() > 32 {
-            return Err(collections::Error::Element(TooLong));
-        }
-        Ok(Name(bytes))
+        Name::try_from(bytes).map_err(|e| collections::Error::Element(e))
     }
 }
-
-/// the name is longer than 32 bytes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
-pub struct TooLong;

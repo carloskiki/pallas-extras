@@ -3,8 +3,8 @@ use minicbor::{CborLen, Decode, Encode};
 use crate::{protocol::RealNumber, Credential};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DelegateRepresentative {
-    Credential(Credential),
+pub enum DelegateRepresentative<'a> {
+    Credential(Credential<'a>),
     Abstain,
     NoConfidence,
 }
@@ -77,22 +77,13 @@ impl<C> CborLen<C> for DelegateRepresentative {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct VotingThresholds {
-    #[n(0)]
-    motion_no_confidence: RealNumber,
-    #[n(1)]
-    update_committee: RealNumber,
-    #[n(2)]
-    update_committee_no_confidence: RealNumber,
-    #[n(3)]
-    update_constitution: RealNumber,
-    #[n(4)]
-    hard_fork_initiation: RealNumber,
-    #[n(5)]
-    protocol_parameter_network_update: RealNumber,
-    #[n(6)]
-    protocol_parameter_economic_update: RealNumber,
-    #[n(7)]
-    protocol_parameter_technical_update: RealNumber,
-    #[n(8)]
-    protocol_parameter_security_update: RealNumber,
+    motion_no_confidence: UnitInterval,
+    update_committee: UnitInterval,
+    update_committee_no_confidence: UnitInterval,
+    update_constitution: UnitInterval,
+    hard_fork_initiation: UnitInterval,
+    protocol_parameter_network_update: UnitInterval,
+    protocol_parameter_economic_update: UnitInterval,
+    protocol_parameter_technical_update: UnitInterval,
+    protocol_parameter_security_update: UnitInterval,
 }

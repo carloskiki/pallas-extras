@@ -1,5 +1,5 @@
-pub mod option;
-pub use option::Array;
+pub mod bytes;
+pub use bytes::Bytes;
 
 pub mod big_int;
 pub use big_int::BigInt;
@@ -10,15 +10,21 @@ pub use bounded_bytes::BoundedBytes;
 // TODO: remove if useless
 pub mod crypto;
 
-pub mod mitsein;
-pub use mitsein::NonEmpty;
-
-pub mod bytes;
-pub use bytes::Bytes;
-
 // TODO: remove once useless
 pub mod inspect;
 pub use inspect::{Inspect, Inspector};
+
+pub mod mitsein;
+pub use mitsein::NonEmpty;
+
+pub mod net;
+pub use net::{Ipv4Addr, Ipv6Addr};
+
+pub mod option;
+pub use option::Array;
+
+pub mod set;
+pub use set::Set;
 
 pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
 pub type Signature<'a> = Bytes<'a, ed25519_dalek::Signature>;

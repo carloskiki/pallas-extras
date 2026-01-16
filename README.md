@@ -14,7 +14,3 @@ are developed and experimented with, and then merged into `pallas` once mature e
 - [`bip32`](bip32): A BIP32 implementation based on the [Ed25519 BIP32 paper](bip32/Ed25519-BIP32.pdf).
 - [`bip39`](bip39): A BIP39 implementation that minimizes the amount of dependencies.
 
-
-## TODOs
-
-- Make errors standard: https://blog.rust-lang.org/inside-rust/2021/07/01/What-the-error-handling-project-group-is-working-towards/

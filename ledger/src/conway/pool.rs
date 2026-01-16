@@ -1,42 +1,13 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
-use minicbor::{CborLen, Decode, Encode};
+use crate::{conway::url::Url, crypto::Blake2b256Digest};
 
-use crate::{crypto::Blake2b256Digest, protocol::RealNumber};
+pub mod metadata;
+pub use metadata::Metadata;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Metadata {
-    #[cbor(n(0), with = "cbor_util::url")]
-    pub url: Box<str>,
-    #[cbor(n(1), with = "minicbor::bytes")]
-    pub metadata_hash: Blake2b256Digest,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(flat)]
-pub enum Relay {
-    #[n(0)]
-    HostAddress {
-        #[n(0)]
-        port: Option<u16>,
-        #[n(1)]
-        ipv4: Option<Ipv4Addr>,
-        #[n(2)]
-        ipv6: Option<Ipv6Addr>,
-    },
-    #[n(1)]
-    HostName {
-        #[n(0)]
-        port: Option<u16>,
-        #[cbor(n(1), with = "cbor_util::url")]
-        dns_name: Box<str>,
-    },
-    #[n(2)]
-    MultiHostName {
-        #[cbor(n(0), with = "cbor_util::url")]
-        dns_name: Box<str>,
-    },
-}
+pub mod relay;
+pub use relay::Relay;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct VotingThresholds {

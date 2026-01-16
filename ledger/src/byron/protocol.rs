@@ -5,7 +5,7 @@ use cbor_util::Array;
 use sparse_struct::SparseStruct;
 use tinycbor::{
     CborLen, Decode, Encode,
-    collections::{self, fixed},
+    container::{self, bounded},
     num, primitive,
 };
 
@@ -51,7 +51,7 @@ pub enum Parameter {
 
 const PARAMETER_COUNT: usize = 14;
 
-type FixedCollectionError<T> = collections::Error<fixed::Error<T>>;
+type FixedCollectionError<T> = container::Error<bounded::Error<T>>;
 
 impl Encode for Parameters {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
@@ -104,8 +104,8 @@ impl Decode<'_> for Parameters {
             f: impl Fn(<Array<T, false> as Decode<'a>>::Error) -> Error,
         ) -> Result<Option<T>, FixedCollectionError<Error>> {
             v.visit::<Array<_, false>>()
-                .ok_or(collections::Error::Element(fixed::Error::Missing))?
-                .map_err(|e| collections::Error::Element(fixed::Error::Inner(f(e))))
+                .ok_or(bounded::Error::Missing)?
+                .map_err(|e| container::Error::Content(bounded::Error::Content(f(e))))
                 .map(|a| a.0)
         }
 

@@ -26,7 +26,7 @@ where
     type Error = nonzero::Error<T::Error>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
-        let value = T::decode(d).map_err(nonzero::Error::Inner)?;
+        let value = T::decode(d).map_err(nonzero::Error::Value)?;
         mitsein::NonEmpty::try_from(value)
             .map(NonEmpty)
             .map_err(|_| nonzero::Error::Zero)

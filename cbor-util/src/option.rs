@@ -1,6 +1,6 @@
 use tinycbor::{
     CborLen, Decode, Encode,
-    collections::{self, fixed},
+    container::{self, bounded},
     tag,
 };
 
@@ -56,50 +56,44 @@ where
 }
 
 impl<'a, T: Decode<'a>> Decode<'a> for Array<T, false> {
-    type Error = collections::Error<fixed::Error<T::Error>>;
+    type Error = container::Error<bounded::Error<T::Error>>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         let mut visitor = d.array_visitor()?;
         let ret = visitor
             .visit()
             .transpose()
-            .map_err(|e| collections::Error::Element(fixed::Error::Inner(e)))?;
+            .map_err(bounded::Error::Content)?;
         if visitor.remaining() != Some(0) {
-            return Err(collections::Error::Element(fixed::Error::Surplus));
+            return Err(container::Error::Content(bounded::Error::Surplus));
         }
         Ok(Array(ret))
     }
 }
 
 impl<'a, T: Decode<'a>> Decode<'a> for Array<T, true> {
-    type Error = collections::Error<fixed::Error<tag::Error<T::Error>>>;
+    type Error = container::Error<bounded::Error<tag::Error<T::Error>>>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         let mut visitor = d.array_visitor()?;
         let tag: u64 = visitor
             .visit()
-            .ok_or(collections::Error::Element(fixed::Error::Missing))?
-            .map_err(|e| {
-                collections::Error::Element(fixed::Error::Inner(tag::Error::Malformed(e)))
-            })?;
+            .ok_or(bounded::Error::Missing)?
+            .map_err(|e| bounded::Error::Content(tag::Error::Malformed(e)))?;
         let ret = match tag {
             0 => None,
             1 => Some(
                 visitor
                     .visit()
-                    .ok_or(collections::Error::Element(fixed::Error::Missing))?
-                    .map_err(|e| {
-                        collections::Error::Element(fixed::Error::Inner(tag::Error::Inner(e)))
-                    })?,
+                    .ok_or(bounded::Error::Missing)?
+                    .map_err(|e| bounded::Error::Content(tag::Error::Content(e)))?,
             ),
             _ => {
-                return Err(collections::Error::Element(fixed::Error::Inner(
-                    tag::Error::InvalidTag,
-                )));
+                return Err(bounded::Error::Content(tag::Error::InvalidTag).into());
             }
         };
         if visitor.remaining() != Some(0) {
-            return Err(collections::Error::Element(fixed::Error::Surplus));
+            return Err(bounded::Error::Surplus.into());
         }
         Ok(Array(ret))
     }

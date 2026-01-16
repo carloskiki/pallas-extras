@@ -4,8 +4,10 @@ use std::{fmt::Display, iter};
 use bech32::{Bech32, ByteIterExt, Fe32IterExt, Hrp};
 use displaydoc::Display;
 use thiserror::Error;
-use tinycbor::collections::fixed;
-use tinycbor::{CborLen, Decode, Decoder, Encode, Write, collections};
+use tinycbor::{
+    CborLen, Decode, Decoder, Encode, Write,
+    container::{self, bounded},
+};
 
 use crate::crypto::Blake2b224Digest;
 use crate::shelley::{
@@ -58,7 +60,7 @@ impl Display for Address<'_> {
                 .chars()
                 .try_for_each(|c| f.write_char(c)),
             Some(Delegation::Pointer(pointer)) => iter
-                .chain(pointer.into_iter())
+                .chain(pointer)
                 .bytes_to_fes()
                 .with_checksum::<Bech32>(&hrp)
                 .chars()
@@ -73,10 +75,10 @@ impl Display for Address<'_> {
 }
 
 impl<'a> TryFrom<&'a [u8]> for Address<'a> {
-    type Error = fixed::Error<InvalidType>;
+    type Error = bounded::Error<InvalidType>;
 
     fn try_from(mut value: &'a [u8]) -> Result<Self, Self::Error> {
-        let first_byte = value.first().ok_or(fixed::Error::Missing)?;
+        let first_byte = value.first().ok_or(bounded::Error::Missing)?;
         value = &value[1..];
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
@@ -84,7 +86,7 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
 
         let first_hash: &Blake2b224Digest = value
             .get(..HASH_SIZE)
-            .ok_or(fixed::Error::Missing)?
+            .ok_or(bounded::Error::Missing)?
             .try_into()
             .expect("slice has correct length");
         value = &value[HASH_SIZE..];
@@ -92,11 +94,11 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
         if header < 0b0100 {
             let second_hash: &Blake2b224Digest = value
                 .get(..HASH_SIZE)
-                .ok_or(fixed::Error::Missing)?
+                .ok_or(bounded::Error::Missing)?
                 .try_into()
                 .expect("slice has correct length");
             if value.len() > HASH_SIZE {
-                return Err(fixed::Error::Surplus);
+                return Err(bounded::Error::Surplus);
             }
 
             let (payment, stake) = match header {
@@ -126,9 +128,9 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
         } else if header < 0b0110 {
             let mut iter = value.iter().copied();
             let pointer =
-                credential::ChainPointer::from_bytes(iter.by_ref()).ok_or(fixed::Error::Missing)?;
+                credential::ChainPointer::from_bytes(iter.by_ref()).ok_or(bounded::Error::Missing)?;
             if iter.next().is_some() {
-                return Err(fixed::Error::Surplus);
+                return Err(bounded::Error::Surplus);
             }
 
             let payment = match header {
@@ -144,7 +146,7 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
             })
         } else if header < 0b1000 {
             if !value.is_empty() {
-                return Err(fixed::Error::Surplus);
+                return Err(bounded::Error::Surplus);
             }
 
             let payment = match header {
@@ -159,7 +161,7 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
                 network,
             })
         } else {
-            Err(fixed::Error::Inner(InvalidType))
+            Err(bounded::Error::Content(InvalidType))
         }
     }
 }
@@ -208,11 +210,11 @@ impl Encode for Address<'_> {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
-    type Error = collections::Error<fixed::Error<InvalidType>>;
+    type Error = container::Error<bounded::Error<InvalidType>>;
 
     fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
         let data: &[u8] = Decode::decode(d)?;
-        Address::try_from(data).map_err(collections::Error::Element)
+        Address::try_from(data).map_err(container::Error::Content)
     }
 }
 
@@ -251,21 +253,21 @@ impl Display for Account<'_> {
 }
 
 impl<'a> TryFrom<&'a [u8]> for Account<'a> {
-    type Error = fixed::Error<super::address::InvalidType>;
+    type Error = bounded::Error<super::address::InvalidType>;
 
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
-        let first_byte = bytes.first().ok_or(fixed::Error::Missing)?;
+        let first_byte = bytes.first().ok_or(bounded::Error::Missing)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
         let network = Network(network_magic);
 
         let hash: &Blake2b224Digest = bytes
             .get(1..29)
-            .ok_or(fixed::Error::Missing)?
+            .ok_or(bounded::Error::Missing)?
             .try_into()
             .expect("slice has correct length");
         if bytes.len() > 29 {
-            return Err(fixed::Error::Surplus);
+            return Err(bounded::Error::Surplus);
         }
 
         let credential = if header == 0b1110 {
@@ -273,7 +275,7 @@ impl<'a> TryFrom<&'a [u8]> for Account<'a> {
         } else if header == 0b1111 {
             Credential::Script(hash)
         } else {
-            return Err(fixed::Error::Inner(super::address::InvalidType));
+            return Err(bounded::Error::Content(super::address::InvalidType));
         };
 
         Ok(Account {
@@ -284,11 +286,11 @@ impl<'a> TryFrom<&'a [u8]> for Account<'a> {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for Account<'a> {
-    type Error = collections::Error<fixed::Error<super::address::InvalidType>>;
+    type Error = container::Error<bounded::Error<super::address::InvalidType>>;
 
     fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
         let data: &[u8] = Decode::decode(d)?;
-        Account::try_from(data).map_err(collections::Error::Element)
+        Account::try_from(data).map_err(container::Error::Content)
     }
 }
 

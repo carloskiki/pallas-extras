@@ -23,6 +23,7 @@ macro_rules_attribute = { workspace = true }
 ref-cast = { workspace = true }
 thiserror = { workspace = true }
 zerocopy = { workspace = true }
+displaydoc = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }

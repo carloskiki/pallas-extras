@@ -1,4 +1,4 @@
-use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, collections};
+use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, container};
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
@@ -22,12 +22,12 @@ where
     S: signature::SignatureEncoding,
     <S as TryFrom<&'a [u8]>>::Error: core::error::Error + 'static,
 {
-    type Error = collections::Error<<S as TryFrom<&'a [u8]>>::Error>;
+    type Error = container::Error<<S as TryFrom<&'a [u8]>>::Error>;
 
     fn decode(d: &mut Decoder<'a>) -> Result<Self, Self::Error> {
         let bytes = Decode::decode(d)?;
         S::try_from(bytes)
-            .map_err(collections::Error::Element)
+            .map_err(container::Error::Content)
             .map(Signature)
     }
 }

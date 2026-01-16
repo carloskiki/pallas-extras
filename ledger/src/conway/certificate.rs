@@ -1,42 +1,38 @@
-use minicbor::{CborLen, Decode, Encode};
-
 pub mod kind;
 
 use crate::{
-    Credential,
+    conway::{UnitInterval, governance, pool, transaction::Coin},
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    epoch, governance,
-    transaction::Coin,
+    epoch,
+    shelley::{Credential, address::Account},
 };
 
-use super::{address::shelley::StakeAddress, pool, protocol::RealNumber};
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Certificate {
+pub enum Certificate<'a> {
     /// Certificate for Delegation and/or Registration.
     ///
     /// Since the [`Era::Conway`] era, registration & delegation can be done at the same time, so this
     /// variant supports these options separately and at the same time.
     Delegation {
-        credential: Credential,
+        credential: Credential<'a>,
         pool_keyhash: Option<Blake2b224Digest>,
         delegate_representative: Option<governance::DelegateRepresentative>,
         deposit: Option<Coin>,
     },
     Unregistration {
-        credential: Credential,
+        credential: Credential<'a>,
         deposit: Option<Coin>,
     },
     PoolRegistration {
-        operator: Blake2b224Digest,
-        vrf_keyhash: Blake2b256Digest,
+        operator: &'a Blake2b224Digest,
+        vrf_keyhash: &'a Blake2b256Digest,
         pledge: Coin,
         cost: Coin,
-        margin: RealNumber,
-        reward_account: StakeAddress,
-        owners: Box<[Blake2b224Digest]>,
-        relays: Box<[pool::Relay]>,
-        metadata: Option<pool::Metadata>,
+        margin: UnitInterval,
+        reward_account: Account<'a>,
+        owners: Vec<&'a Blake2b224Digest>,
+        relays: Vec<pool::Relay<'a>>,
+        metadata: Option<pool::Metadata<'a>>,
     },
     PoolRetirement {
         pool_keyhash: Blake2b224Digest,
@@ -54,11 +50,11 @@ pub enum Certificate {
     },
     ConstitutionalCommittee {
         /// The cold credential, used to authorize a hot credential or resign a position.
-        credential: Credential,
+        credential: Credential<'a>,
         kind: kind::ConstitutionalCommittee,
     },
     DelegateRepresentative {
-        credential: Credential,
+        credential: Credential<'a>,
         kind: kind::DelegateRepresentative,
     },
 }
