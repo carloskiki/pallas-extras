@@ -2,6 +2,9 @@ use crate::{
     crypto::{Blake2b224Digest, Blake2b256Digest}, epoch, shelley::{UnitInterval, address::Account, pool, transaction::Coin}
 };
 
+pub mod move_rewards;
+pub use move_rewards::MoveRewards;
+
 pub enum Certificate<'a> {
     AccountRegistration {
         account: Account<'a>,
@@ -33,7 +36,5 @@ pub enum Certificate<'a> {
         delegate: &'a Blake2b224Digest,
         vrf_keyhash: &'a Blake2b256Digest,
     },
-    MoveRewards {
-        // TODO
-    }
+    MoveRewards(MoveRewards),
 }
