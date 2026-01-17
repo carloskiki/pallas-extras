@@ -5,12 +5,13 @@ version = "0.1.0"
 
 [dependencies]
 blake2 = { workspace = true }
-digest = { workspace = true }
+digest = { workspace = true, features = ["rand_core", "getrandom"] }
 either = { workspace = true }
 signature = { workspace = true, features = ["alloc"] }
+hybrid-array = { workspace = true }
 
 ref-cast = { workspace = true }
+zerocopy = { workspace = true }
 
 [dev-dependencies]
-ed25519-dalek = { workspace = true }
-rand = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["digest", "rand_core"] }

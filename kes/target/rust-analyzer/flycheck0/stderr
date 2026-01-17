@@ -1,0 +1,152 @@
+   0.055087916s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint: stale: changed "/Users/charles/Code/pallas-extras/kes/src/sum/compact.rs"
+   0.055095458s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:           (vs) "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/kes-b1a4630a90438064/dep-lib-kes"
+   0.055097333s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1768677821, nanos: 245882332 } < FileTime { seconds: 1768677829, nanos: 133562968 }
+   0.055135708s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint: fingerprint dirty for kes v0.1.0 (/Users/charles/Code/pallas-extras/kes)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("kes", ["lib"], "/Users/charles/Code/pallas-extras/kes/src/lib.rs", Edition2024) }
+   0.055141083s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/kes-b1a4630a90438064/dep-lib-kes", reference_mtime: FileTime { seconds: 1768677821, nanos: 245882332 }, stale: "/Users/charles/Code/pallas-extras/kes/src/sum/compact.rs", stale_mtime: FileTime { seconds: 1768677829, nanos: 133562968 } }))
+   0.055383125s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint: stale: changed "/Users/charles/Code/pallas-extras/kes/src/sum/compact.rs"
+   0.055385041s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:           (vs) "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/kes-3bfc40b4a064c5a4/dep-test-lib-kes"
+   0.055386291s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1768677821, nanos: 427506059 } < FileTime { seconds: 1768677829, nanos: 133562968 }
+   0.055418416s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint: fingerprint dirty for kes v0.1.0 (/Users/charles/Code/pallas-extras/kes)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("kes", ["lib"], "/Users/charles/Code/pallas-extras/kes/src/lib.rs", Edition2024) }
+   0.055421166s  INFO prepare_target{force=false package_id=kes v0.1.0 (/Users/charles/Code/pallas-extras/kes) target="kes"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/Users/charles/Code/pallas-extras/target/debug/.fingerprint/kes-3bfc40b4a064c5a4/dep-test-lib-kes", reference_mtime: FileTime { seconds: 1768677821, nanos: 427506059 }, stale: "/Users/charles/Code/pallas-extras/kes/src/sum/compact.rs", stale_mtime: FileTime { seconds: 1768677829, nanos: 133562968 } }))
+   0.055870083s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint dirty for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.055872916s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "kes" })
+   0.056522500s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint: fingerprint dirty for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ledger", ["lib"], "/Users/charles/Code/pallas-extras/ledger/src/lib.rs", Edition2024) }
+   0.056525125s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="ledger"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "kes" })
+   0.057027625s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "cbor_len", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/cbor_len.rs", Edition2024) }
+   0.057030541s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="cbor_len"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-d1b58eb297a74ce5/test-integration-test-cbor_len`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.059113791s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint: fingerprint error for ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)/Check { test: true }/TargetInner { kind: "test", name: "codec", benched: false, ..: with_path("/Users/charles/Code/pallas-extras/ledger/tests/codec.rs", Edition2024) }
+   0.059116375s  INFO prepare_target{force=false package_id=ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger) target="codec"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/ledger-1d8dabf24965561f/test-integration-test-codec`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.059518958s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint dirty for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: false }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.059524500s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "ledger" })
+   0.059663458s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint: fingerprint dirty for pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)/Check { test: true }/TargetInner { name: "pallas-extras", doc: true, ..: with_path("/Users/charles/Code/pallas-extras/src/main.rs", Edition2024) }
+   0.059665625s  INFO prepare_target{force=false package_id=pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras) target="pallas-extras"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "ledger" })
+   0.060939416s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
+   0.060942291s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-92198b0b85d739f6/lib-plutus`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.063062625s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("plutus", ["lib"], "/Users/charles/Code/pallas-extras/plutus/src/lib.rs", Edition2024) }
+   0.063065666s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="plutus"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-e14cfd6669d92ca0/test-lib-plutus`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.063883625s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint: fingerprint error for plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)/Check { test: true }/TargetInner { kind: "test", name: "conformance", benched: false, harness: false, ..: with_path("/Users/charles/Code/pallas-extras/plutus/tests/conformance.rs", Edition2024) }
+   0.063891125s  INFO prepare_target{force=false package_id=plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus) target="conformance"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/charles/Code/pallas-extras/target/debug/.fingerprint/plutus-6ad1a313f7e7bc52/test-integration-test-conformance`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+    Checking kes v0.1.0 (/Users/charles/Code/pallas-extras/kes)
+    Checking plutus v0.1.0 (/Users/charles/Code/pallas-extras/plutus)
+    Checking ledger v0.1.0 (/Users/charles/Code/pallas-extras/ledger)
+error: could not compile `plutus` (lib) due to 29 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `plutus` (lib test) due to 29 previous errors
+    Checking pallas-extras v0.1.0 (/Users/charles/Code/pallas-extras)
+error: could not compile `ledger` (test "cbor_len") due to 3 previous errors; 2 warnings emitted
+error: could not compile `ledger` (test "codec") due to 4 previous errors

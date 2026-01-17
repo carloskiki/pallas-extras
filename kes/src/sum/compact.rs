@@ -1,8 +1,8 @@
+use crate::{Evolve, KeyEvolvingSignature, sum};
 use digest::{Digest, OutputSizeUser, crypto_common::KeySizeUser};
 use either::Either::{Left, Right};
 use signature::{Keypair, KeypairRef, Signer, Verifier};
-
-use crate::{Evolve, KeyEvolvingSignature, sum};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 /// Similar to [`sum::Signature`], but with a compact representation.
 ///
@@ -12,7 +12,22 @@ use crate::{Evolve, KeyEvolvingSignature, sum};
 /// This can be chosen as the output of [`Sum::sign`](sum::Sum) by setting the `Signer` type parameter.
 /// To [`Verifier::verify`] this signature, it must first be assembled into a
 /// [`KeyEvolvingSignature`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    FromBytes,
+    IntoBytes,
+    Immutable,
+    Unaligned,
+    KnownLayout,
+)]
+#[repr(C)]
 pub struct CompactSignature<S, KP>
 where
     KP: KeypairRef,
@@ -44,21 +59,41 @@ where
     }
 }
 
-impl<'a, S, KP, H> Verifier<KeyEvolvingSignature<'a, CompactSignature<S, KP>>>
-    for sum::VerifyingKey<H>
+impl<S, KP, H> Verifier<KeyEvolvingSignature<CompactSignature<S, KP>>> for sum::VerifyingKey<H>
 where
     KP: KeypairRef + KeySizeUser + Evolve,
-    KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<'a, S>>
-        + FromSignature<KeyEvolvingSignature<'a, S>>
+    for<'a> KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<&'a S>>
+        + FromSignature<KeyEvolvingSignature<&'a S>>
         + AsRef<[u8]>,
     H: Digest,
 {
     fn verify(
         &self,
         msg: &[u8],
-        signature: &KeyEvolvingSignature<'a, CompactSignature<S, KP>>,
+        signature: &KeyEvolvingSignature<CompactSignature<S, KP>>,
     ) -> Result<(), signature::Error> {
-        let vkey = Self::from_signature(*signature);
+        let signature = &KeyEvolvingSignature {
+            signature: &signature.signature,
+            period: signature.period,
+        };
+        self.verify(msg, signature)
+    }
+}
+
+impl<S, KP, H> Verifier<KeyEvolvingSignature<&CompactSignature<S, KP>>> for sum::VerifyingKey<H>
+where
+    KP: KeypairRef + KeySizeUser + Evolve,
+    for<'a> KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<&'a S>>
+        + FromSignature<KeyEvolvingSignature<&'a S>>
+        + AsRef<[u8]>,
+    H: Digest,
+{
+    fn verify(
+        &self,
+        msg: &[u8],
+        signature: &KeyEvolvingSignature<&CompactSignature<S, KP>>,
+    ) -> Result<(), signature::Error> {
+        let vkey = Self::from_signature(signature);
         if &vkey != self {
             return Err(signature::Error::new());
         }
@@ -67,19 +102,35 @@ where
     }
 }
 
-impl<'a, S, KP, H> Verifier<KeyEvolvingSignature<'a, CompactSignature<S, KP>>>
-    for sum::Double<KP, H>
+impl<S, KP, H> Verifier<KeyEvolvingSignature<CompactSignature<S, KP>>> for sum::Double<KP, H>
 where
     KP: KeypairRef + KeySizeUser + Evolve,
-    KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<'a, S>>
-        + FromSignature<KeyEvolvingSignature<'a, S>>
+    for<'a> KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<&'a S>>
+        + FromSignature<KeyEvolvingSignature<&'a S>>
         + AsRef<[u8]>,
     H: Digest,
 {
     fn verify(
         &self,
         msg: &[u8],
-        signature: &KeyEvolvingSignature<'a, CompactSignature<S, KP>>,
+        signature: &KeyEvolvingSignature<CompactSignature<S, KP>>,
+    ) -> Result<(), signature::Error> {
+        self.verifying_key().verify(msg, signature)
+    }
+}
+
+impl<S, KP, H> Verifier<KeyEvolvingSignature<&CompactSignature<S, KP>>> for sum::Double<KP, H>
+where
+    KP: KeypairRef + KeySizeUser + Evolve,
+    for<'a> KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<&'a S>>
+        + FromSignature<KeyEvolvingSignature<&'a S>>
+        + AsRef<[u8]>,
+    H: Digest,
+{
+    fn verify(
+        &self,
+        msg: &[u8],
+        signature: &KeyEvolvingSignature<&CompactSignature<S, KP>>,
     ) -> Result<(), signature::Error> {
         self.verifying_key().verify(msg, signature)
     }
@@ -97,26 +148,27 @@ pub type Pow6CompactSignature<S, KP, H> =
     CompactSignature<Pow5CompactSignature<S, KP, H>, sum::Pow5<KP, H>>;
 
 trait FromSignature<S> {
-    fn from_signature(signature: S) -> Self;
+    fn from_signature(signature: &S) -> Self;
 }
 
-impl<'a, S, KP, H> FromSignature<KeyEvolvingSignature<'a, CompactSignature<S, KP>>>
+impl<S, KP, H> FromSignature<KeyEvolvingSignature<&CompactSignature<S, KP>>>
     for sum::VerifyingKey<H>
 where
     KP: KeypairRef + Evolve,
-    KP::VerifyingKey: FromSignature<KeyEvolvingSignature<'a, S>> + AsRef<[u8]>,
+    for<'b> KP::VerifyingKey: FromSignature<KeyEvolvingSignature<&'b S>> + AsRef<[u8]>,
     H: Digest,
 {
     fn from_signature(
         KeyEvolvingSignature {
             signature: CompactSignature { vkey, signature },
-            mut period,
-        }: KeyEvolvingSignature<'a, CompactSignature<S, KP>>,
+            period,
+        }: &KeyEvolvingSignature<&CompactSignature<S, KP>>,
     ) -> Self {
+        let mut period = *period;
         let left_side = period < KP::PERIOD_COUNT;
         period -= (!left_side as u32) * KP::PERIOD_COUNT;
         let kes = KeyEvolvingSignature { signature, period };
-        let recomputed_vkey = KP::VerifyingKey::from_signature(kes);
+        let recomputed_vkey = KP::VerifyingKey::from_signature(&kes);
 
         let mut hasher = H::new();
 
@@ -132,7 +184,7 @@ where
     }
 }
 
-impl<'a, S, KP, H> FromSignature<KeyEvolvingSignature<'a, sum::Signature<S, KP, KP>>>
+impl<S, KP, H> FromSignature<KeyEvolvingSignature<&sum::Signature<S, KP, KP>>>
     for sum::VerifyingKey<H>
 where
     KP: KeypairRef<VerifyingKey: AsRef<[u8]>>,
@@ -147,7 +199,7 @@ where
                     ..
                 },
             ..
-        }: KeyEvolvingSignature<'a, sum::Signature<S, KP, KP>>,
+        }: &KeyEvolvingSignature<&sum::Signature<S, KP, KP>>,
     ) -> Self {
         let mut hasher = H::new();
         hasher.update(left_vkey.as_ref());
@@ -160,16 +212,16 @@ trait InnerVerifier<S> {
     fn verify_inner(msg: &[u8], signature: &S) -> Result<(), signature::Error>;
 }
 
-impl<'a, S, KP, H> InnerVerifier<KeyEvolvingSignature<'a, CompactSignature<S, KP>>>
+impl<S, KP, H> InnerVerifier<KeyEvolvingSignature<&CompactSignature<S, KP>>>
     for sum::VerifyingKey<H>
 where
     KP: KeypairRef + KeySizeUser + Evolve,
-    KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<'a, S>>,
+    for<'a> KP::VerifyingKey: InnerVerifier<KeyEvolvingSignature<&'a S>>,
     H: Digest,
 {
     fn verify_inner(
         msg: &[u8],
-        signature: &KeyEvolvingSignature<'a, CompactSignature<S, KP>>,
+        signature: &KeyEvolvingSignature<&CompactSignature<S, KP>>,
     ) -> Result<(), signature::Error> {
         let kes = KeyEvolvingSignature {
             signature: &signature.signature.signature,
@@ -182,18 +234,17 @@ where
     }
 }
 
-impl<'a, S, KP, H> InnerVerifier<KeyEvolvingSignature<'a, sum::Signature<S, KP, KP>>>
+impl<S, KP, H> InnerVerifier<KeyEvolvingSignature<&sum::Signature<S, KP, KP>>>
     for sum::VerifyingKey<H>
 where
     KP: KeypairRef + KeySizeUser + Evolve,
-    KP::VerifyingKey: Verifier<KeyEvolvingSignature<'a, S>>,
+    for<'a> KP::VerifyingKey: Verifier<KeyEvolvingSignature<&'a S>>,
     H: Digest,
 {
     fn verify_inner(
         msg: &[u8],
         KeyEvolvingSignature { signature, period }: &KeyEvolvingSignature<
-            'a,
-            sum::Signature<S, KP, KP>,
+            &sum::Signature<S, KP, KP>,
         >,
     ) -> Result<(), signature::Error> {
         let mut period = *period;
@@ -213,15 +264,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use digest::array::Array;
-    use rand::random;
+    use blake2::Blake2b256;
+    use digest::crypto_common::Generate;
+    use ed25519_dalek::SigningKey;
     use signature::{Keypair, Signer};
 
     use super::*;
-    use crate::{
-        Evolve, sum,
-        tests::{KeyBase, THash},
-    };
+    use crate::{Evolve, SingleUse, sum};
 
     const MESSAGES: [&[u8]; 8] = [
         b"foo",
@@ -236,37 +285,35 @@ mod tests {
 
     #[test]
     fn verifying_key_from_signature() {
-        let seed: [u8; 32] = random();
         let msg = b"Hello, world!";
 
-        let key: sum::Pow2<KeyBase, THash> = sum::Pow2::from(Array::from(seed));
+        let key: sum::Pow2<SingleUse<SigningKey>, Blake2b256> = sum::Pow2::generate();
         let signature: Pow2CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
             signature: &signature,
             period: key.period(),
         };
-        let vkey = sum::VerifyingKey::<THash>::from_signature(kes);
+        let vkey = sum::VerifyingKey::<Blake2b256>::from_signature(&kes);
         assert_eq!(vkey, key.verifying_key());
 
-        let key: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(seed));
+        let key: sum::Pow6<SingleUse<SigningKey>, Blake2b256> = sum::Pow6::generate();
         let signature: Pow6CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
             signature: &signature,
             period: key.period(),
         };
-        let vkey = sum::VerifyingKey::<THash>::from_signature(kes);
+        let vkey = sum::VerifyingKey::<Blake2b256>::from_signature(&kes);
         assert_eq!(vkey, key.verifying_key());
     }
 
     #[test]
     fn verify() {
-        let seed: [u8; 32] = random();
         let msg = b"Hello, world!";
 
-        let key: sum::Pow3<KeyBase, THash> = sum::Pow3::from(Array::from(seed));
+        let key: sum::Pow3<SingleUse<SigningKey>, Blake2b256> = sum::Pow3::generate();
         let signature: Pow3CompactSignature<_, _, _> = key.sign(msg);
         let kes = KeyEvolvingSignature {
-            signature: &signature,
+            signature,
             period: key.period(),
         };
         assert!(key.verifying_key().verify(msg, &kes).is_ok());
@@ -274,8 +321,7 @@ mod tests {
 
     #[test]
     fn can_verify_from_all_evolutions() {
-        let key: [u8; 32] = random();
-        let mut pow6: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
+        let mut pow6: sum::Pow6<SingleUse<SigningKey>, Blake2b256> = sum::Pow6::generate();
 
         let vkey = pow6.verifying_key();
         let raw_signature: Pow6CompactSignature<_, _, _> = pow6.try_sign(MESSAGES[0]).unwrap();
@@ -285,7 +331,7 @@ mod tests {
         };
         assert!(vkey.verify(MESSAGES[0], &signature).is_ok());
 
-        for i in 1..sum::Pow6::<KeyBase, THash>::PERIOD_COUNT {
+        for i in 1..sum::Pow6::<SingleUse<SigningKey>, Blake2b256>::PERIOD_COUNT {
             pow6 = pow6.evolve().unwrap();
             let index = i as usize % MESSAGES.len();
             let new_raw_signature = pow6.try_sign(MESSAGES[index]).unwrap();
@@ -299,13 +345,8 @@ mod tests {
 
     #[test]
     fn different_vkey_verification_fails() {
-        let key: [u8; 32] = random();
-        let mut kes1: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
-        let other_key: [u8; 32] = random();
-        let other_vkey =
-            sum::Pow6::<KeyBase, THash>::from(
-                Array::from(other_key)
-            ).verifying_key();
+        let mut kes1: sum::Pow6<SingleUse<SigningKey>, Blake2b256> = sum::Pow6::generate();
+        let other_vkey = sum::Pow6::<SingleUse<SigningKey>, Blake2b256>::generate().verifying_key();
 
         for msg in MESSAGES {
             let raw_signature: Pow6CompactSignature<_, _, _> = kes1.try_sign(msg).unwrap();
@@ -321,13 +362,12 @@ mod tests {
 
     #[test]
     fn wrong_signature_period_fails() {
-        let key: [u8; 32] = random();
-        let mut skey: sum::Pow6<KeyBase, THash> = sum::Pow6::from(Array::from(key));
+        let mut skey: sum::Pow6<SingleUse<SigningKey>, Blake2b256> = sum::Pow6::generate();
 
         for msg in MESSAGES {
             let signature: Pow6CompactSignature<_, _, _> = skey.try_sign(msg).unwrap();
             let mut kes = KeyEvolvingSignature {
-                signature: &signature,
+                signature,
                 period: skey.period(),
             };
             for x in 0..100 {

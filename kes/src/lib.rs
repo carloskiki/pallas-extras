@@ -14,6 +14,9 @@ pub trait Evolve: Sized {
     const PERIOD_COUNT: u32;
 
     /// Evolve the key to the next period.
+    ///
+    /// This should always fail when the period has reached `PERIOD_COUNT - 1`. It can also
+    /// fail for implementation specific reasons.
     fn evolve(self) -> Option<Self>;
 
     /// Every time the key evolves, the period is incremented by 1, starting at 0.
@@ -33,71 +36,10 @@ pub trait Evolve: Sized {
 /// Also know as KES.
 ///
 /// A signature with a period.
-#[derive(Debug)]
-pub struct KeyEvolvingSignature<'a, S> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct KeyEvolvingSignature<S> {
     /// The signature.
-    pub signature: &'a S,
+    pub signature: S,
     /// The period.
     pub period: u32,
-}
-
-impl<S> Clone for KeyEvolvingSignature<'_, S> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S> Copy for KeyEvolvingSignature<'_, S> {}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use crate::single_use::SingleUse;
-    use blake2::Blake2b;
-    use digest::{array::Array, consts::U32, crypto_common::KeySizeUser};
-    use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
-    use signature::{KeypairRef, Signer, Verifier};
-
-    #[derive(Clone, Debug, PartialEq, Eq)]
-    pub struct SkWrapper(pub SigningKey);
-
-    impl AsRef<VerifyingKey> for SkWrapper {
-        fn as_ref(&self) -> &VerifyingKey {
-            self.0.as_ref()
-        }
-    }
-
-    impl KeypairRef for SkWrapper {
-        type VerifyingKey = <SigningKey as KeypairRef>::VerifyingKey;
-    }
-
-    impl KeySizeUser for SkWrapper {
-        type KeySize = U32;
-    }
-
-    impl From<[u8; 32]> for SkWrapper {
-        fn from(bytes: [u8; 32]) -> Self {
-            SkWrapper(SigningKey::from_bytes(&bytes))
-        }
-    }
-
-    impl From<Array<u8, U32>> for SkWrapper {
-        fn from(bytes: Array<u8, U32>) -> Self {
-            SkWrapper(SigningKey::from_bytes(bytes.as_ref()))
-        }
-    }
-
-    impl Signer<Signature> for SkWrapper {
-        fn try_sign(&self, msg: &[u8]) -> Result<Signature, signature::Error> {
-            self.0.try_sign(msg)
-        }
-    }
-
-    impl Verifier<Signature> for SkWrapper {
-        fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-            self.0.verify(msg, signature)
-        }
-    }
-
-    pub type KeyBase = SingleUse<SkWrapper>;
-    pub type THash = Blake2b<U32>;
 }

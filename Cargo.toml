@@ -41,21 +41,28 @@ sha3 = { version = "0.11.0-rc.3", default-features = false }
 # Public Key Cryptography
 curve25519-dalek = { version = "5.0.0-pre.4", default-features = false }
 ed25519-dalek = { version = "3.0.0-pre.4", default-features = false }
-# TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
+# TODO: remove once ed25519-dalek has a zerocopy feature also that enables this
 ed25519 = { version = "3.0.0-rc.2", features = ["zerocopy"] }
+# TODO: remove hybrid-array is updated
+hybrid-array = { version = "0.4.5", features = ["zerocopy"] }
 
 # Utilities
 const-hex = { version = "1" }
+displaydoc = "0.2"
 macro_rules_attribute = "0.2.2"
 rand = "0.9"
 ref-cast = "1.0"
-zerocopy = "0.8"
 thiserror = "2.0"
-displaydoc = "0.2"
+zerocopy = { version = "0.8", features = ["derive"] }
 
 [patch.crates-io]
-# TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
-ed25519 = { git = "https://github.com/carloskiki/signatures.git", rev = "bd5e16bb8e5afd04b8dde2b3075ff802e849d748" }
+# TODO: remove once a new version of ed25519 is published
+ed25519 = { git = "https://github.com/RustCrypto/signatures.git", rev = "db04f3893563bdaf342d9c673ef3bfd0363cb793" }
+# TODO: remove once a new version of hybrid-array is published
+hybrid-array = { git = "https://github.com/RustCrypto/hybrid-array.git", rev = "dadd559b73ac012730567dcc6c488c58384b5dfc" }
+# TODO: remove once https://github.com/dalek-cryptography/curve25519-dalek/pull/733 is merged
+ed25519-dalek = { git = "https://github.com/carloskiki/curve25519-dalek.git" }
+
 
 [package]
 edition = "2024"

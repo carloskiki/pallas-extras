@@ -1,10 +1,13 @@
 //! Host of [`SingleUse`] and [`VerifyingKey`].
 
-use digest::{crypto_common::KeySizeUser, Key};
+use crate::{Evolve, KeyEvolvingSignature};
+use digest::{
+    Key,
+    crypto_common::{Generate, KeySizeUser, TryKeyInit},
+};
 use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, Signer, Verifier};
-
-use crate::{Evolve, KeyEvolvingSignature};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 /// A implementation of [`Evolve`] that returns [`None`] when [`Evolve::evolve`] is called.
 ///
@@ -21,12 +24,23 @@ impl<T: KeySizeUser> KeySizeUser for SingleUse<T> {
     type KeySize = T::KeySize;
 }
 
-impl<T> From<Key<T>> for SingleUse<T>
+impl<T> TryKeyInit for SingleUse<T>
 where
-    T: KeySizeUser + From<Key<T>>,
+    T: TryKeyInit,
 {
-    fn from(value: Key<T>) -> Self {
-        Self(T::from(value))
+    fn new(key: &Key<Self>) -> Result<Self, digest::crypto_common::InvalidKey> {
+        T::new(key).map(SingleUse)
+    }
+}
+
+impl<T> Generate for SingleUse<T>
+where
+    T: Generate,
+{
+    fn try_generate_from_rng<R: digest::rand_core::TryCryptoRng + ?Sized>(
+        rng: &mut R,
+    ) -> Result<Self, R::Error> {
+        T::try_generate_from_rng(rng).map(SingleUse)
     }
 }
 
@@ -51,7 +65,7 @@ where
     }
 }
 
-impl<S, T> Verifier<KeyEvolvingSignature<'_, S>> for SingleUse<T>
+impl<S, T> Verifier<KeyEvolvingSignature<&S>> for SingleUse<T>
 where
     T: KeypairRef,
     T::VerifyingKey: Verifier<S>,
@@ -59,7 +73,7 @@ where
     fn verify(
         &self,
         msg: &[u8],
-        signature: &KeyEvolvingSignature<S>,
+        signature: &KeyEvolvingSignature<&S>,
     ) -> Result<(), signature::Error> {
         self.verifying_key().verify(msg, signature)
     }
@@ -79,9 +93,24 @@ impl<T: KeypairRef> AsRef<VerifyingKey<T::VerifyingKey>> for SingleUse<T> {
 ///
 /// Importantly, it implements [`Verifier<KeyEvolvingSignature<S>>`] if
 /// [`VK::VerifyingKey`](KeypairRef::VerifyingKey) implements [`Verifier<S>`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ref_cast::RefCast)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Immutable,
+    Unaligned,
+    IntoBytes,
+    FromBytes,
+    KnownLayout,
+    ref_cast::RefCast,
+)]
 #[repr(transparent)]
-pub struct VerifyingKey<VK>(VK);
+pub struct VerifyingKey<VK>(pub VK);
 
 impl<'a, VK: TryFrom<&'a [u8]>> TryFrom<&'a [u8]> for VerifyingKey<VK> {
     type Error = VK::Error;
@@ -97,16 +126,20 @@ impl<VK: AsRef<[u8]>> AsRef<[u8]> for VerifyingKey<VK> {
     }
 }
 
-impl<S, VK: Verifier<S>> Verifier<KeyEvolvingSignature<'_, S>> for VerifyingKey<VK> {
+impl<S, VK: Verifier<S>> Verifier<KeyEvolvingSignature<&S>> for VerifyingKey<VK> {
     fn verify(
         &self,
         msg: &[u8],
         KeyEvolvingSignature {
             signature: s,
             period,
-        }: &KeyEvolvingSignature<S>,
+        }: &KeyEvolvingSignature<&S>,
     ) -> Result<(), signature::Error> {
-        if *period == 0 { self.0.verify(msg, s) } else { Err(signature::Error::new()) }
+        if *period == 0 {
+            self.0.verify(msg, s)
+        } else {
+            Err(signature::Error::new())
+        }
     }
 }
 
@@ -116,16 +149,14 @@ impl<VK: KeySizeUser> KeySizeUser for VerifyingKey<VK> {
 
 #[cfg(test)]
 mod tests {
-    use digest::array::Array;
-
-    use crate::{Evolve as _, tests::SkWrapper};
-
     use super::SingleUse;
+    use crate::Evolve;
+    use digest::crypto_common::Generate;
+    use ed25519_dalek::SigningKey;
 
     #[test]
     fn cannot_evolve() {
-        let seed: [u8; 32] = [0; 32];
-        let key: SingleUse<SkWrapper> = SingleUse::from(Array::from(seed));
+        let key = SingleUse::<SigningKey>::generate();
         assert!(key.evolve().is_none());
     }
 }
