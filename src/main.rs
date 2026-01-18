@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut files_ordered = std::fs::read_dir(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/snapshots/mainnet"
+        "/snapshots/mainnet/immutable"
     ))?
     .filter_map(|res| {
         res.ok()
