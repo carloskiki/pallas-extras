@@ -6,7 +6,9 @@ pub struct Body<'a> {
     pub number: block::Number,
     pub slot: slot::Number,
     pub previous: Option<&'a block::Id>,
+    #[cbor(with = "cbor_util::VerifyingKey<'a>")]
     pub issuer: &'a crypto::VerifyingKey,
+    #[cbor(with = "cbor_util::VerifyingKey<'a>")]
     pub vrf: &'a crypto::VerifyingKey,
     pub nonce_vrf: certificate::Vrf<'a>,
     pub leader_vrf: certificate::Vrf<'a>,

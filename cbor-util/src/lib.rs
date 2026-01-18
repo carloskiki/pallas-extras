@@ -27,6 +27,7 @@ pub mod set;
 pub use set::Set;
 
 pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
+pub type VerifyingKey<'a> = Bytes<'a, ed25519_dalek::pkcs8::PublicKeyBytes>;
 pub type Signature<'a> = Bytes<'a, ed25519_dalek::Signature>;
 
 macro_rules! wrapper {

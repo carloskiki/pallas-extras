@@ -13,6 +13,7 @@ pub use output::Output;
 pub mod witness;
 
 pub type Id = crate::crypto::Blake2b256Digest;
+pub type Index = u16;
 pub type Coin = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

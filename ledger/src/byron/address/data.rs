@@ -7,5 +7,5 @@ pub enum Data<'a> {
     #[n(0)]
     VerifyingKey(#[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")] &'a bip32::ExtendedVerifyingKey),
     #[n(1)]
-    Redeem(VerifyingKey),
+    Redeem(#[cbor(with = "cbor_util::VerifyingKey<'a>")] &'a VerifyingKey),
 }

@@ -24,7 +24,7 @@ sha3 = { workspace = true }
 
 # Public Key Cryptography
 bip32 = { path = "../bip32" }
-ed25519-dalek = { workspace = true, features = ["digest"] }
+ed25519-dalek = { workspace = true, features = ["digest", "pkcs8"] }
 # TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
 ed25519 = { workspace = true }
 hybrid-array = { workspace = true }
