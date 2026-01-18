@@ -1,18 +1,29 @@
+use crate::byron::Attributes;
 use tinycbor_derive::{CborLen, Decode, Encode};
+
+pub mod body;
+pub use body::Body;
 
 pub mod boundary;
 
-pub mod main;
+pub mod data;
+
+pub mod header;
+pub use header::Header;
+
+pub mod proof;
+pub use proof::Proof;
+
+pub mod signature;
+pub use signature::Signature;
 
 pub type Id = crate::crypto::Blake2b256Digest;
 
 pub type Difficulty = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
-#[allow(clippy::large_enum_variant)]
-pub enum Block<'a> {
-    #[n(0)]
-    Boundary(boundary::Block<'a>),
-    #[n(1)]
-    Main(main::Block<'a>),
+pub struct Block<'a> {
+    pub header: Header<'a>,
+    pub body: Body<'a>,
+    pub extra: [Attributes<'a>; 1],
 }

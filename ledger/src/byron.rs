@@ -6,6 +6,7 @@ pub use attributes::Attributes;
 
 pub mod block;
 pub use block::Block;
+pub use block::boundary::Block as BoundaryBlock;
 
 pub mod delegation;
 
