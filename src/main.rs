@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut files_ordered = std::fs::read_dir(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/snapshots/mainnet-byron"
+        "/snapshots/mainnet"
     ))?
     .filter_map(|res| {
         res.ok()
@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 break;
             };
 
-            match ledger::byron::Block::decode(&mut decoder) {
+            match ledger::Block::decode(&mut decoder) {
                 Ok(_) => {}
                 Err(e) => {
                     let next_item = tinycbor::Any::decode(&mut Decoder(bytes))?;
