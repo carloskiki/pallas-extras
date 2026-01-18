@@ -19,6 +19,7 @@ pub use block::Block;
 
 pub mod alonzo;
 pub mod mary;
+pub mod allegra;
 pub mod shelley;
 pub mod byron;
 
