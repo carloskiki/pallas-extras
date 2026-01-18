@@ -1,8 +1,10 @@
-use crate::shelley::{address::Account, transaction::Coin};
+use crate::shelley::{Credential, transaction::Coin};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
-    CborLen, Decode, Encode, Encoder, container::{self, map}, primitive
+    CborLen, Decode, Encode, Encoder,
+    container::{self, map},
+    primitive,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -11,18 +13,19 @@ pub enum Target<'a> {
     // TODO: This should be `DeltaCoin` instead of `Coin` which allows negative amounts. Since this
     // is no longer part of the ledger in `conway`, check if DeltaCoin is truly needed, or if
     // positive amounts suffice.
-    Accounts(Vec<(Account<'a>, Coin)>),
+    Accounts(Vec<(Credential<'a>, Coin)>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
+#[derive(Debug, Display, Error)]
 pub enum Error {
     /// error decoding `Other` variant
-    Other(primitive::Error),
+    Other(#[from] primitive::Error),
     /// error decoding `Accounts` variant
     Accounts(
+        #[from]
         container::Error<
             map::Error<
-                <Account<'static> as Decode<'static>>::Error,
+                <Credential<'static> as Decode<'static>>::Error,
                 <Coin as Decode<'static>>::Error,
             >,
         >,

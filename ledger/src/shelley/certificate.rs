@@ -1,7 +1,7 @@
 use crate::{
     crypto::{Blake2b224Digest, Blake2b256Digest},
     epoch,
-    shelley::{UnitInterval, address::Account, pool, transaction::Coin},
+    shelley::{Credential, UnitInterval, address::Account, pool, transaction::Coin},
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -15,12 +15,12 @@ pub use vrf::Vrf;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub enum Certificate<'a> {
     #[n(0)]
-    AccountRegistration { account: Account<'a> },
+    AccountRegistration { account: Credential<'a> },
     #[n(1)]
-    AccountUnregistration { account: Account<'a> },
+    AccountUnregistration { account: Credential<'a> },
     #[n(2)]
     Delegation {
-        account: Account<'a>,
+        account: Credential<'a>,
         pool: &'a pool::Id,
     },
     #[n(3)]
@@ -31,7 +31,7 @@ pub enum Certificate<'a> {
         cost: Coin,
         margin: UnitInterval,
         account: Account<'a>,
-        owners: Vec<Account<'a>>,
+        owners: Vec<&'a Blake2b224Digest>,
         relays: Vec<pool::Relay<'a>>,
         pool_metadata: Option<pool::Metadata<'a>>,
     },

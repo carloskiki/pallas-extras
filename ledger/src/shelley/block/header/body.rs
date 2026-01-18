@@ -24,5 +24,7 @@ pub struct Body<'a> {
     /// signature for certificate
     #[cbor(with = "cbor_util::Signature<'a>")]
     pub signature: &'a crypto::Signature,
-    pub version: protocol::Version,
+    pub fork: protocol::version::Fork,
+    #[cbor(with = "tinycbor::num::U8")]
+    pub minor: u8,
 }

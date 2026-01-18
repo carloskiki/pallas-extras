@@ -20,6 +20,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     for file in files_ordered {
         let file_name_os_str = file.file_name();
         let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
+        if file_name < "00207.chunk" {
+            continue;
+        }
         if !file_name.ends_with(".chunk") {
             continue;
         }
@@ -43,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         println!("{token}");
                     }
 
-                    panic!("{e}")
+                    panic!("{:?}", anyhow::anyhow!(e));
                 }
             };
         }

@@ -18,7 +18,7 @@ members = [
 
 # CBOR
 cbor-util = { path = "cbor-util" }
-tinycbor = "0.10.1"
+tinycbor = "0.10.2"
 tinycbor-derive = "0.10.0"
 
 # Crypto Traits
@@ -72,3 +72,4 @@ version = "0.1.0"
 [dependencies]
 ledger = { path = "ledger" }
 tinycbor = { workspace = true }
+anyhow = "1.0"

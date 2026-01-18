@@ -5,9 +5,9 @@ use crate::crypto::Blake2b224Digest;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub enum Credential<'a> {
     #[n(0)]
-    Script(&'a Blake2b224Digest),
-    #[n(1)]
     VerificationKey(&'a Blake2b224Digest),
+    #[n(1)]
+    Script(&'a Blake2b224Digest),
 }
 
 impl AsRef<Blake2b224Digest> for Credential<'_> {
