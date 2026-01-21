@@ -1,7 +1,7 @@
 use crate::{
     crypto::{Blake2b224Digest, Blake2b256Digest},
     epoch,
-    shelley::{Credential, UnitInterval, address::Account, pool, transaction::Coin},
+    shelley::{Credential, interval, address::Account, pool, transaction::Coin},
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -29,7 +29,7 @@ pub enum Certificate<'a> {
         vrf_keyhash: &'a Blake2b256Digest,
         pledge: Coin,
         cost: Coin,
-        margin: UnitInterval,
+        margin: interval::Unit,
         account: Account<'a>,
         owners: Vec<&'a Blake2b224Digest>,
         relays: Vec<pool::Relay<'a>>,

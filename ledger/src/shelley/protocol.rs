@@ -1,6 +1,6 @@
 use crate::{
     epoch,
-    shelley::{UnitInterval, transaction::Coin},
+    shelley::{interval, transaction::Coin},
 };
 use sparse_struct::SparseStruct;
 use tinycbor::{
@@ -39,13 +39,13 @@ pub enum Parameter {
     #[n(8)]
     StakePoolCountTarget(u16),
     #[n(9)]
-    PoolPledgeInfluence(UnitInterval),
+    PoolPledgeInfluence(interval::Unsigned),
     #[n(10)]
-    ExpansionRate(UnitInterval),
+    ExpansionRate(interval::Unit),
     #[n(11)]
-    TreasuryGrowthRate(UnitInterval),
+    TreasuryGrowthRate(interval::Unit),
     #[n(12)]
-    DecentralizationConstant(UnitInterval),
+    DecentralizationConstant(interval::Unit),
     #[n(13)]
     ExtraEntropy(#[cbor(with = "cbor_util::option::Array<[u8; 32], true>")] Option<[u8; 32]>),
     #[n(14)]

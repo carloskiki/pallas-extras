@@ -37,6 +37,7 @@ displaydoc = { workspace = true }
 zerocopy = { workspace = true }
 ref-cast = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
+duplicate = { path = "duplicate" }
 
 [dev-dependencies]
 anyhow = "1"

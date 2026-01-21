@@ -10,10 +10,6 @@ pub use certificate::Certificate;
 pub mod credential;
 pub use credential::Credential;
 
-pub mod metadatum;
-pub use metadatum::Metadatum;
-pub type Metadata<'a> = Vec<(metadatum::Label, Metadatum<'a>)>;
-
 pub mod pool;
 
 pub mod protocol;
@@ -24,8 +20,7 @@ pub use script::Script;
 pub mod transaction;
 pub use transaction::Transaction;
 
-pub mod unit_interval;
-pub use unit_interval::UnitInterval;
+pub mod interval;
 
 pub mod update;
 pub use update::Update;

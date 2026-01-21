@@ -8,6 +8,12 @@ over any `Signer` and `Verifier`.
 
 ## TODOs
 
+- Use `Keypair` instead of `KeypairRef` where possible.
+- Make `sum::VerifyingKey` have the summed verifying keys as type parameters (with phantom data).
+- Make `sum::Signature` have the summed verifying keys as type parameters instead of signing keys.kla
+- For the two above points, need to have a trait that has only the `PERIOD` associated constant for
+  verifying keys and/or signatures.
+- Rename `sum::Sum` to `sum::SigningKey`.
 - Implement `LowerHex` and `UpperHex` where it makes sense.
 
 ## Possible Future Work

@@ -6,10 +6,8 @@ members = [
     "database",
     "kes",
     "ledger",
-    #     "network",
-    #     "vrf",
-    #     "ledger/minicbor-derive",
-    #     "ledger/sparse-struct",
+    #    "network",
+    #    "vrf",
     "plutus",
 ]
 
@@ -19,7 +17,7 @@ members = [
 # CBOR
 cbor-util = { path = "cbor-util" }
 tinycbor = "0.10.2"
-tinycbor-derive = "0.10.0"
+tinycbor-derive = "0.11.0"
 
 # Crypto Traits
 digest = { version = "0.11.0-rc.5", default-features = false }

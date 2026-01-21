@@ -5,9 +5,9 @@ An alternative to the `pallas` ledger implementation. The specification is found
 
 This crate contains the ledger data types and the logic for encoding and decoding them.
 
-## TODOs
-- Make errors standard: https://blog.rust-lang.org/inside-rust/2021/07/01/What-the-error-handling-project-group-is-working-towards/
-- Ensure each era only uses types from itself.
+## tinycbor TODOs
+
+- Make sure that when `decode` errors, the decoder points at the problematic byte, not after it.
 
 ## implementation practices
 

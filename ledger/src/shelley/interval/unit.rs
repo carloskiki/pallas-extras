@@ -1,15 +1,14 @@
-use std::num::NonZeroU64;
-
+use core::num::NonZeroU64;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(tag(30))]
-pub struct UnitInterval {
+pub struct Unit {
     numerator: u64,
     denominator: NonZeroU64,
 }
 
-impl UnitInterval {
+impl Unit {
     pub fn new(numerator: u64, denominator: NonZeroU64) -> Option<Self> {
         if numerator > denominator.get() {
             return None;

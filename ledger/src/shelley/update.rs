@@ -1,5 +1,6 @@
 use tinycbor_derive::{Encode, Decode, CborLen};
-use crate::{shelley::protocol, crypto::Blake2b224Digest, epoch};
+use crate::{crypto::Blake2b224Digest, epoch};
+use super::protocol;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Update<'a> {

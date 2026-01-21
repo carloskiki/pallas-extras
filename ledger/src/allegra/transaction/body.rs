@@ -1,9 +1,10 @@
 use crate::{
     shelley::{
-        Certificate, Update,
+        Certificate,
         address::Account,
         transaction::{Coin, Input, Output},
     },
+    allegra::Update,
     slot,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
@@ -17,8 +18,8 @@ pub struct Body<'a> {
     pub outputs: Vec<Output<'a>>,
     #[n(2)]
     pub fee: Coin,
-    #[n(3)]
-    pub ttl: slot::Number,
+    #[cbor(n(3), optional, decode_with = "slot::Number")]
+    pub ttl: Option<slot::Number>,
     #[cbor(n(4), optional)]
     pub certificates: Vec<Certificate<'a>>,
     #[cbor(n(5), optional)]
@@ -27,4 +28,6 @@ pub struct Body<'a> {
     pub update: Option<Update<'a>>,
     #[cbor(n(7), optional, decode_with = "&'a crate::crypto::Blake2b256Digest")]
     pub auxiliary_data_hash: Option<&'a crate::crypto::Blake2b256Digest>,
+    #[cbor(n(8), optional, decode_with = "slot::Number")]
+    pub validity_start: Option<slot::Number>,
 }
