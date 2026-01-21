@@ -21,7 +21,7 @@ impl<'a, 'b> Decode<'b> for Attributes<'a>
 where
     'b: 'a,
 {
-    type Error = tinycbor::string::Error;
+    type Error = <Any<'a> as Decode<'b>>::Error;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         if !matches!(

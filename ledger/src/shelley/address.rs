@@ -77,27 +77,38 @@ impl Display for Address<'_> {
 impl<'a> TryFrom<&'a [u8]> for Address<'a> {
     type Error = bounded::Error<InvalidType>;
 
-    fn try_from(mut value: &'a [u8]) -> Result<Self, Self::Error> {
-        let first_byte = value.first().ok_or(bounded::Error::Missing)?;
-        value = &value[1..];
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        Address::from_bytes::<true>(value)
+    }
+}
+
+impl<'a> Address<'a> {
+    /// Same as `TryFrom<&[u8]>`, but with an option to allow surplus bytes.
+    ///
+    /// This is needed for [`crate::address::truncating`].
+    pub(crate) fn from_bytes<const STRICT: bool>(
+        mut bytes: &'a [u8],
+    ) -> Result<Self, bounded::Error<InvalidType>> {
+        let first_byte = bytes.first().ok_or(bounded::Error::Missing)?;
+        bytes = &bytes[1..];
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
         let network = Network(network_magic);
 
-        let first_hash: &Blake2b224Digest = value
+        let first_hash: &Blake2b224Digest = bytes
             .get(..HASH_SIZE)
             .ok_or(bounded::Error::Missing)?
             .try_into()
             .expect("slice has correct length");
-        value = &value[HASH_SIZE..];
+        bytes = &bytes[HASH_SIZE..];
 
         if header < 0b0100 {
-            let second_hash: &Blake2b224Digest = value
+            let second_hash: &Blake2b224Digest = bytes
                 .get(..HASH_SIZE)
                 .ok_or(bounded::Error::Missing)?
                 .try_into()
                 .expect("slice has correct length");
-            if value.len() > HASH_SIZE {
+            if STRICT && bytes.len() > HASH_SIZE {
                 return Err(bounded::Error::Surplus);
             }
 
@@ -126,9 +137,9 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
                 network,
             })
         } else if header < 0b0110 {
-            let mut iter = value.iter().copied();
-            let pointer =
-                credential::ChainPointer::from_bytes(iter.by_ref()).ok_or(bounded::Error::Missing)?;
+            let mut iter = bytes.iter().copied();
+            let pointer = credential::ChainPointer::from_bytes(iter.by_ref())
+                .ok_or(bounded::Error::Missing)?;
             if iter.next().is_some() {
                 return Err(bounded::Error::Surplus);
             }
@@ -145,7 +156,7 @@ impl<'a> TryFrom<&'a [u8]> for Address<'a> {
                 network,
             })
         } else if header < 0b1000 {
-            if !value.is_empty() {
+            if STRICT && !bytes.is_empty() {
                 return Err(bounded::Error::Surplus);
             }
 

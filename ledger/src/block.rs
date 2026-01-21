@@ -1,4 +1,4 @@
-use crate::{byron, shelley, allegra};
+use crate::{allegra, byron, mary, shelley};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
@@ -12,4 +12,6 @@ pub enum Block<'a> {
     Shelley(shelley::Block<'a>),
     #[n(3)]
     Allegra(allegra::Block<'a>),
+    #[n(4)]
+    Mary(mary::Block<'a>),
 }

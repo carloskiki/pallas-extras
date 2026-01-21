@@ -1,4 +1,4 @@
-use crate::shelley::{Script, transaction::{Metadata, Metadatum}};
+use crate::{shelley::transaction::{Metadata, Metadatum}, allegra::Script};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{

@@ -1,21 +1,14 @@
-use crate::TooLong;
-use displaydoc::Display;
-use thiserror::Error;
-use tinycbor::{CborLen, Decode, Encode, Encoder, Write, string};
-use zerocopy::{FromZeros, Immutable, IntoBytes, KnownLayout, TryFromBytes, Unaligned};
+use std::convert::Infallible;
+
+use tinycbor::{
+    CborLen, Decode, Encode, Encoder, Write,
+    container::{self, bounded},
+    string,
+};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 #[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    FromZeros,
-    Immutable,
-    Unaligned,
-    IntoBytes,
-    KnownLayout,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Immutable, Unaligned, IntoBytes, KnownLayout,
 )]
 #[repr(C)]
 pub struct Url(str);
@@ -33,13 +26,13 @@ impl AsMut<str> for Url {
 }
 
 impl<'a> TryFrom<&'a str> for &'a Url {
-    type Error = TooLong;
+    type Error = bounded::Error<Infallible>;
 
     fn try_from(value: &'a str) -> Result<Self, Self::Error> {
         if value.len() > 64 {
-            return Err(TooLong);
+            return Err(bounded::Error::Surplus);
         }
-        Ok(Url::try_ref_from_bytes(value.as_bytes()).expect("valid str"))
+        unsafe { Ok(&*(value as *const str as *const Url)) }
     }
 }
 
@@ -56,23 +49,12 @@ impl CborLen for Url {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for &'a Url {
-    type Error = Error;
+    type Error = container::Error<bounded::Error<string::InvalidUtf8>>;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        Ok(<&Url>::try_from(<&str>::decode(d)?)?)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
-pub enum Error {
-    /// the URL is Malformed
-    Malformed(#[from] string::Error),
-    /// the URL is too long
-    TooLong,
-}
-
-impl From<TooLong> for Error {
-    fn from(_: TooLong) -> Self {
-        Error::TooLong
+        Ok(
+            <&Url>::try_from(<&str>::decode(d).map_err(|e| e.map(|e| bounded::Error::Content(e)))?)
+                .map_err(|e| e.map(|e| match e {}))?,
+        )
     }
 }

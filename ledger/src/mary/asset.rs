@@ -23,6 +23,13 @@ impl<'a, T> From<Codec<'a, T>> for Asset<'a, T> {
     }
 }
 
+impl<'a, 'b, T> From<&'b Asset<'a, T>> for &'b Codec<'a, T> {
+    fn from(asset: &'b Asset<'a, T>) -> Self {
+        use ref_cast::RefCast;
+        Codec::ref_cast(asset)
+    }
+}
+
 impl<T: Encode> Encode for Codec<'_, T> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         e.map(self.0.len())?;

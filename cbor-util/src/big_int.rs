@@ -95,5 +95,5 @@ pub enum Error {
     #[error("failed to decode integer: {0}")]
     Int(primitive::Error),
     #[error("failed to decode big integer: {0}")]
-    BigInt(tag::Error<bounded_bytes::Error>),
+    BigInt(tag::Error<<BoundedBytes as Decode<'static>>::Error>),
 }

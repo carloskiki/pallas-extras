@@ -22,7 +22,7 @@ pub enum Error {
     /// while decoding `Bytes`
     Bytes(primitive::Error),
     /// while decoding `Text`
-    Text(string::Error),
+    Text(container::Error<string::InvalidUtf8>),
     /// While decoding `List`
     List(container::Error<Box<Error>>),
     /// While decoding `Map`

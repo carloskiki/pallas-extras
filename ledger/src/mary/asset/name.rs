@@ -1,21 +1,13 @@
-use crate::TooLong;
-use displaydoc::Display;
-use thiserror::Error;
-use tinycbor::{CborLen, Decode, Encode, Encoder, Write, string};
-use zerocopy::{FromZeros, Immutable, IntoBytes, KnownLayout, TryFromBytes, Unaligned};
+use std::convert::Infallible;
+
+use tinycbor::{
+    CborLen, Decode, Encode, Encoder, Write,
+    container::{self, bounded},
+};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 #[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    FromZeros,
-    Immutable,
-    Unaligned,
-    IntoBytes,
-    KnownLayout,
+    Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Immutable, Unaligned, IntoBytes, KnownLayout,
 )]
 #[repr(C)]
 pub struct Name(pub [u8]);
@@ -32,14 +24,16 @@ impl AsMut<[u8]> for Name {
     }
 }
 
-impl<'a> TryFrom<&'a str> for &'a Name {
-    type Error = TooLong;
+impl<'a> TryFrom<&'a [u8]> for &'a Name {
+    type Error = bounded::Error<Infallible>;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        if value.len() > 64 {
-            return Err(TooLong);
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() > 32 {
+            return Err(bounded::Error::Surplus);
         }
-        Ok(Name::try_ref_from_bytes(value.as_bytes()).expect("valid str"))
+
+        // SAFETY: `repr(C)` guarantees that `Name` has the same layout as `[u8]`
+        unsafe { Ok(&*(value as *const [u8] as *const Name)) }
     }
 }
 
@@ -56,23 +50,11 @@ impl CborLen for Name {
 }
 
 impl<'a, 'b: 'a> Decode<'b> for &'a Name {
-    type Error = Error;
+    type Error = container::Error<bounded::Error<Infallible>>;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        Ok(<&Name>::try_from(<&str>::decode(d)?)?)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
-pub enum Error {
-    /// the URL is Malformed
-    Malformed(#[from] string::Error),
-    /// the URL is too long
-    TooLong,
-}
-
-impl From<TooLong> for Error {
-    fn from(_: TooLong) -> Self {
-        Error::TooLong
+        Ok(<&'a [u8]>::decode(d)?
+            .try_into()
+            .map_err(|e| container::Error::Content(e))?)
     }
 }

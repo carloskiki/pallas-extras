@@ -1,6 +1,7 @@
+use displaydoc::Display;
+use macro_rules_attribute::apply;
 use thiserror::Error;
 use tinycbor::*;
-use macro_rules_attribute::apply;
 
 #[apply(super::wrapper)]
 pub struct BoundedBytes(pub Vec<u8>);
@@ -28,15 +29,14 @@ impl Encode for BoundedBytes {
 }
 
 impl Decode<'_> for BoundedBytes {
-    type Error = Error;
+    type Error = container::Error<Overflow>;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
-        d.bytes_iter()
-            .map_err(Error::Malformed)?
+        d.bytes_iter()?
             .try_fold(Vec::with_capacity(64), |mut bytes, chunk| {
-                let chunk = chunk.map_err(Error::Malformed)?;
+                let chunk = chunk?;
                 if chunk.len() > 64 {
-                    return Err(Error::Overflow);
+                    return Err(container::Error::Content(Overflow));
                 }
                 bytes.extend_from_slice(chunk);
                 Ok(bytes)
@@ -45,11 +45,6 @@ impl Decode<'_> for BoundedBytes {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Error)]
-pub enum Error {
-    #[error("malformed bytes: {0}")]
-    Malformed(#[from] primitive::Error),
-    #[error("chunk exceeds 64 bytes")]
-    Overflow,
-}
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Error, Display)]
+/// chunk exceeds 64 bytes
+pub struct Overflow;

@@ -22,7 +22,3 @@ pub mod mary;
 pub mod allegra;
 pub mod shelley;
 pub mod byron;
-
-/// the input is too long
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, displaydoc::Display, thiserror::Error)]
-pub struct TooLong;

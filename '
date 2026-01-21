@@ -1,6 +1,6 @@
 //! Implementation of the `Data` constant used by plutus.
 
-use tinycbor::*;
+use tinycbor::{container::map, *};
 
 pub mod construct;
 pub use construct::Construct;
@@ -47,50 +47,53 @@ impl Encode for Data {
 }
 
 impl Decode<'_> for Data {
-    type Error = Error;
+    type Error = Box<container::Error<Error>>;
 
     fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
-        match d.datatype().map_err(|e| Error::Header(From::from(e)))? {
+        fn wrap(e: impl Into<Error>) -> Box<container::Error<Error>> {
+            Box::new(container::Error::Content(e.into()))
+        }
+
+        match d.datatype().map_err(|e| Box::new(e.into()))? {
             Type::Int => cbor_util::BigInt::decode(d)
                 .map(|b| Self::Integer(b.0))
-                .map_err(Error::Integer),
-            Type::Bytes | Type::BytesIndef => {
-                Ok(Self::Bytes(cbor_util::BoundedBytes::decode(d)?.0))
-            }
-            Type::Array | Type::ArrayIndef => Ok(Self::List(Decode::decode(d).map_err(Box::new)?)),
-            Type::Map | Type::MapIndef => Ok(Self::Map(Decode::decode(d).map_err(Box::new)?)),
+                .map_err(wrap),
+            Type::Bytes | Type::BytesIndef => Ok(Self::Bytes(
+                cbor_util::BoundedBytes::decode(d).map_err(wrap)?.0,
+            )),
+            Type::Array | Type::ArrayIndef => Ok(Self::List(Decode::decode(d).map_err(wrap)?)),
+            Type::Map | Type::MapIndef => Ok(Self::Map(Decode::decode(d).map_err(wrap)?)),
             Type::Tag => {
                 let pre = *d;
                 match Construct::decode(d) {
                     Ok(c) => return Ok(Self::Construct(c)),
                     Err(tag::Error::InvalidTag) => {}
-                    Err(e) => return Err(Error::Construct(Box::new(e))),
+                    Err(e) => return Err(wrap(Box::new(e))),
                 }
                 *d = pre;
 
                 cbor_util::BigInt::decode(d)
                     .map(|b| Self::Integer(b.0))
-                    .map_err(Error::Integer)
+                    .map_err(wrap)
             }
-            _ => Err(Error::Header(primitive::Error::InvalidHeader(
-                InvalidHeader,
-            ))),
+            _ => Err(Box::new(InvalidHeader.into())),
         }
     }
 }
 
+type DecodeError = <Data as Decode<'static>>::Error;
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("while decoding Data")]
 pub enum Error {
-    #[error("while decoding header: {0}")]
-    Header(#[from] primitive::Error),
-    #[error("while decoding map: {0}")]
-    Map(#[from] Box<collections::Error<collections::map::Error<Error, Error>>>),
-    #[error("while decoding list: {0}")]
-    List(#[from] Box<collections::Error<Error>>),
-    #[error("while decoding bytes: {0}")]
-    Bytes(#[from] cbor_util::bounded_bytes::Error),
-    #[error("while decoding integer: {0}")]
+    #[error("while decoding map")]
+    Map(#[from] container::Error<map::Error<DecodeError, DecodeError>>),
+    #[error("while decoding list")]
+    List(#[from] Box<container::Error<DecodeError>>),
+    #[error("while decoding bytes")]
+    Bytes(#[from] container::Error<cbor_util::bounded_bytes::Overflow>),
+    #[error("while decoding integer")]
     Integer(#[from] cbor_util::big_int::Error),
-    #[error("while decoding construct: {0}")]
-    Construct(#[from] Box<<Construct as Decode<'static>>::Error>),
+    #[error("while decoding construct")]
+    Construct(#[from] <Construct as Decode<'static>>::Error),
 }

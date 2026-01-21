@@ -1,0 +1,99 @@
+//! Implementation of the `Data` constant used by plutus.
+
+use tinycbor::{container::map, *};
+
+pub mod construct;
+pub use construct::Construct;
+
+/// The `Data` constant used by plutus.
+// TODO: Check if this can borrow bytes. There are potential problems with `plutus` crate.
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub enum Data {
+    Map(Vec<(Data, Data)>),
+    List(Vec<Data>),
+    Bytes(Vec<u8>),
+    Integer(rug::Integer),
+    Construct(Construct),
+}
+
+impl Default for Data {
+    fn default() -> Self {
+        Data::Integer(Default::default())
+    }
+}
+
+impl CborLen for Data {
+    fn cbor_len(&self) -> usize {
+        match self {
+            Data::Map(items) => items.cbor_len(),
+            Data::List(datas) => datas.cbor_len(),
+            Data::Bytes(items) => <&cbor_util::BoundedBytes>::from(items).cbor_len(),
+            Data::Integer(big_int) => <&cbor_util::BigInt>::from(big_int).cbor_len(),
+            Data::Construct(construct) => construct.cbor_len(),
+        }
+    }
+}
+
+impl Encode for Data {
+    fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
+        match self {
+            Data::Map(items) => items.encode(e),
+            Data::List(items) => items.encode(e),
+            Data::Bytes(bytes) => <&cbor_util::BoundedBytes>::from(bytes).encode(e),
+            Data::Integer(big_int) => <&cbor_util::BigInt>::from(big_int).encode(e),
+            Data::Construct(construct) => construct.encode(e),
+        }
+    }
+}
+
+impl Decode<'_> for Data {
+    type Error = Box<container::Error<Error>>;
+
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+        fn wrap(e: impl Into<Error>) -> Box<container::Error<Error>> {
+            Box::new(container::Error::Content(e.into()))
+        }
+
+        match d.datatype().map_err(|e| Box::new(e.into()))? {
+            Type::Int => cbor_util::BigInt::decode(d)
+                .map(|b| Self::Integer(b.0))
+                .map_err(wrap),
+            Type::Bytes | Type::BytesIndef => Ok(Self::Bytes(
+                cbor_util::BoundedBytes::decode(d).map_err(wrap)?.0,
+            )),
+            Type::Array | Type::ArrayIndef => Ok(Self::List(Decode::decode(d).map_err(wrap)?)),
+            Type::Map | Type::MapIndef => Ok(Self::Map(Decode::decode(d).map_err(wrap)?)),
+            Type::Tag => {
+                let pre = *d;
+                match Construct::decode(d) {
+                    Ok(c) => return Ok(Self::Construct(c)),
+                    Err(tag::Error::InvalidTag) => {}
+                    Err(e) => return Err(wrap(e)),
+                }
+                *d = pre;
+
+                cbor_util::BigInt::decode(d)
+                    .map(|b| Self::Integer(b.0))
+                    .map_err(wrap)
+            }
+            _ => Err(Box::new(InvalidHeader.into())),
+        }
+    }
+}
+
+type DecodeError = <Data as Decode<'static>>::Error;
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("while decoding Data")]
+pub enum Error {
+    #[error("while decoding map")]
+    Map(#[from] container::Error<map::Error<DecodeError, DecodeError>>),
+    #[error("while decoding list")]
+    List(#[from] container::Error<DecodeError>),
+    #[error("while decoding bytes")]
+    Bytes(#[from] container::Error<cbor_util::bounded_bytes::Overflow>),
+    #[error("while decoding integer")]
+    Integer(#[from] cbor_util::big_int::Error),
+    #[error("while decoding construct")]
+    Construct(#[from] <Construct as Decode<'static>>::Error),
+}

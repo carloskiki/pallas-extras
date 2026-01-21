@@ -56,3 +56,39 @@ impl CborLen for Address<'_> {
         }
     }
 }
+
+/// Truncting address decoder.
+///
+/// In `mary` and `alonzo` eras, a bug in the ledger implementation allowed for longer than
+/// expected shelley addresses to be accepted by the node. These addresses were decoded by
+/// truncating the extra bytes.
+pub(crate) mod truncating {
+    use tinycbor::{Decode, Decoder, container};
+
+    pub struct Address<'a>(pub super::Address<'a>);
+
+    impl<'a> From<Address<'a>> for super::Address<'a> {
+        fn from(a: Address<'a>) -> Self {
+            a.0
+        }
+    }
+
+    impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
+        type Error = container::Error<super::Error>;
+
+        fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+            let bytes = <&'b [u8]>::decode(d)?;
+            if let Some(first) = bytes.first()
+                && (first >> 4) == 0b1000
+            {
+                Decode::decode(&mut Decoder(bytes))
+                    .map_err(|e| container::Error::Content(super::Error::Byron(e)))
+                    .map(|a| Address(super::Address::Byron(a)))
+            } else {
+                crate::shelley::Address::from_bytes::<false>(bytes)
+                    .map_err(|e| container::Error::Content(super::Error::Shelley(e)))
+                    .map(|a| Address(super::Address::Shelley(a)))
+            }
+        }
+    }
+}

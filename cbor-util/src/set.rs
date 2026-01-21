@@ -25,11 +25,8 @@ fn tag<E>(d: &mut tinycbor::Decoder<'_>) -> Result<(), tag::Error<container::Err
         }
         Some(Ok(tinycbor::Token::Tag(_))) => Err(InvalidHeader.into()),
         Some(Ok(tinycbor::Token::Array(_) | tinycbor::Token::BeginArray)) => Ok(()),
-        Some(Ok(_)) => Err(InvalidHeader.into()),
-        Some(Err(e)) => Err(match e {
-            tinycbor::string::Error::Malformed(error) => tag::Error::Malformed(error),
-            tinycbor::string::Error::Utf8 => InvalidHeader.into(),
-        }),
+        Some(Err(container::Error::Malformed(e))) => Err(tag::Error::Malformed(e)),
+        Some(_) => Err(InvalidHeader.into()),
         None => Err(EndOfInput.into()),
     }
 }
@@ -42,7 +39,7 @@ where
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         tag(d)?;
-        
+
         let mut set = HashSet::new();
         let mut visitor = d.array_visitor()?;
         while let Some(elem) = visitor.visit() {
@@ -66,13 +63,11 @@ where
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         tag(d)?;
-        
+
         let mut set = HashSet::new();
         let mut visitor = d.array_visitor()?;
         while let Some(elem) = visitor.visit() {
-            set.insert(
-                elem.map_err(|e| tag::Error::Content(container::Error::Content(e)))?,
-            );
+            set.insert(elem.map_err(|e| tag::Error::Content(container::Error::Content(e)))?);
         }
         Ok(Set(set))
     }

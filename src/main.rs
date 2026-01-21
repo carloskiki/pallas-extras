@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for file in files_ordered {
         let file_name_os_str = file.file_name();
         let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
-        if !file_name.ends_with(".chunk") || file_name < "00768.chunk" {
+        if !file_name.ends_with(".chunk") || file_name < "01068.chunk" {
             continue;
         }
 
@@ -44,6 +44,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     ledger::Block::Allegra(_) if era != 2 => {
                         era = 2;
                         println!("Entered Allegra era at file {file_name}");
+                    }
+                    ledger::Block::Mary(_) if era != 3 => {
+                        era = 3;
+                        println!("Entered Mary era at file {file_name}");
                     }
                     _ => {}
                 },
