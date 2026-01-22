@@ -57,3 +57,70 @@ macro_rules! wrapper {
     };
 }
 use wrapper;
+
+
+#[macro_export]
+macro_rules! sparse_struct_impl {
+    ($type:ty) => {
+        const _: () = {
+use tinycbor::{
+    CborLen, Decode, Encode, Encoder, Write,
+    container::{self, bounded, map},
+    primitive,
+};
+impl CborLen for $type {
+    fn cbor_len(&self) -> usize {
+        let params = self.as_ref();
+        params.len().cbor_len() + params.iter().map(|param| param.cbor_len()).sum::<usize>()
+    }
+}
+
+impl Encode for $type {
+    fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
+        let params = self.as_ref();
+        e.map(params.len())?;
+        params.iter().try_for_each(|param| param.encode(e))
+    }
+}
+
+
+impl Decode<'_> for $type {
+    type Error = container::Error<bounded::Error<map::Error<primitive::Error, Error>>>;
+
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+        let mut params = Self::default();
+        let mut decode_param = |d: &mut tinycbor::Decoder<'_>| {
+            let param = Decode::decode(d).map_err(|e| {
+                container::Error::Content(match e {
+                    tinycbor::tag::Error::Malformed(error) => {
+                        bounded::Error::Content(map::Error::Key(error))
+                    }
+                    tinycbor::tag::Error::InvalidTag => bounded::Error::Surplus,
+                    tinycbor::tag::Error::Content(inner) => {
+                        bounded::Error::Content(map::Error::Value(inner))
+                    }
+                })
+            })?;
+            if !params.insert(param) {
+                return Err(container::Error::Content(bounded::Error::Surplus));
+            }
+            Ok(())
+        };
+
+        if let Some(len) = d.map_visitor()?.remaining() {
+            for _ in 0..len {
+                decode_param(d)?;
+            }
+        } else {
+            while d.datatype()? != tinycbor::Type::Break {
+                decode_param(d)?;
+            }
+            d.next().expect("found break").expect("valid break");
+        };
+        Ok(params)
+    }
+}
+        };
+        
+    };
+}

@@ -41,13 +41,12 @@ impl<'a> Address<'a> {
 
 impl Display for Address<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.network.main() {
-            "addr"
-        } else {
-            "addr_test"
+        let hrp = Hrp::parse_unchecked(match self.network {
+            Network::Main => "addr",
+            Network::Test => "addr_test"
         });
 
-        let network_magic = self.network.0;
+        let network_magic = self.network as u8;
         let first_byte = (self.header() << 4) | network_magic;
 
         let iter = iter::once(first_byte).chain(self.payment.as_ref().iter().copied());
@@ -93,7 +92,11 @@ impl<'a> Address<'a> {
         bytes = &bytes[1..];
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        let network = Network(network_magic);
+        let network = match network_magic {
+            1 => Network::Main,
+            // We default to Test for unknown ids...
+            _ => Network::Test,
+        };
 
         let first_hash: &Blake2b224Digest = bytes
             .get(..HASH_SIZE)
@@ -199,7 +202,7 @@ impl Encode for Address<'_> {
         // `24 < cbor_len < 256` because pointer encoding can't exceed 30 bytes.
         e.0.write_all(&[0x58, self.cbor_len() as u8])?;
 
-        let network_magic = self.network.0;
+        let network_magic = self.network as u8;
         let first_byte = (self.header() << 4) | network_magic;
         e.0.write_all(&[first_byte])?;
         e.0.write_all(self.payment.as_ref())?;
@@ -241,17 +244,16 @@ impl Account<'_> {
             Credential::VerificationKey(_) => 0b1110,
             Credential::Script(_) => 0b1111,
         };
-        let network_magic = self.network.0;
+        let network_magic = self.network as u8;
         (header << 4) | (network_magic & 0b1111)
     }
 }
 
 impl Display for Account<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hrp = Hrp::parse_unchecked(if self.network.main() {
-            "stake"
-        } else {
-            "stake_test"
+        let hrp = Hrp::parse_unchecked(match self.network {
+            Network::Main => "stake",
+            Network::Test => "stake_test"
         });
 
         iter::once(self.header())
@@ -270,7 +272,10 @@ impl<'a> TryFrom<&'a [u8]> for Account<'a> {
         let first_byte = bytes.first().ok_or(bounded::Error::Missing)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
-        let network = Network(network_magic);
+        let network = match network_magic {
+            1 => Network::Main,
+            _ => Network::Test,
+        };
 
         let hash: &Blake2b224Digest = bytes
             .get(1..29)
@@ -365,7 +370,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -377,7 +382,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -395,7 +400,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -407,7 +412,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::StakeKey(STAKE_VK)),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -425,7 +430,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -437,7 +442,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH)),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -455,7 +460,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -467,7 +472,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Script(SCRIPT_HASH),),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -487,7 +492,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -499,7 +504,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: Some(credential::Delegation::Pointer(POINTER),),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -519,7 +524,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -531,7 +536,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: Some(credential::Delegation::Pointer(POINTER)),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -549,7 +554,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: None,
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -561,7 +566,7 @@ mod tests {
             Address {
                 payment: Credential::VerificationKey(VK),
                 stake: None,
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -579,7 +584,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -591,7 +596,7 @@ mod tests {
             Address {
                 payment: Credential::Script(SCRIPT_HASH),
                 stake: None,
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -608,7 +613,7 @@ mod tests {
             main,
             Account {
                 credential: Credential::VerificationKey(STAKE_VK),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -619,7 +624,7 @@ mod tests {
             test,
             Account {
                 credential: Credential::VerificationKey(STAKE_VK),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();
@@ -636,7 +641,7 @@ mod tests {
             main,
             Account {
                 credential: Credential::Script(SCRIPT_HASH),
-                network: Network::MAIN
+                network: Network::Main
             }
         ));
         let serialized = main.to_string();
@@ -647,7 +652,7 @@ mod tests {
             test,
             Account {
                 credential: Credential::Script(SCRIPT_HASH),
-                network: Network::TEST
+                network: Network::Test
             }
         ));
         let serialized = test.to_string();

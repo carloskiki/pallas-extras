@@ -141,7 +141,7 @@ fn expand(
                         "The variant should be present in the data array if the bit is set."
                     );
                 };
-                Some(data)
+                ::core::option::Option::Some(data)
             }};
             let fn_ref = get_fn_body(quote!(&));
             let fn_mut = get_fn_body(quote!(&mut));
@@ -155,11 +155,11 @@ fn expand(
             let remove_ident = Ident::new(&format!("remove_{fn_ident}"), Span::call_site());
             Ok((quote! {
                 /// Returns a reference to the field if it is present.
-                pub fn #fn_ident(&self) -> Option<&#field> #fn_ref
+                pub fn #fn_ident(&self) -> ::core::option::Option<&#field> #fn_ref
                 /// Returns a mutable reference to the field if it is present.
-                pub fn #fn_ident_mut(&mut self) -> Option<&mut #field> #fn_mut
+                pub fn #fn_ident_mut(&mut self) -> ::core::option::Option<&mut #field> #fn_mut
                 /// Removes the field from the set, returning it if it was present.
-                pub fn #remove_ident(&mut self) -> Option<#field> {
+                pub fn #remove_ident(&mut self) -> ::core::option::Option<#field> {
                     #index_computation
                     let #enum_ident::#variant_ident(data) = self.data.remove(index) else {
                         ::core::unreachable!(
@@ -167,7 +167,7 @@ fn expand(
                         );
                     };
                     self.present &= !significant_bit;
-                    Some(data)
+                    ::core::option::Option::Some(data)
                 }
                 /// Sets the field to the given value.
                 ///

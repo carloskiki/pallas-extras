@@ -1,7 +1,7 @@
 use crate::{
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    epoch,
-    shelley::{Credential, interval, address::Account, pool, transaction::Coin},
+    epoch, interval,
+    shelley::{Credential, address::Account, pool, transaction::Coin},
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 

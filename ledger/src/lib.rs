@@ -8,6 +8,7 @@ extern crate alloc;
 pub mod crypto;
 pub mod slot;
 pub mod epoch;
+pub mod interval;
 
 pub mod address;
 pub use address::Address;

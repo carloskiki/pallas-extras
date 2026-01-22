@@ -1,8 +1,4 @@
-use crate::{
-    epoch,
-    shelley::transaction::Coin,
-    interval,
-};
+use crate::{alonzo::script::execution, epoch, interval, shelley::transaction::Coin};
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -46,10 +42,34 @@ pub enum Parameter {
     ExtraEntropy(#[cbor(with = "cbor_util::option::Array<[u8; 32], true>")] Option<[u8; 32]>),
     #[n(14)]
     ProtocolVersion(Version),
-    #[n(15)]
-    MinimumUtxoValue(Coin),
     #[n(16)]
     MinimumPoolCost(Coin),
+    #[n(17)]
+    AdaPerUtxoByte(Coin),
+    #[n(18)]
+    CostModels(execution::cost::Models),
+    #[n(19)]
+    ExecutionCosts(execution::Costs),
+    #[n(20)]
+    MaximumTransactionExecutionUnits(execution::Units),
+    #[n(21)]
+    MaximumBlockExecutionUnits(execution::Units),
+    #[n(22)]
+    MaxValueSize(u32),
+    #[n(23)]
+    CollateralPercentage(u16),
+    #[n(24)]
+    MaxCollateralInputs(u16),
+    //     PoolVotingThresholds(pool::VotingThresholds),
+    //     DrepVotingThresholds(delegate_representative::VotingThresholds),
+    //     MinCommitteeSize(u16),
+    //     CommitteeTermLimit(epoch::Interval),
+    //     GovernanceActionValidityPeriod(epoch::Interval),
+    //     GovernanceActionDeposit(Coin),
+    //     DrepDeposit(Coin),
+    //     DrepInactivityPeriod(epoch::Interval),
+    //     /// Reference script cost per byte
+    //     ScriptReferenceCost(RealNumber),
 }
 
 cbor_util::sparse_struct_impl!(Parameters);

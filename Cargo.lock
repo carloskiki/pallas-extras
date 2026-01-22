@@ -1627,9 +1627,9 @@ dependencies = [
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87af5392b212d06266ee8a0582fcdd2e7bb4bd1e23d77a833932de95311497c1"
+checksum = "35850db90a1a58fbffd725ad24c6e36573e3e4a93febe339c8b669378b7b7cde"
 dependencies = [
  "heck",
  "proc-macro2",
