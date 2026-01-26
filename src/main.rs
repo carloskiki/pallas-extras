@@ -21,8 +21,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     for file in files_ordered {
         let file_name_os_str = file.file_name();
         let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
-        if !file_name.ends_with(".chunk") || file_name < "01068.chunk" {
+        if !file_name.ends_with(".chunk") || file_name < "05350.chunk" {
             continue;
+        }
+        if file_name.split('.').next().unwrap().parse::<u32>()? % 50 == 0 {
+            println!("Processing file {file_name}");
         }
 
         let mut file = File::open(file.path())?;
@@ -49,6 +52,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                         era = 3;
                         println!("Entered Mary era at file {file_name}");
                     }
+                    ledger::Block::Alonzo(_) => if era != 4 {
+                        era = 4;
+                        println!("Entered Alonzo era at file {file_name}");
+                    }
+                    ledger::Block::Babbage(_) => if era != 5 {
+                        era = 5;
+                        println!("Entered Babbage era at file {file_name}");
+                    },
                     _ => {}
                 },
                 Err(e) => {

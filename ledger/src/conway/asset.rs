@@ -1,22 +1,18 @@
-use mitsein::vec1::Vec1;
 use cbor_util::NonEmpty;
+use mitsein::vec1::Vec1;
 use tinycbor::{
     CborLen, Decode, Encode,
-    collections::{self, map},
+    container::{self, map},
+    num::nonzero,
 };
 
-pub mod name;
-pub use name::Name;
+use crate::mary::asset::{Bundle, Name};
 
-pub type Asset<'a, T> = Vec<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>;
+pub type Asset<'a, T> = Vec1<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>;
 
-pub type Bundle<'a, T> = Vec1<(Name<'a>, T)>;
-
-
-// TODO: figure out if `cbor-util` should be merged in `ledger` or if this should be moved there.
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
-pub(crate) struct Codec<'a, T>(super::Asset<'a, T>);
+pub(crate) struct Codec<'a, T>(Asset<'a, T>);
 
 impl<'a, T> From<Codec<'a, T>> for Asset<'a, T> {
     fn from(codec: Codec<'a, T>) -> Self {
@@ -24,9 +20,16 @@ impl<'a, T> From<Codec<'a, T>> for Asset<'a, T> {
     }
 }
 
+impl<'a, 'b, T> From<&'b Asset<'a, T>> for &'b Codec<'a, T> {
+    fn from(asset: &'b Asset<'a, T>) -> Self {
+        use ref_cast::RefCast;
+        Codec::ref_cast(asset)
+    }
+}
+
 impl<T: Encode> Encode for Codec<'_, T> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        e.map(self.0.len())?;
+        e.map(self.0.len().get())?;
         for (policy, bundle) in &self.0 {
             policy.encode(e)?;
             <&NonEmpty<_>>::from(bundle).encode(e)?;
@@ -46,24 +49,29 @@ impl<T: CborLen> CborLen for Codec<'_, T> {
     }
 }
 
-impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
-    type Error = collections::Error<
-        map::Error<
-            <&'a crate::crypto::Blake2b224Digest as Decode<'a>>::Error,
-            <NonEmpty<Vec<(Name<'a>, T)>> as Decode<'a>>::Error,
+impl<'a, 'b: 'a, T: Decode<'b>> Decode<'b> for Codec<'a, T> {
+    type Error = container::Error<
+        nonzero::Error<
+            map::Error<
+                <&'a crate::crypto::Blake2b224Digest as Decode<'b>>::Error,
+                <NonEmpty<Vec<(&'a Name, T)>> as Decode<'b>>::Error,
+            >,
         >,
     >;
 
-    fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         let mut visitor = d.map_visitor()?;
         let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
         while let Some(result) =
-            visitor.visit::<&'a crate::crypto::Blake2b224Digest, NonEmpty<Vec<(Name, T)>>>()
+            visitor.visit::<&'a crate::crypto::Blake2b224Digest, NonEmpty<Vec<(&'a Name, T)>>>()
         {
-            let (name, NonEmpty(bundle)) = result.map_err(collections::Error::Element)?;
-            items.push((name, bundle));
+            let (name, bundle) =
+                result.map_err(|e| container::Error::Content(nonzero::Error::Value(e)))?;
+            items.push((name, bundle.0));
         }
 
-        Ok(Codec(items))
+        Ok(Codec(items.try_into().map_err(|_| {
+            container::Error::Content(nonzero::Error::Zero)
+        })?))
     }
 }

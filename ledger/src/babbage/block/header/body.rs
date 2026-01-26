@@ -1,0 +1,24 @@
+use super::super::super::protocol;
+use crate::{
+    babbage::certificate,
+    crypto,
+    shelley::{self, block},
+    slot,
+};
+use tinycbor_derive::{CborLen, Decode, Encode};
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
+pub struct Body<'a> {
+    pub number: block::Number,
+    pub slot: slot::Number,
+    pub previous: Option<&'a block::Id>,
+    #[cbor(with = "cbor_util::VerifyingKey<'a>")]
+    pub issuer: &'a crypto::VerifyingKey,
+    #[cbor(with = "cbor_util::VerifyingKey<'a>")]
+    pub vrf: &'a crypto::VerifyingKey,
+    pub vrf_result: shelley::certificate::Vrf<'a>,
+    pub size: block::Size,
+    pub body_hash: &'a crypto::Blake2b256Digest,
+    pub certificate: certificate::Operational<'a>,
+    pub version: protocol::Version,
+}

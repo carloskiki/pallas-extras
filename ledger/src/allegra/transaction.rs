@@ -11,6 +11,6 @@ pub mod witness;
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Transaction<'a> {
     pub body: body::Body<'a>,
-    pub witness: witness::Set<'a>,
+    pub witnesses: witness::Set<'a>,
     pub data: Option<data::Data<'a>>,
 }

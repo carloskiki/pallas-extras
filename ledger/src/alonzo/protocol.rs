@@ -60,16 +60,6 @@ pub enum Parameter {
     CollateralPercentage(u16),
     #[n(24)]
     MaxCollateralInputs(u16),
-    //     PoolVotingThresholds(pool::VotingThresholds),
-    //     DrepVotingThresholds(delegate_representative::VotingThresholds),
-    //     MinCommitteeSize(u16),
-    //     CommitteeTermLimit(epoch::Interval),
-    //     GovernanceActionValidityPeriod(epoch::Interval),
-    //     GovernanceActionDeposit(Coin),
-    //     DrepDeposit(Coin),
-    //     DrepInactivityPeriod(epoch::Interval),
-    //     /// Reference script cost per byte
-    //     ScriptReferenceCost(RealNumber),
 }
 
 cbor_util::sparse_struct_impl!(Parameters);

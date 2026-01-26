@@ -12,7 +12,6 @@ pub type Asset<'a, T> = Vec<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)
 
 pub type Bundle<'a, T> = Vec1<(&'a Name, T)>;
 
-// TODO: figure out if `cbor-util` should be merged in `ledger` or if this should be moved there.
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
 pub(crate) struct Codec<'a, T>(Asset<'a, T>);
@@ -52,11 +51,13 @@ impl<T: CborLen> CborLen for Codec<'_, T> {
     }
 }
 
+// In pre-conway eras, bundles that are empty are pruned from the asset list.
+// https://github.com/IntersectMBO/cardano-ledger/pull/5145#discussion_r2186204681
 impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
     type Error = container::Error<
         map::Error<
             <&'a crate::crypto::Blake2b224Digest as Decode<'a>>::Error,
-            <NonEmpty<Vec<(&'a Name, T)>> as Decode<'a>>::Error,
+            <Vec<(&'a Name, T)> as Decode<'a>>::Error,
         >,
     >;
 
@@ -64,10 +65,12 @@ impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
         let mut visitor = d.map_visitor()?;
         let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
         while let Some(result) =
-            visitor.visit::<&'a crate::crypto::Blake2b224Digest, NonEmpty<Vec<(&'a Name, T)>>>()
+            visitor.visit::<&'a crate::crypto::Blake2b224Digest, Vec<(&'a Name, T)>>()
         {
-            let (name, NonEmpty(bundle)) = result.map_err(container::Error::Content)?;
-            items.push((name, bundle));
+            let (name, bundle) = result.map_err(container::Error::Content)?;
+            if let Ok(bundle) = Vec1::try_from(bundle) {
+                items.push((name, bundle));
+            }
         }
 
         Ok(Codec(items))

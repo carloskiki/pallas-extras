@@ -1,10 +1,17 @@
-pub mod kind;
+use tinycbor::{
+    CborLen, Decode, Decoder, Encode,
+    container::{self, bounded},
+    tag,
+};
 
 use crate::{
-    conway::{UnitInterval, governance, pool, transaction::Coin},
+    conway::{
+        governance::{self, Anchor},
+        pool,
+    },
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    epoch,
-    shelley::{Credential, address::Account},
+    epoch, interval,
+    shelley::{self, Credential, address::Account, transaction::Coin},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -13,13 +20,13 @@ pub enum Certificate<'a> {
     ///
     /// Since the [`Era::Conway`] era, registration & delegation can be done at the same time, so this
     /// variant supports these options separately and at the same time.
-    Delegation {
+    AccountAction {
         credential: Credential<'a>,
-        pool_keyhash: Option<Blake2b224Digest>,
-        delegate_representative: Option<governance::DelegateRepresentative>,
+        pool: Option<&'a shelley::pool::Id>,
+        delegate_representative: Option<governance::DelegateRepresentative<'a>>,
         deposit: Option<Coin>,
     },
-    Unregistration {
+    AccountUnregistration {
         credential: Credential<'a>,
         deposit: Option<Coin>,
     },
@@ -28,113 +35,187 @@ pub enum Certificate<'a> {
         vrf_keyhash: &'a Blake2b256Digest,
         pledge: Coin,
         cost: Coin,
-        margin: UnitInterval,
-        reward_account: Account<'a>,
+        margin: interval::Unit,
+        account: Account<'a>,
         owners: Vec<&'a Blake2b224Digest>,
         relays: Vec<pool::Relay<'a>>,
         metadata: Option<pool::Metadata<'a>>,
     },
     PoolRetirement {
-        pool_keyhash: Blake2b224Digest,
+        pool: &'a shelley::pool::Id,
         epoch: epoch::Number,
     },
-    GenesisKeyDelegation {
-        genesis_hash: Blake2b224Digest,
-        genesis_delegate_hash: Blake2b224Digest,
-        vrf_keyhash: Blake2b256Digest,
+    ConstitutionalCommitteeAuthorization {
+        issuer: Credential<'a>,
+        hot_credential: Credential<'a>,
     },
-    MoveRewards {
-        /// If `true`, take the funds from the treasury, otherwise take them from the reserve.
-        from_treasury: bool,
-        to: RewardTarget,
-    },
-    ConstitutionalCommittee {
-        /// The cold credential, used to authorize a hot credential or resign a position.
+    ConstitutionalCommitteeResignation {
         credential: Credential<'a>,
-        kind: kind::ConstitutionalCommittee,
+        anchor: Option<Anchor<'a>>,
     },
-    DelegateRepresentative {
+    DelegateRepresentativeRegistration {
         credential: Credential<'a>,
-        kind: kind::DelegateRepresentative,
+        deposit: Coin,
+        anchor: Option<Anchor<'a>>,
+    },
+    DelegateRepresentativeUnregistration {
+        credential: Credential<'a>,
+        deposit: Coin,
+    },
+    DelegateRepresentativeUpdate {
+        credential: Credential<'a>,
+        anchor: Option<Anchor<'a>>,
     },
 }
 
-const ARRAY_LENGTHS: [u64; 19] = [2, 2, 3, 10, 3, 4, 2, 3, 3, 3, 4, 4, 4, 5, 3, 3, 4, 3, 3];
+#[derive(Debug, thiserror::Error, displaydoc::Display)]
+/// while decoding `Certificate`
+pub enum Error {
+    /// while decoding field `credential` in variant `AccountAction`
+    AccountActionCredential(#[source] <Credential<'static> as Decode<'static>>::Error),
+    /// while decoding field `pool` in variant `AccountAction`
+    AccountActionPool(#[source] <&'static Blake2b224Digest as Decode<'static>>::Error),
+    /// while decoding field `delegate_representative` in variant `AccountAction`
+    AccountActionDelegateRepresentative(
+        #[source] <governance::DelegateRepresentative<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `deposit` in variant `AccountAction`
+    AccountActionDeposit(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `credential` in variant `AccountUnregistration`
+    AccountUnregistrationCredential(#[source] <Credential<'static> as Decode<'static>>::Error),
+    /// while decoding field `deposit` in variant `AccountUnregistration`
+    AccountUnregistrationDeposit(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `operator` in variant `PoolRegistration`
+    PoolRegistrationOperator(#[source] <&'static Blake2b224Digest as Decode<'static>>::Error),
+    /// while decoding field `vrf_keyhash` in variant `PoolRegistration`
+    PoolRegistrationVrfKeyHash(#[source] <&'static Blake2b256Digest as Decode<'static>>::Error),
+    /// while decoding field `pledge` in variant `PoolRegistration`
+    PoolRegistrationPledge(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `cost` in variant `PoolRegistration`
+    PoolRegistrationCost(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `margin` in variant `PoolRegistration`
+    PoolRegistrationMargin(#[source] <interval::Unit as Decode<'static>>::Error),
+    /// while decoding field `account` in variant `PoolRegistration`
+    PoolRegistrationAccount(#[source] <Account<'static> as Decode<'static>>::Error),
+    /// while decoding field `owners` in variant `PoolRegistration`
+    PoolRegistrationOwners(#[source] <Vec<&'static Blake2b224Digest> as Decode<'static>>::Error),
+    /// while decoding field `relays` in variant `PoolRegistration`
+    PoolRegistrationRelays(#[source] <Vec<pool::Relay<'static>> as Decode<'static>>::Error),
+    /// while decoding field `metadata` in variant `PoolRegistration`
+    PoolRegistrationMetadata(#[source] <Option<pool::Metadata<'static>> as Decode<'static>>::Error),
+    /// while decoding field `pool` in variant `PoolRetirement`
+    PoolRetirementPool(#[source] <&'static shelley::pool::Id as Decode<'static>>::Error),
+    /// while decoding field `epoch` in variant `PoolRetirement`
+    PoolRetirementEpoch(#[source] <epoch::Number as Decode<'static>>::Error),
+    /// while decoding field `issuer` in variant `ConstitutionalCommitteeAuthorization`
+    ConstitutionalCommitteeAuthorizationIssuer(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `hot_credential` in variant `ConstitutionalCommitteeAuthorization`
+    ConstitutionalCommitteeAuthorizationHotCredential(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `credential` in variant `ConstitutionalCommitteeResignation`
+    ConstitutionalCommitteeResignationCredential(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `anchor` in variant `ConstitutionalCommitteeResignation`
+    ConstitutionalCommitteeResignationAnchor(
+        #[source] <Option<Anchor<'static>> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `credential` in variant `DelegateRepresentativeRegistration`
+    DelegateRepresentativeRegistrationCredential(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `deposit` in variant `DelegateRepresentativeRegistration`
+    DelegateRepresentativeRegistrationDeposit(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `anchor` in variant `DelegateRepresentativeRegistration`
+    DelegateRepresentativeRegistrationAnchor(
+        #[source] <Option<Anchor<'static>> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `credential` in variant `DelegateRepresentativeUnregistration`
+    DelegateRepresentativeUnregistrationCredential(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `deposit` in variant `DelegateRepresentativeUnregistration`
+    DelegateRepresentativeUnregistrationDeposit(#[source] <Coin as Decode<'static>>::Error),
+    /// while decoding field `credential` in variant `DelegateRepresentativeUpdate`
+    DelegateRepresentativeUpdateCredential(
+        #[source] <Credential<'static> as Decode<'static>>::Error,
+    ),
+    /// while decoding field `anchor` in variant `DelegateRepresentativeUpdate`
+    DelegateRepresentativeUpdateAnchor(
+        #[source] <Option<Anchor<'static>> as Decode<'static>>::Error,
+    ),
+}
 
-impl Certificate {
-    fn tag(&self) -> u8 {
+const ARRAY_LENGTHS: [usize; 19] = [2, 2, 3, 10, 3, 4, 2, 3, 3, 3, 4, 4, 4, 5, 3, 3, 4, 3, 3];
+
+impl Certificate<'_> {
+    fn tag_len(&self) -> (usize, usize) {
         match self {
-            Certificate::Delegation {
+            Certificate::AccountAction {
                 deposit,
-                pool_keyhash,
+                pool: pool_keyhash,
                 delegate_representative,
                 ..
             } => match (deposit, pool_keyhash, delegate_representative) {
-                (None, None, None) => 0,
-                (None, None, Some(_)) => 9,
-                (None, Some(_), None) => 2,
-                (None, Some(_), Some(_)) => 10,
-                (Some(_), None, None) => 7,
-                (Some(_), None, Some(_)) => 12,
-                (Some(_), Some(_), None) => 11,
-                (Some(_), Some(_), Some(_)) => 13,
+                (None, None, None) => (0, 2),
+                (None, None, Some(_)) => (9, 3),
+                (None, Some(_), None) => (2, 3),
+                (None, Some(_), Some(_)) => (10, 4),
+                (Some(_), None, None) => (7, 3),
+                (Some(_), None, Some(_)) => (12, 4),
+                (Some(_), Some(_), None) => (11, 4),
+                (Some(_), Some(_), Some(_)) => (13, 5),
             },
-            Certificate::Unregistration { deposit, .. } => match deposit {
-                Some(_) => 8,
-                None => 1,
+            Certificate::AccountUnregistration { deposit, .. } => match deposit {
+                Some(_) => (8, 3),
+                None => (1, 2),
             },
-            Certificate::PoolRegistration { .. } => 3,
-            Certificate::PoolRetirement { .. } => 4,
-            Certificate::GenesisKeyDelegation { .. } => 5,
-            Certificate::MoveRewards { .. } => 6,
-            Certificate::ConstitutionalCommittee { kind, .. } => match kind {
-                kind::ConstitutionalCommittee::Authorize(_) => 14,
-                kind::ConstitutionalCommittee::Resign(_) => 15,
-            },
-            Certificate::DelegateRepresentative { kind, .. } => match kind {
-                kind::DelegateRepresentative::Register { .. } => 16,
-                kind::DelegateRepresentative::Unregister { .. } => 17,
-                kind::DelegateRepresentative::Update { .. } => 18,
-            },
+            Certificate::PoolRegistration { .. } => (3, 10),
+            Certificate::PoolRetirement { .. } => (4, 3),
+            Certificate::ConstitutionalCommitteeAuthorization { .. } => (14, 3),
+            Certificate::ConstitutionalCommitteeResignation { .. } => (15, 3),
+            Certificate::DelegateRepresentativeRegistration { .. } => (16, 4),
+            Certificate::DelegateRepresentativeUnregistration { .. } => (17, 3),
+            Certificate::DelegateRepresentativeUpdate { .. } => (18, 3),
         }
     }
 }
 
-impl<C> Encode<C> for Certificate {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        let tag = self.tag();
-        e.array(ARRAY_LENGTHS[tag as usize])?.u8(tag)?;
+impl Encode for Certificate<'_> {
+    fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
+        let (tag, len) = self.tag_len();
+        e.array(len)?;
+        tag.encode(e)?;
 
         match self {
-            Certificate::Delegation {
+            Certificate::AccountAction {
                 credential,
                 deposit,
-                pool_keyhash,
+                pool: pool_keyhash,
                 delegate_representative,
             } => {
-                e.encode(credential)?;
+                credential.encode(e)?;
                 if let Some(pool_keyhash) = pool_keyhash {
-                    minicbor::bytes::encode(pool_keyhash, e, ctx)?;
+                    pool_keyhash.encode(e)?;
                 }
                 if let Some(delegate_representative) = delegate_representative {
-                    e.encode(delegate_representative)?;
+                    delegate_representative.encode(e)?;
                 }
                 if let Some(deposit) = deposit {
-                    e.u64(*deposit)?;
+                    deposit.encode(e)?;
                 }
                 Ok(())
             }
-            Certificate::Unregistration {
+            Certificate::AccountUnregistration {
                 credential,
                 deposit,
             } => {
-                e.encode(credential)?;
+                credential.encode(e)?;
                 if let Some(deposit) = deposit {
-                    e.u64(*deposit)?;
+                    deposit.encode(e)?;
                 }
                 Ok(())
             }
@@ -144,230 +225,215 @@ impl<C> Encode<C> for Certificate {
                 pledge,
                 cost,
                 margin,
-                reward_account,
+                account,
                 owners,
                 relays,
                 metadata,
             } => {
-                minicbor::bytes::encode(operator, e, ctx)?;
-                minicbor::bytes::encode(vrf_keyhash, e, ctx)?;
-                e.u64(*pledge)?;
-                e.u64(*cost)?;
-                e.encode(margin)?;
-                e.encode(reward_account)?;
-                cbor_util::set::bytes::encode(owners, e, ctx)?;
-                e.encode(relays)?;
-                e.encode(metadata)?;
-                Ok(())
+                operator.encode(e)?;
+                vrf_keyhash.encode(e)?;
+                pledge.encode(e)?;
+                cost.encode(e)?;
+                margin.encode(e)?;
+                account.encode(e)?;
+                owners.encode(e)?;
+                relays.encode(e)?;
+                metadata.encode(e)
             }
-            Certificate::PoolRetirement {
-                pool_keyhash,
-                epoch,
+            Certificate::PoolRetirement { pool, epoch } => {
+                pool.encode(e)?;
+                epoch.encode(e)
+            }
+            Certificate::ConstitutionalCommitteeAuthorization {
+                issuer,
+                hot_credential,
             } => {
-                minicbor::bytes::encode(pool_keyhash, e, ctx)?;
-                e.u64(*epoch)?;
-                Ok(())
+                issuer.encode(e)?;
+                hot_credential.encode(e)
             }
-            Certificate::GenesisKeyDelegation {
-                genesis_hash,
-                genesis_delegate_hash,
-                vrf_keyhash,
+            Certificate::ConstitutionalCommitteeResignation { credential, anchor } => {
+                credential.encode(e)?;
+                anchor.encode(e)
+            }
+            Certificate::DelegateRepresentativeRegistration {
+                credential,
+                deposit,
+                anchor,
             } => {
-                minicbor::bytes::encode(genesis_hash, e, ctx)?;
-                minicbor::bytes::encode(genesis_delegate_hash, e, ctx)?;
-                minicbor::bytes::encode(vrf_keyhash, e, ctx)?;
-                Ok(())
+                credential.encode(e)?;
+                deposit.encode(e)?;
+                anchor.encode(e)
             }
-            Certificate::MoveRewards { from_treasury, to } => {
-                e.array(2)?;
-                cbor_util::bool_as_u8::encode(from_treasury, e, ctx)?;
-                e.encode(to)?;
-                Ok(())
+            Certificate::DelegateRepresentativeUnregistration {
+                credential,
+                deposit,
+            } => {
+                credential.encode(e)?;
+                deposit.encode(e)
             }
-            Certificate::ConstitutionalCommittee { credential, kind } => {
-                e.encode(credential)?;
-                match kind {
-                    kind::ConstitutionalCommittee::Authorize(credential) => e.encode(credential),
-                    kind::ConstitutionalCommittee::Resign(anchor) => e.encode(anchor),
-                }?
-                .ok()
-            }
-            Certificate::DelegateRepresentative { credential, kind } => {
-                e.encode(credential)?;
-                match kind {
-                    kind::DelegateRepresentative::Register { deposit, anchor } => {
-                        e.u64(*deposit)?.encode(anchor)
-                    }
-                    kind::DelegateRepresentative::Update { anchor } => e.encode(anchor),
-                    kind::DelegateRepresentative::Unregister { deposit } => e.u64(*deposit),
-                }?
-                .ok()
+            Certificate::DelegateRepresentativeUpdate { credential, anchor } => {
+                credential.encode(e)?;
+                anchor.encode(e)
             }
         }
     }
 }
 
-impl<C> Decode<'_, C> for Certificate {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let array_len = d.array()?;
-        let tag = d.u8()?;
-        if array_len.is_some_and(|l| Some(&l) != ARRAY_LENGTHS.get(tag as usize)) {
-            return Err(minicbor::decode::Error::message("invalid array length"));
+impl<'a, 'b: 'a> Decode<'b> for Certificate<'a> {
+    type Error = container::Error<bounded::Error<tag::Error<Error>>>;
+
+    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
+        macro_rules! visit {
+            ($visitor:ident, $error_variant:ident) => {
+                $visitor
+                    .visit()
+                    .ok_or(bounded::Error::Missing)?
+                    .map_err(|e| {
+                        bounded::Error::Content(tag::Error::Content(Error::$error_variant(e)))
+                    })
+            };
         }
+        let mut v = d.array_visitor()?;
+        let tag: u64 = v
+            .visit()
+            .ok_or(bounded::Error::Missing)?
+            .map_err(|e| bounded::Error::Content(tag::Error::Malformed(e)))?;
 
         let certificate = match tag {
-            0 => Certificate::Delegation {
-                credential: d.decode()?,
+            0 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
                 deposit: None,
-                pool_keyhash: None,
+                pool: None,
                 delegate_representative: None,
             },
-            1 => Certificate::Unregistration {
-                credential: d.decode()?,
+            1 => Certificate::AccountUnregistration {
+                credential: visit!(v, AccountUnregistrationCredential)?,
                 deposit: None,
             },
-            2 => Certificate::Delegation {
-                credential: d.decode()?,
+            2 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
                 deposit: None,
-                pool_keyhash: minicbor::bytes::decode(d, ctx)?,
+                pool: Some(visit!(v, AccountActionPool)?),
                 delegate_representative: None,
             },
             3 => Certificate::PoolRegistration {
-                operator: minicbor::bytes::decode(d, ctx)?,
-                vrf_keyhash: minicbor::bytes::decode(d, ctx)?,
-                pledge: d.u64()?,
-                cost: d.u64()?,
-                margin: d.decode()?,
-                reward_account: d.decode()?,
-                owners: cbor_util::set::bytes::decode(d, ctx)?,
-                relays: cbor_util::boxed_slice::decode(d, ctx)?,
-                metadata: d.decode()?,
+                operator: visit!(v, PoolRegistrationOperator)?,
+                vrf_keyhash: visit!(v, PoolRegistrationVrfKeyHash)?,
+                pledge: visit!(v, PoolRegistrationPledge)?,
+                cost: visit!(v, PoolRegistrationCost)?,
+                margin: visit!(v, PoolRegistrationMargin)?,
+                account: visit!(v, PoolRegistrationAccount)?,
+                owners: visit!(v, PoolRegistrationOwners)?,
+                relays: visit!(v, PoolRegistrationRelays)?,
+                metadata: visit!(v, PoolRegistrationMetadata)?,
             },
             4 => Certificate::PoolRetirement {
-                pool_keyhash: minicbor::bytes::decode(d, ctx)?,
-                epoch: d.u64()?,
+                pool: visit!(v, PoolRetirementPool)?,
+                epoch: visit!(v, PoolRetirementEpoch)?,
             },
-            5 => Certificate::GenesisKeyDelegation {
-                genesis_hash: minicbor::bytes::decode(d, ctx)?,
-                genesis_delegate_hash: minicbor::bytes::decode(d, ctx)?,
-                vrf_keyhash: minicbor::bytes::decode(d, ctx)?,
-            },
-            6 => cbor_util::array_decode(
-                2,
-                |d| {
-                    Ok(Certificate::MoveRewards {
-                        from_treasury: cbor_util::bool_as_u8::decode(d, ctx)?,
-                        to: d.decode()?,
-                    })
-                },
-                d,
-            )?,
-            7 => Certificate::Delegation {
-                credential: d.decode()?,
-                deposit: Some(d.u64()?),
-                pool_keyhash: None,
+            7 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
+                deposit: Some(visit!(v, AccountActionDeposit)?),
+                pool: None,
                 delegate_representative: None,
             },
-            8 => Certificate::Unregistration {
-                credential: d.decode()?,
-                deposit: Some(d.u64()?),
+            8 => Certificate::AccountUnregistration {
+                credential: visit!(v, AccountUnregistrationCredential)?,
+                deposit: Some(visit!(v, AccountUnregistrationDeposit)?),
             },
-            9 => Certificate::Delegation {
-                credential: d.decode()?,
+            9 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
                 deposit: None,
-                pool_keyhash: None,
-                delegate_representative: Some(d.decode()?),
+                pool: None,
+                delegate_representative: Some(visit!(v, AccountActionDelegateRepresentative)?),
             },
-            10 => Certificate::Delegation {
-                credential: d.decode()?,
+            10 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
                 deposit: None,
-                pool_keyhash: Some(minicbor::bytes::decode(d, ctx)?),
-                delegate_representative: Some(d.decode()?),
+                pool: Some(visit!(v, AccountActionPool)?),
+                delegate_representative: Some(visit!(v, AccountActionDelegateRepresentative)?),
             },
-            11 => Certificate::Delegation {
-                credential: d.decode()?,
-                pool_keyhash: Some(minicbor::bytes::decode(d, ctx)?),
+            11 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
+                pool: Some(visit!(v, AccountActionPool)?),
                 delegate_representative: None,
-                deposit: Some(d.u64()?),
+                deposit: Some(visit!(v, AccountActionDeposit)?),
             },
-            12 => Certificate::Delegation {
-                credential: d.decode()?,
-                pool_keyhash: None,
-                delegate_representative: Some(d.decode()?),
-                deposit: Some(d.u64()?),
+            12 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
+                pool: None,
+                delegate_representative: Some(visit!(v, AccountActionDelegateRepresentative)?),
+                deposit: Some(visit!(v, AccountActionDeposit)?),
             },
-            13 => Certificate::Delegation {
-                credential: d.decode()?,
-                pool_keyhash: Some(minicbor::bytes::decode(d, ctx)?),
-                delegate_representative: Some(d.decode()?),
-                deposit: Some(d.u64()?),
+            13 => Certificate::AccountAction {
+                credential: visit!(v, AccountActionCredential)?,
+                pool: Some(visit!(v, AccountActionPool)?),
+                delegate_representative: Some(visit!(v, AccountActionDelegateRepresentative)?),
+                deposit: Some(visit!(v, AccountActionDeposit)?),
             },
-            14 => Certificate::ConstitutionalCommittee {
-                credential: d.decode()?,
-                kind: kind::ConstitutionalCommittee::Authorize(d.decode()?),
+            14 => Certificate::ConstitutionalCommitteeAuthorization {
+                issuer: visit!(v, ConstitutionalCommitteeAuthorizationIssuer)?,
+                hot_credential: visit!(v, ConstitutionalCommitteeAuthorizationHotCredential)?,
             },
-            15 => Certificate::ConstitutionalCommittee {
-                credential: d.decode()?,
-                kind: kind::ConstitutionalCommittee::Resign(d.decode()?),
+            15 => Certificate::ConstitutionalCommitteeResignation {
+                credential: visit!(v, ConstitutionalCommitteeResignationCredential)?,
+                anchor: visit!(v, ConstitutionalCommitteeResignationAnchor)?,
             },
-            16 => Certificate::DelegateRepresentative {
-                credential: d.decode()?,
-                kind: kind::DelegateRepresentative::Register {
-                    deposit: d.u64()?,
-                    anchor: d.decode()?,
-                },
+            16 => Certificate::DelegateRepresentativeRegistration {
+                credential: visit!(v, DelegateRepresentativeRegistrationCredential)?,
+                deposit: visit!(v, DelegateRepresentativeRegistrationDeposit)?,
+                anchor: visit!(v, DelegateRepresentativeRegistrationAnchor)?,
             },
-            17 => Certificate::DelegateRepresentative {
-                credential: d.decode()?,
-                kind: kind::DelegateRepresentative::Unregister { deposit: d.u64()? },
+            17 => Certificate::DelegateRepresentativeUnregistration {
+                credential: visit!(v, DelegateRepresentativeUnregistrationCredential)?,
+                deposit: visit!(v, DelegateRepresentativeUnregistrationDeposit)?,
             },
-            18 => Certificate::DelegateRepresentative {
-                credential: d.decode()?,
-                kind: kind::DelegateRepresentative::Update {
-                    anchor: d.decode()?,
-                },
+            18 => Certificate::DelegateRepresentativeUpdate {
+                credential: visit!(v, DelegateRepresentativeUpdateCredential)?,
+                anchor: visit!(v, DelegateRepresentativeUpdateAnchor)?,
             },
-            _ => return Err(minicbor::decode::Error::message("invalid tag").at(d.position())),
+            _ => return Err(bounded::Error::Content(tag::Error::InvalidTag).into()),
         };
-
-        if array_len.is_none() {
-            if d.datatype()? != minicbor::data::Type::Break {
-                return Err(minicbor::decode::Error::message("invalid array length"));
-            }
-            d.skip()?;
+        if v.remaining() != Some(0) {
+            return Err(bounded::Error::Surplus.into());
         }
 
         Ok(certificate)
     }
 }
 
-impl<C> CborLen<C> for Certificate {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        let tag = self.tag();
-        let array_len = ARRAY_LENGTHS[tag as usize];
-        array_len.cbor_len(ctx)
-            + tag.cbor_len(ctx)
-            + (match self {
-                Certificate::Delegation {
+impl CborLen for Certificate<'_> {
+    fn cbor_len(&self) -> usize {
+        let (_, len) = self.tag_len();
+        1 + ARRAY_LENGTHS[len]
+            + match self {
+                Certificate::AccountAction {
                     credential,
                     deposit,
-                    pool_keyhash,
+                    pool: pool_keyhash,
                     delegate_representative,
                 } => {
-                    credential.cbor_len(ctx)
-                        + pool_keyhash
-                            .map(|x| minicbor::bytes::cbor_len(x, ctx))
-                            .unwrap_or_default()
-                        + delegate_representative
-                            .map(|x| x.cbor_len(ctx))
-                            .unwrap_or_default()
-                        + deposit.map(|x| x.cbor_len(ctx)).unwrap_or_default()
+                    let mut size = credential.cbor_len();
+                    if let Some(pool_keyhash) = pool_keyhash {
+                        size += pool_keyhash.cbor_len();
+                    }
+                    if let Some(delegate_representative) = delegate_representative {
+                        size += delegate_representative.cbor_len();
+                    }
+                    if let Some(deposit) = deposit {
+                        size += deposit.cbor_len();
+                    }
+                    size
                 }
-                Certificate::Unregistration {
+                Certificate::AccountUnregistration {
                     credential,
                     deposit,
                 } => {
-                    credential.cbor_len(ctx) + deposit.map(|x| x.cbor_len(ctx)).unwrap_or_default()
+                    let mut size = credential.cbor_len();
+                    if let Some(deposit) = deposit {
+                        size += deposit.cbor_len();
+                    }
+                    size
                 }
                 Certificate::PoolRegistration {
                     operator,
@@ -375,107 +441,41 @@ impl<C> CborLen<C> for Certificate {
                     pledge,
                     cost,
                     margin,
-                    reward_account,
+                    account,
                     owners,
                     relays,
                     metadata,
                 } => {
-                    minicbor::bytes::cbor_len(operator, ctx)
-                        + minicbor::bytes::cbor_len(vrf_keyhash, ctx)
-                        + pledge.cbor_len(ctx)
-                        + cost.cbor_len(ctx)
-                        + margin.cbor_len(ctx)
-                        + reward_account.cbor_len(ctx)
-                        + cbor_util::set::bytes::cbor_len(owners, ctx)
-                        + relays.cbor_len(ctx)
-                        + metadata.cbor_len(ctx)
+                    operator.cbor_len()
+                        + vrf_keyhash.cbor_len()
+                        + pledge.cbor_len()
+                        + cost.cbor_len()
+                        + margin.cbor_len()
+                        + account.cbor_len()
+                        + owners.cbor_len()
+                        + relays.cbor_len()
+                        + metadata.cbor_len()
                 }
-                Certificate::PoolRetirement {
-                    pool_keyhash,
-                    epoch,
-                } => minicbor::bytes::cbor_len(pool_keyhash, ctx) + epoch.cbor_len(ctx),
-                Certificate::GenesisKeyDelegation {
-                    genesis_hash,
-                    genesis_delegate_hash,
-                    vrf_keyhash,
-                } => {
-                    minicbor::bytes::cbor_len(genesis_hash, ctx)
-                        + minicbor::bytes::cbor_len(genesis_delegate_hash, ctx)
-                        + minicbor::bytes::cbor_len(vrf_keyhash, ctx)
+                Certificate::PoolRetirement { pool, epoch } => pool.cbor_len() + epoch.cbor_len(),
+                Certificate::ConstitutionalCommitteeAuthorization {
+                    issuer,
+                    hot_credential,
+                } => issuer.cbor_len() + hot_credential.cbor_len(),
+                Certificate::ConstitutionalCommitteeResignation { credential, anchor } => {
+                    credential.cbor_len() + anchor.cbor_len()
                 }
-                Certificate::MoveRewards { from_treasury, to } => {
-                    cbor_util::bool_as_u8::cbor_len(from_treasury, ctx) + to.cbor_len(ctx)
-                }
-                Certificate::ConstitutionalCommittee { credential, kind } => {
-                    credential.cbor_len(ctx)
-                        + match kind {
-                            kind::ConstitutionalCommittee::Authorize(credential) => {
-                                credential.cbor_len(ctx)
-                            }
-                            kind::ConstitutionalCommittee::Resign(anchor) => anchor.cbor_len(ctx),
-                        }
-                }
-                Certificate::DelegateRepresentative { credential, kind } => {
-                    credential.cbor_len(ctx)
-                        + match kind {
-                            kind::DelegateRepresentative::Register { deposit, anchor } => {
-                                deposit.cbor_len(ctx) + anchor.cbor_len(ctx)
-                            }
-                            kind::DelegateRepresentative::Update { anchor } => anchor.cbor_len(ctx),
-                            kind::DelegateRepresentative::Unregister { deposit } => {
-                                deposit.cbor_len(ctx)
-                            }
-                        }
-                }
-            })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RewardTarget {
-    OtherAccountingPot(u64),
-    StakeAddresses(Box<[(Credential, u64)]>),
-}
-
-impl<C> Encode<C> for RewardTarget {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        match self {
-            RewardTarget::StakeAddresses(v) => {
-                e.map(v.len() as u64)?;
-                for (address, amount) in v.iter() {
-                    e.encode_with(address, ctx)?;
-                    e.u64(*amount)?;
+                Certificate::DelegateRepresentativeRegistration {
+                    credential,
+                    deposit,
+                    anchor,
+                } => credential.cbor_len() + deposit.cbor_len() + anchor.cbor_len(),
+                Certificate::DelegateRepresentativeUnregistration {
+                    credential,
+                    deposit,
+                } => credential.cbor_len() + deposit.cbor_len(),
+                Certificate::DelegateRepresentativeUpdate { credential, anchor } => {
+                    credential.cbor_len() + anchor.cbor_len()
                 }
             }
-            RewardTarget::OtherAccountingPot(amount) => {
-                e.u64(*amount)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<C> Decode<'_, C> for RewardTarget {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        if d.probe().u64().is_err_and(|e| e.is_type_mismatch()) {
-            let value: Box<[(Credential, u64)]> = cbor_util::list_as_map::decode(d, ctx)?;
-            Ok(RewardTarget::StakeAddresses(value))
-        } else {
-            let value = d.u64()?;
-            Ok(RewardTarget::OtherAccountingPot(value))
-        }
-    }
-}
-
-impl<C> CborLen<C> for RewardTarget {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        match self {
-            RewardTarget::OtherAccountingPot(v) => v.cbor_len(ctx),
-            RewardTarget::StakeAddresses(items) => cbor_util::list_as_map::cbor_len(items, ctx),
-        }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{allegra, byron, mary, shelley};
+use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
@@ -14,4 +14,10 @@ pub enum Block<'a> {
     Allegra(allegra::Block<'a>),
     #[n(4)]
     Mary(mary::Block<'a>),
+    #[n(5)]
+    Alonzo(alonzo::Block<'a>),
+    #[n(6)]
+    Babbage(babbage::Block<'a>),
+    #[n(7)]
+    Conway(conway::Block<'a>),
 }

@@ -1,16 +1,18 @@
+use crate::{allegra, alonzo::script::PlutusV1, babbage::script::PlutusV2};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod plutus;
-pub mod native;
+pub mod cost;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Decode, Encode, CborLen)]
 pub enum Script<'a> {
     #[n(0)]
-    Native(native::Script<'a>),
+    Native(allegra::Script<'a>),
     #[n(1)]
-    PlutusV1(plutus::Script<'a>),
+    PlutusV1(&'a PlutusV1),
     #[n(2)]
-    PlutusV2(plutus::Script<'a>),
+    PlutusV2(&'a PlutusV2),
     #[n(3)]
-    PlutusV3(plutus::Script<'a>),
+    PlutusV3(&'a PlutusV3),
 }
+
+pub type PlutusV3 = [u8];

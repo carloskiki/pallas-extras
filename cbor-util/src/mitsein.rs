@@ -11,6 +11,12 @@ impl<T> From<NonEmpty<T>> for mitsein::NonEmpty<T> {
     }
 }
 
+impl<T> From<NonEmpty<Vec<T>>> for Vec<T> {
+    fn from(value: NonEmpty<Vec<T>>) -> Self {
+        value.0.into()
+    }
+}
+
 impl<'a, T> From<&'a mitsein::NonEmpty<T>> for &'a NonEmpty<T> {
     fn from(value: &'a mitsein::NonEmpty<T>) -> Self {
         use ref_cast::RefCast;

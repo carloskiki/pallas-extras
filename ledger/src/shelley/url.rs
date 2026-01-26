@@ -29,7 +29,7 @@ impl<'a> TryFrom<&'a str> for &'a Url {
     type Error = bounded::Error<Infallible>;
 
     fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        if value.len() > 64 {
+        if value.len() > super::URL_SIZE {
             return Err(bounded::Error::Surplus);
         }
         unsafe { Ok(&*(value as *const str as *const Url)) }
@@ -53,7 +53,7 @@ impl<'a, 'b: 'a> Decode<'b> for &'a Url {
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         Ok(
-            <&Url>::try_from(<&str>::decode(d).map_err(|e| e.map(|e| bounded::Error::Content(e)))?)
+            <&Url>::try_from(<&str>::decode(d).map_err(|e| e.map(bounded::Error::Content))?)
                 .map_err(|e| e.map(|e| match e {}))?,
         )
     }

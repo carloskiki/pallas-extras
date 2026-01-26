@@ -13,5 +13,5 @@ pub struct Block<'a> {
     pub header: Header<'a>,
     pub transaction_bodies: Vec<transaction::Body<'a>>,
     pub transaction_witness_sets: Vec<transaction::witness::Set<'a>>,
-    pub transaction_metadata: Vec<(transaction::Index, transaction::Metadata<'a>)>,
+    pub transaction_data: Vec<(transaction::Index, transaction::Data<'a>)>,
 }

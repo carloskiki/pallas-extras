@@ -1,9 +1,9 @@
 use std::convert::Infallible;
 
-use crate::{Address, crypto::Blake2b256Digest, mary::transaction::Value};
-use tinycbor::{*, container::bounded};
-use thiserror::Error;
+use crate::{Address, address::truncating, crypto::Blake2b256Digest, mary::transaction::Value};
 use displaydoc::Display;
+use thiserror::Error;
+use tinycbor::{container::bounded, *};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Output<'a> {
@@ -51,10 +51,16 @@ impl<'a, 'b: 'a> Decode<'b> for Output<'a> {
         fn wrap(e: impl Into<Error>) -> bounded::Error<Error> {
             bounded::Error::Content(e.into())
         }
-        
+
         let mut visitor = d.array_visitor()?;
-        let address = visitor.visit().ok_or(bounded::Error::Missing)?.map_err(wrap)?;
-        let value = visitor.visit().ok_or(bounded::Error::Missing)?.map_err(wrap)?;
+        let truncating::Address(address): truncating::Address = visitor
+            .visit()
+            .ok_or(bounded::Error::Missing)?
+            .map_err(wrap)?;
+        let value = visitor
+            .visit()
+            .ok_or(bounded::Error::Missing)?
+            .map_err(wrap)?;
         let datum_hash = visitor.visit().map(|opt| opt.map_err(wrap)).transpose()?;
         if visitor.remaining() != Some(0) {
             return Err(bounded::Error::Surplus.into());

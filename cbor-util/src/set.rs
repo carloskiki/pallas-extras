@@ -3,11 +3,12 @@ use std::collections::HashSet;
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
-    CborLen, Decode, Encode, EndOfInput, InvalidHeader, container,
-    tag::{self, Tagged},
+    Decode, EndOfInput, InvalidHeader, container,
+    tag
 };
 
-pub struct Set<T, const STRICT: bool>(pub HashSet<T>);
+// Implements the ordered set from the ledger spec.
+pub struct Set<T, const STRICT: bool>(pub Vec<T>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
 pub enum Error<E> {
@@ -33,60 +34,47 @@ fn tag<E>(d: &mut tinycbor::Decoder<'_>) -> Result<(), tag::Error<container::Err
 
 impl<'a, T> Decode<'a> for Set<T, true>
 where
-    T: Decode<'a> + Eq + std::hash::Hash,
+    T: Decode<'a> + Eq + std::hash::Hash + Clone,
 {
     type Error = tag::Error<container::Error<Error<T::Error>>>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         tag(d)?;
 
+        let mut vec = Vec::new();
         let mut set = HashSet::new();
         let mut visitor = d.array_visitor()?;
         while let Some(elem) = visitor.visit() {
-            if !set.insert(
-                elem.map_err(|e| {
-                    tag::Error::Content(container::Error::Content(Error::Content(e)))
-                })?,
-            ) {
-                todo!()
+            let elem: T = elem
+                .map_err(|e| tag::Error::Content(container::Error::Content(Error::Content(e))))?;
+            if !set.insert(elem.clone()) {
+                return Err(tag::Error::Content(container::Error::Content(
+                    Error::Duplicate,
+                )));
             }
+            vec.push(elem);
         }
-        Ok(Set(set))
+        Ok(Set(vec))
     }
 }
 
 impl<'a, T> Decode<'a> for Set<T, false>
 where
-    T: Decode<'a> + Eq + std::hash::Hash,
+    T: Decode<'a> + Eq + std::hash::Hash + Clone,
 {
     type Error = tag::Error<container::Error<T::Error>>;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
         tag(d)?;
 
+        let mut vec = Vec::new();
         let mut set = HashSet::new();
         let mut visitor = d.array_visitor()?;
         while let Some(elem) = visitor.visit() {
-            set.insert(elem.map_err(|e| tag::Error::Content(container::Error::Content(e)))?);
+            let elem: T = elem.map_err(|e| tag::Error::Content(container::Error::Content(e)))?;
+            set.insert(elem.clone());
+            vec.push(elem);
         }
-        Ok(Set(set))
-    }
-}
-
-impl<T, const STRICT: bool> Encode for Set<T, STRICT>
-where
-    T: Encode,
-{
-    fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        Tagged::<_, 258>(&self.0).encode(e)
-    }
-}
-
-impl<T, const STRICT: bool> CborLen for Set<T, STRICT>
-where
-    T: CborLen,
-{
-    fn cbor_len(&self) -> usize {
-        Tagged::<_, 258>(&self.0).cbor_len()
+        Ok(Set(vec))
     }
 }

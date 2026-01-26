@@ -6,3 +6,5 @@ pub use metadata::Metadata;
 
 /// Pool identifier, a.k.a. pool key hash.
 pub type Id = crate::crypto::Blake2b224Digest;
+
+pub type DnsName = super::Url;

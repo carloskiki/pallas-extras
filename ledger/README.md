@@ -7,6 +7,13 @@ This crate contains the ledger data types and the logic for encoding and decodin
 
 ## tinycbor TODOs
 
+- Figure out naming for `codec` private modules.
+
+- Policy on `set` vs `oset` vs `array`.
+    Set will be a wrapper around `[T]` that enforces uniqueness at construction time. It will also
+    maintain insertion order.
+- Policy on `maps`. Should they automatically make sure that keys are unique?
+
 - Make sure that when `decode` errors, the decoder points at the problematic byte, not after it.
 
 ## implementation practices

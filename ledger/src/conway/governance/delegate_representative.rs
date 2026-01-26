@@ -1,6 +1,5 @@
-use minicbor::{CborLen, Decode, Encode};
-
-use crate::{protocol::RealNumber, Credential};
+use crate::shelley::{self, Credential};
+use tinycbor::{container::bounded, *};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DelegateRepresentative<'a> {
@@ -9,81 +8,84 @@ pub enum DelegateRepresentative<'a> {
     NoConfidence,
 }
 
-impl DelegateRepresentative {
-    fn tag(&self) -> u8 {
+impl Encode for DelegateRepresentative<'_> {
+    fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         match self {
-            DelegateRepresentative::Credential(Credential::VerificationKey(_)) => 0,
-            DelegateRepresentative::Credential(Credential::Script(_)) => 1,
-            DelegateRepresentative::Abstain => 2,
-            DelegateRepresentative::NoConfidence => 3,
+            DelegateRepresentative::Credential(Credential::VerificationKey(vkey)) => {
+                e.array(2)?;
+                0.encode(e)?;
+                vkey.encode(e)
+            }
+            DelegateRepresentative::Credential(Credential::Script(script)) => {
+                e.array(2)?;
+                1.encode(e)?;
+                script.encode(e)
+            }
+            DelegateRepresentative::Abstain => {
+                e.array(1)?;
+                2.encode(e)
+            }
+            DelegateRepresentative::NoConfidence => {
+                e.array(1)?;
+                3.encode(e)
+            }
         }
     }
 }
 
-impl<C> Encode<C> for DelegateRepresentative {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.u8(self.tag())?;
+impl CborLen for DelegateRepresentative<'_> {
+    fn cbor_len(&self) -> usize {
         match self {
-            DelegateRepresentative::Credential(
-                Credential::VerificationKey(h) | Credential::Script(h),
-            ) => {
-                e.array(2)?.u8(self.tag())?;
-                minicbor::bytes::encode(h, e, ctx)?;
+            DelegateRepresentative::Credential(Credential::VerificationKey(vkey)) => {
+                1 + 1 + vkey.cbor_len()
             }
-            _ => {
-                e.array(1)?.u8(self.tag())?;
+            DelegateRepresentative::Credential(Credential::Script(script)) => {
+                1 + 1 + script.cbor_len()
             }
+            DelegateRepresentative::Abstain => 1 + 1,
+            DelegateRepresentative::NoConfidence => 1 + 1,
         }
-        Ok(())
     }
 }
 
-impl<C> Decode<'_, C> for DelegateRepresentative {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        if d.array()?.is_some_and(|l| l != 1 && l != 2) {
-            return Err(minicbor::decode::Error::message("invalid array length").at(d.position()));
-        };
-        let tag = d.u8()?;
-        Ok(match tag {
+impl<'a, 'b: 'a> Decode<'b> for DelegateRepresentative<'a> {
+    type Error = container::Error<bounded::Error<tag::Error<shelley::credential::Error>>>;
+
+    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+        use shelley::credential::Error as CredError;
+
+        let mut visitor = d.array_visitor()?;
+        let value = match visitor
+            .visit::<u64>()
+            .ok_or(bounded::Error::Missing)?
+            .map_err(|e| bounded::Error::Content(tag::Error::Malformed(e)))?
+        {
             0 => DelegateRepresentative::Credential(Credential::VerificationKey(
-                minicbor::bytes::decode(d, ctx)?,
+                visitor
+                    .visit::<&crate::crypto::Blake2b224Digest>()
+                    .ok_or(bounded::Error::Missing)?
+                    .map_err(|e| {
+                        bounded::Error::Content(tag::Error::Content(CredError::VerificationKey(e)))
+                    })?,
             )),
-            1 => DelegateRepresentative::Credential(Credential::Script(minicbor::bytes::decode(
-                d, ctx,
-            )?)),
+            1 => DelegateRepresentative::Credential(Credential::Script(
+                visitor
+                    .visit::<&crate::crypto::Blake2b224Digest>()
+                    .ok_or(bounded::Error::Missing)?
+                    .map_err(|e| {
+                        bounded::Error::Content(tag::Error::Content(CredError::Script(e)))
+                    })?,
+            )),
             2 => DelegateRepresentative::Abstain,
             3 => DelegateRepresentative::NoConfidence,
-            _ => return Err(minicbor::decode::Error::message("invalid tag").at(d.position())),
-        })
-    }
-}
-
-impl<C> CborLen<C> for DelegateRepresentative {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        let tag = self.tag();
-        tag.cbor_len(ctx)
-            + match self {
-                DelegateRepresentative::Credential(credential) => {
-                    minicbor::bytes::cbor_len(credential.as_ref(), ctx)
-                }
-                _ => 0,
+            _ => {
+                return Err(bounded::Error::Content(tag::Error::InvalidTag).into());
             }
+        };
+        if visitor.remaining() != Some(0) {
+            return Err(bounded::Error::Surplus.into());
+        }
+        Ok(value)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct VotingThresholds {
-    motion_no_confidence: UnitInterval,
-    update_committee: UnitInterval,
-    update_committee_no_confidence: UnitInterval,
-    update_constitution: UnitInterval,
-    hard_fork_initiation: UnitInterval,
-    protocol_parameter_network_update: UnitInterval,
-    protocol_parameter_economic_update: UnitInterval,
-    protocol_parameter_technical_update: UnitInterval,
-    protocol_parameter_security_update: UnitInterval,
-}

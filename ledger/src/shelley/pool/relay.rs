@@ -1,4 +1,3 @@
-use crate::shelley::url::Url;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -15,8 +14,8 @@ pub enum Relay<'a> {
     #[n(1)]
     HostName {
         port: Option<u16>,
-        dns_name: &'a Url,
+        dns_name: &'a super::DnsName,
     },
     #[n(2)]
-    MultiHostName { dns_name: &'a Url },
+    MultiHostName { dns_name: &'a super::DnsName },
 }

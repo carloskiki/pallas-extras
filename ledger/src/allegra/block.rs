@@ -9,5 +9,5 @@ pub struct Block<'a> {
     pub header: Header<'a>,
     pub transaction_bodies: Vec<super::transaction::Body<'a>>,
     pub transaction_witness_sets: Vec<allegra::transaction::witness::Set<'a>>,
-    pub transaction_metadata: Vec<(Index, allegra::transaction::Data<'a>)>,
+    pub transaction_data: Vec<(Index, allegra::transaction::Data<'a>)>,
 }

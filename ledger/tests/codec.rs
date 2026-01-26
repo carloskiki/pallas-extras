@@ -34,7 +34,6 @@ fn block() -> anyhow::Result<()> {
         let mut decoder = minicbor::Decoder::new(&binary);
 
         hfc(&mut decoder)?;
-        dbg!(decoder.clone().tokens().collect::<Vec<_>>());
         let block: Block = decoder.decode()?;
         minicbor::encode(&block, &mut write_buffer)?;
         assert_eq!(&read_buffer, &write_buffer);

@@ -1,20 +1,25 @@
-use minicbor::{CborLen, Decode, Encode};
+use crate::conway::governance::action;
+use cbor_util::NonEmpty;
+use mitsein::vec1::Vec1;
+use tinycbor::{
+    CborLen, Decode, Encode,
+    container::{self, map},
+    num::nonzero,
+};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
-use crate::{Credential, crypto::Blake2b224Digest};
+use super::Anchor;
 
-use super::{action, Anchor};
+pub mod voter;
+pub use voter::Voter;
+
+pub mod threshold;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Procedure {
-    #[n(0)]
+pub struct Procedure<'a> {
     pub vote: Vote,
-    #[n(1)]
-    pub anchor: Option<Anchor>,
+    pub anchor: Option<Anchor<'a>>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-#[cbor(transparent)]
-pub struct Set(#[cbor(with = "cbor_util::list_as_map")] pub Box<[(action::Id, Procedure)]>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
@@ -27,75 +32,69 @@ pub enum Vote {
     Abstain,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Voter {
-    ConstitutionalCommittee(Credential),
-    DelegateRepresentative(Credential),
-    StakePool {
-        verifying_key_hash: Blake2b224Digest,
-    },
+pub type Procedures<'a> = Vec1<(Voter<'a>, Vec1<(action::Id<'a>, Procedure<'a>)>)>;
+
+#[derive(ref_cast::RefCast)]
+#[repr(transparent)]
+pub(crate) struct Codec<'a>(pub Procedures<'a>);
+
+impl<'a> From<Codec<'a>> for Procedures<'a> {
+    fn from(codec: Codec<'a>) -> Self {
+        codec.0
+    }
 }
 
-impl Voter {
-    fn tag(&self) -> u8 {
-        match self {
-            Voter::ConstitutionalCommittee(Credential::VerificationKey(_)) => 0,
-            Voter::ConstitutionalCommittee(Credential::Script(_)) => 1,
-            Voter::DelegateRepresentative(Credential::VerificationKey(_)) => 2,
-            Voter::DelegateRepresentative(Credential::Script(_)) => 3,
-            Voter::StakePool { .. } => 4,
+impl<'a, 'b> From<&'b Procedures<'a>> for &'b Codec<'a> {
+    fn from(asset: &'b Procedures<'a>) -> Self {
+        use ref_cast::RefCast;
+        Codec::ref_cast(asset)
+    }
+}
+
+impl Encode for Codec<'_> {
+    fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
+        e.map(self.0.len().get())?;
+        for (voter, set) in &self.0 {
+            voter.encode(e)?;
+            <&NonEmpty<_>>::from(set).encode(e)?;
         }
+        Ok(())
     }
-    fn bytes(&self) -> &Blake2b224Digest {
-        match self {
-            Voter::ConstitutionalCommittee(cred) | Voter::DelegateRepresentative(cred) => {
-                cred.as_ref()
-            }
-            Voter::StakePool {
-                verifying_key_hash: h,
-            } => h,
+}
+
+impl CborLen for Codec<'_> {
+    fn cbor_len(&self) -> usize {
+        let mut len = self.0.len().cbor_len();
+        for (policy, bundle) in &self.0 {
+            len += policy.cbor_len();
+            len += <&NonEmpty<_>>::from(bundle).cbor_len();
         }
+        len
     }
 }
 
-impl<C> Encode<C> for Voter {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.array(2)?.u8(self.tag())?.bytes(self.bytes())?.ok()
-    }
-}
+impl<'a, 'b: 'a> Decode<'b> for Codec<'a> {
+    type Error = container::Error<
+        nonzero::Error<
+            map::Error<
+                <Voter<'a> as Decode<'b>>::Error,
+                <NonEmpty<Vec<(action::Id<'a>, Procedure<'a>)>> as Decode<'b>>::Error,
+            >,
+        >,
+    >;
 
-impl<C> Decode<'_, C> for Voter {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        cbor_util::array_decode(
-            2,
-            |d| {
-                let tag = d.u8()?;
-                let hash: Blake2b224Digest = minicbor::bytes::decode(d, ctx)?;
-                Ok(match tag {
-                    0 => Voter::ConstitutionalCommittee(Credential::VerificationKey(hash)),
-                    1 => Voter::ConstitutionalCommittee(Credential::Script(hash)),
-                    2 => Voter::DelegateRepresentative(Credential::VerificationKey(hash)),
-                    3 => Voter::DelegateRepresentative(Credential::Script(hash)),
-                    4 => Voter::StakePool {
-                        verifying_key_hash: hash,
-                    },
-                    _ => {
-                        return Err(
-                            minicbor::decode::Error::message("unknown voter tag").at(d.position())
-                        );
-                    }
-                })
-            },
-            d,
-        )
-    }
-}
-impl<C> CborLen<C> for Voter {
-    fn cbor_len(&self, ctx: &mut C) -> usize {
-        2.cbor_len(ctx) + self.tag().cbor_len(ctx) + minicbor::bytes::cbor_len(self.bytes(), ctx)
+    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+        let mut visitor = d.map_visitor()?;
+        let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
+        while let Some(result) =
+            visitor.visit::<Voter<'a>, NonEmpty<Vec<(action::Id<'a>, Procedure<'a>)>>>()
+        {
+            let (voter, procedures) =
+                result.map_err(|e| container::Error::Content(nonzero::Error::Value(e)))?;
+            items.push((voter, procedures.0));
+        }
+        Ok(Codec(items.try_into().map_err(|_| {
+            container::Error::Content(nonzero::Error::Zero)
+        })?))
     }
 }

@@ -17,20 +17,20 @@ pub enum Fork {
     Shelley,
     #[n(3)]
     Allegra,
-    // #[n(4)]
-    // Mary,
-    // #[n(5)]
-    // Alonzo,
-    // #[n(6)]
-    // Lobster,
-    // #[n(7)]
-    // Vasil,
-    // #[n(8)]
-    // Valentine,
-    // #[n(9)]
-    // Chang,
-    // #[n(10)]
-    // Plomin,
-    // #[n(11)]
-    // Next,
+    #[n(4)]
+    Mary,
+    #[n(5)]
+    Alonzo,
+    #[n(6)]
+    Lobster,
+    #[n(7)]
+    Vasil,
+    #[n(8)]
+    Valentine,
+    #[n(9)]
+    Chang,
+    #[n(10)]
+    Plomin,
+    #[n(11)]
+    Next,
 }

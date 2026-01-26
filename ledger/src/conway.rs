@@ -6,25 +6,25 @@
 pub mod asset;
 pub use asset::Asset;
 
-pub mod unit_interval;
-pub use unit_interval::UnitInterval;
+pub mod block;
+pub use block::Block;
+
+pub mod certificate;
+pub use certificate::Certificate;
+
+pub mod governance;
+
+pub mod pool;
+
+pub mod protocol;
+
+pub mod script;
+pub use script::Script;
+
+pub mod transaction;
+pub use transaction::Transaction;
 
 pub mod url;
-
-// pub mod block;
-pub mod certificate;
-pub mod pool;
-pub mod protocol;
-pub mod script;
-pub mod transaction;
-// pub mod witness;
-pub mod governance;
-// pub mod epoch;
-// pub mod slot;
-// 
-// pub use block::Block;
-// pub use certificate::Certificate;
-// pub use script::Script;
-// pub use transaction::Transaction;
-
-
+pub use url::Url;
+// To be able to `duplicate!` `url` from `shelley`.
+const URL_SIZE: usize = 128;

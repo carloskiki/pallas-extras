@@ -1,14 +1,14 @@
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
-    CborLen, Decode, Encode, Type, container::{self, map}, num, primitive, string
+    CborLen, Decode, Encode, Type, container::{self, map}, primitive, string
 };
 
 pub type Label = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Metadatum<'a> {
-    Integer(i64),
+    Integer(tinycbor::num::Int),
     Bytes(&'a [u8]),
     Text(&'a str),
     List(Vec<Metadatum<'a>>),
@@ -18,15 +18,15 @@ pub enum Metadatum<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Error, Display)]
 pub enum Error {
     /// while decoding `Integer`
-    Integer(num::Error),
+    Integer(#[source] primitive::Error),
     /// while decoding `Bytes`
-    Bytes(primitive::Error),
+    Bytes(#[from] primitive::Error),
     /// while decoding `Text`
-    Text(container::Error<string::InvalidUtf8>),
-    /// While decoding `List`
-    List(container::Error<Box<Error>>),
-    /// While decoding `Map`
-    Map(container::Error<Box<map::Error<Error, Error>>>),
+    Text(#[from] container::Error<string::InvalidUtf8>),
+    /// while decoding `List`
+    List(#[from] container::Error<Box<Error>>),
+    /// while decoding `Map`
+    Map(#[from] container::Error<Box<map::Error<Error, Error>>>),
 }
 
 impl<'a, 'b: 'a> Decode<'b> for Metadatum<'a> {
