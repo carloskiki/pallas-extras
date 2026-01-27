@@ -7,6 +7,11 @@ This crate contains the ledger data types and the logic for encoding and decodin
 
 ## tinycbor TODOs
 
+- Make `array` and `map` & friends on the encoder take `u64` instead of `usize`.
+- Make sure that when `decode` errors, the decoder points at the problematic byte, not after it.
+
+## Ledger TODOs
+
 - Figure out naming for `codec` private modules.
 
 - Policy on `set` vs `oset` vs `array`.
@@ -14,7 +19,6 @@ This crate contains the ledger data types and the logic for encoding and decodin
     maintain insertion order.
 - Policy on `maps`. Should they automatically make sure that keys are unique?
 
-- Make sure that when `decode` errors, the decoder points at the problematic byte, not after it.
 
 ## implementation practices
 

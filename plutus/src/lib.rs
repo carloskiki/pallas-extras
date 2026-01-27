@@ -45,6 +45,7 @@ use crate::{builtin::Builtin, constant::Constant};
 mod builtin;
 mod constant;
 mod cost;
+pub use cost::Context;
 mod evaluate;
 mod flat;
 mod lex;
@@ -545,7 +546,7 @@ where
 impl Program<DeBruijn> {
     /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
     /// failed.
-    pub fn evaluate(self) -> Option<Self> {
+    pub fn evaluate(self, cost_model: &[i64]) -> Option<Self> {
         evaluate::run(self)
     }
 

@@ -1,13 +1,18 @@
-## Important Things
-
-The crate should evolve with the plutus core version. So the `builtins`, `primitives`,
-and `terms` should all be accepted by default, and at runtime it might be possible to
-limit the set of builtins/primitives/terms to a specific version.
-
 - [github pages doc](https://www.reddit.com/r/rust/comments/195ao81/publishing_documentation_as_github_page/)
 
-## Fixed point arithmetic
+## Version support
 
-- bigdecimal: uses arbitrarily large ints :/
-- fixed: Brings in weird dependencies, and looks poorly made (still maintained).
-- fastnum: wtf?? very early but interesting.
+- All plutus versions are supported. This currently means `1.0.0` and `1.1.0`.
+- All builtins are always available.
+
+- Application of the different ledger versions is currently out of scope.
+
+## Cost Accounting
+
+Cost accounting deviates slightly from the `IntersectMBO/plutus` implementation. Builtin evaluation
+errors if a cost model parameter is missing and needed. The reference instead uses prohibitive
+costs when the cost model is missing a parameter. This results in the same behavior as prohibitive
+costs immediately lead to failure of script execution. Another difference is that we error
+immediately if the cost model is missing a cek machine step cost, whereas the reference
+only errors when the step is actually needed. We consider this situation degenerate enough to
+not support partial cost models for cek machine steps.
