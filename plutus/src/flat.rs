@@ -14,7 +14,7 @@ use crate::{
     ConstantIndex, DeBruijn, Instruction, Program, Version,
     builtin::Builtin,
     constant::{self, Array, Constant, List},
-    data::Data,
+    Data,
 };
 
 /// Trait for encoding an object into a Buffer.

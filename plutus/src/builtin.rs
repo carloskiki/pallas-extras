@@ -10,9 +10,6 @@ use crate::{constant::Constant, evaluate::Value};
 use macro_rules_attribute::apply;
 use strum::{EnumString, FromRepr};
 
-// INVARIANTS:
-//
-
 mod array;
 mod bls12_381;
 mod bytestring;
@@ -83,10 +80,6 @@ pub enum Builtin {
     TailList,
     NullList,
     // Data
-    // See Note [Legacy pattern matching on built-in types].
-    // It is convenient to have a "choosing" function for a data type that has more than two
-    // constructors to get pattern matching over it and we may end up having multiple such data
-    // types, hence we include the name of the data type as a suffix.
     ChooseData,
     ConstrData,
     MapData,
@@ -100,9 +93,6 @@ pub enum Builtin {
     UnBData,
     EqualsData,
     // Misc monomorphized constructors.
-    // We could simply replace those with constants, but we use built-in functions for consistency
-    // with monomorphic built-in types. Polymorphic built-in constructors are generally problematic,
-    // See Note [Representable built-in functions over polymorphic built-in types].
     MkPairData,
     MkNilData,
     MkNilPairData,
@@ -329,6 +319,10 @@ impl Builtin {
     }
 
     /// Applies the builtin function to the given arguments.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the number of arguments does not match the arity of the builtin function.
     pub fn apply(
         self,
         args: Vec<Value>,
@@ -511,7 +505,7 @@ macro_rules! builtin {
     };
 
     (@unwrap ($arg_name:ident: Value $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
-        let $arg_name: Value = $iter.next().expect("builtin has the enough arguments");
+        let $arg_name: Value = $iter.next().expect("builtin has enough arguments");
         builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args)
     };
     
@@ -521,7 +515,7 @@ macro_rules! builtin {
 
     (@unwrap ($arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
         let mut $arg_name: $arg_ty = {
-            let $crate::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has the enough arguments") else {
+            let $crate::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has enough arguments") else {
                 return None;
             };
             (&$constants[constant_index.0 as usize]).clone().try_into().ok()?

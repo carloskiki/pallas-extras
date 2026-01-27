@@ -4,14 +4,9 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use std::str::FromStr;
-
+use crate::{lex, Data, Construct};
 use bwst::{g1, g2, group::GroupEncoding};
-
-use crate::{
-    data::{self, Data},
-    lex,
-};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A plutus list constant which stores its type if it is empty.
@@ -313,12 +308,12 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
             // let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
             let (data, rest) = if konst.starts_with('(') {
                 let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(ParseError::Data)?;
-                let Some((data, "")) = data::parse_data(data_str) else {
+                let Some((data, "")) = parse_data(data_str) else {
                     return Err(ParseError::Data);
                 };
                 (data, rest)
             } else {
-                data::parse_data(konst).ok_or(ParseError::Data)?
+                parse_data(konst).ok_or(ParseError::Data)?
             };
             konst_rest = rest;
             Constant::Data(data)
@@ -333,7 +328,7 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
                     bytes.try_into().map_err(|_| ParseError::BLSG1Element)?,
                 ))
                 .into_option()
-                .ok_or(ParseError::BLSG1Element)?
+                .ok_or(ParseError::BLSG1Element)?,
             ))
         }
         "bls12_381_G2_element" => {
@@ -346,7 +341,7 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
                     bytes.try_into().map_err(|_| ParseError::BLSG2Element)?,
                 ))
                 .into_option()
-                .ok_or(ParseError::BLSG2Element)?
+                .ok_or(ParseError::BLSG2Element)?,
             ))
         }
         "list" | "array" => {
@@ -403,6 +398,77 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
     };
 
     Ok((constant, konst_rest))
+}
+
+fn parse_data(s: &str) -> Option<(Data, &str)> {
+    let (ty, data_str) = s
+        .split_once(char::is_whitespace)
+        .map(|(a, b)| (a, b.trim_start()))
+        .unwrap_or((s, ""));
+    let (word_str, mut rest) = data_str
+        .find(',')
+        .map(|pos| (data_str[..pos].trim_end(), &data_str[pos..]))
+        .unwrap_or((data_str.trim_end(), ""));
+    let data = match ty {
+        "B" => {
+            let hex = word_str.strip_prefix("#")?;
+            let bytes = const_hex::decode(hex).ok()?;
+            Data::Bytes(bytes)
+        }
+        "I" => {
+            let int = rug::Integer::from_str_radix(word_str, 10).ok()?;
+            Data::Integer(int)
+        }
+        "List" => {
+            let (data, list_rest) = data_list(data_str)?;
+            rest = list_rest;
+            Data::List(data)
+        }
+        "Map" => {
+            let (mut items_str, map_rest) = lex::group::<b'[', b']'>(data_str)?;
+            rest = map_rest.strip_prefix(',').unwrap_or(map_rest).trim_start();
+            let mut items = Vec::new();
+            while !items_str.is_empty() {
+                let (pair, rest) = lex::group::<b'(', b')'>(items_str)?;
+                items_str = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+                let (key, rest) = parse_data(pair)?;
+                let (value, "") = parse_data(rest.strip_prefix(',')?.trim_start())? else {
+                    return None;
+                };
+
+                items.push((key, value));
+            }
+
+            Data::Map(items)
+        }
+        "Constr" => {
+            let (tag_str, tag_rest) = data_str.split_once(char::is_whitespace)?;
+            let tag = u64::from_str(tag_str).ok()?;
+            let (value, constr_rest) = data_list(tag_rest)?;
+            rest = constr_rest;
+            Data::Construct(Construct { tag, value })
+        }
+        _ => return None,
+    };
+
+    Some((data, rest))
+}
+
+fn data_list(s: &str) -> Option<(Vec<Data>, &str)> {
+    let (mut items_str, rest) = lex::group::<b'[', b']'>(s)?;
+    let mut items = Vec::new();
+    while !items_str.is_empty() {
+        let (item, mut list_rest) = parse_data(items_str)?;
+        items.push(item);
+        if let Some(rest) = list_rest.strip_prefix(',') {
+            list_rest = rest.trim_start();
+        } else if !list_rest.is_empty() {
+            return None;
+        }
+        items_str = list_rest;
+    }
+
+    Some((items, rest))
 }
 
 /// An error that can occur when parsing a constant.

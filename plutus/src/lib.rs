@@ -44,10 +44,12 @@ use crate::{builtin::Builtin, constant::Constant};
 
 mod builtin;
 mod constant;
-mod data;
+mod cost;
 mod evaluate;
 mod flat;
 mod lex;
+
+pub(crate) use ledger::alonzo::script::{Data, data::Construct};
 
 /// Reversed [De Bruijn index](https://en.wikipedia.org/wiki/De_Bruijn_index).
 ///
@@ -57,8 +59,7 @@ mod lex;
 /// One should not to use this type directly.
 ///
 /// # Details
-/// _One does not need to understand this to use the library!_
-///
+/// 
 ///  This type represents _reversed_ De Bruijn indices starting from `0`, where `0`
 /// represents the outermost variable. The reason behind this choice is that it makes indexing
 /// variables in a stack much simpler, since the variable is simply the index into the stack.

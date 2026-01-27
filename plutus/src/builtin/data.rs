@@ -2,11 +2,7 @@ use macro_rules_attribute::apply;
 use rug::Integer;
 
 use super::builtin;
-use crate::{
-    constant::List,
-    data::{Construct, Data},
-    evaluate::Value,
-};
+use crate::{Construct, Data, constant::List, evaluate::Value};
 
 #[apply(builtin)]
 pub fn choose(

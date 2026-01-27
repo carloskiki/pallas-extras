@@ -1124,11 +1124,11 @@ version = "0.1.0"
 dependencies = [
  "blake2",
  "bwst",
- "cbor-util",
  "const-hex",
  "ed25519-dalek",
  "embedded-io",
  "k256",
+ "ledger",
  "libtest2-mimic",
  "log",
  "macro_rules_attribute",
@@ -1139,7 +1139,6 @@ dependencies = [
  "strum",
  "thiserror",
  "tinycbor",
- "tinycbor-derive",
 ]
 
 [[package]]

@@ -8,8 +8,14 @@ version = "0.1.0"
 test = []
 
 [dependencies]
+# Codec
+const-hex = { workspace = true }
+tinycbor = { workspace = true }
+embedded-io = "0.7"
+
 # Data types
 rug = { workspace = true }
+ledger = { path = "../ledger" }
 
 # Hashing
 blake2 = { workspace = true }
@@ -29,7 +35,6 @@ log = "0.4"
 macro_rules_attribute = { workspace = true }
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = { workspace = true }
-const-hex = { workspace = true }
 
 [dev-dependencies]
 libtest2-mimic = "0.0.4"
