@@ -2,6 +2,9 @@ use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use crate::cost::function;
 
+pub const BASE_INDEX: usize = 17;
+pub const DATATYPES_INDEX: usize = 193;
+
 /// Cost parameters for the base machine (version `1.0.0`).
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]

@@ -1,11 +1,9 @@
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
+/// cost functions used by builtins.
 pub mod function;
-/// cost parameters for the cek machine
+/// cost parameters for the cek machine.
 pub mod machine;
-
-const BASE_INDEX: usize = 17;
-const DATATYPES_INDEX: usize = 193;
 
 /// Context for cost calculation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -21,7 +19,7 @@ impl<'a> Context<'a> {
     ///
     /// This returns none if not enough data is available in the cost model.
     pub(crate) fn base(&self) -> Option<&'a machine::Base> {
-        let bytes_prefixed = self.model.get(BASE_INDEX..)?.as_bytes();
+        let bytes_prefixed = self.model.get(machine::BASE_INDEX..)?.as_bytes();
         machine::Base::ref_from_prefix(bytes_prefixed)
             .map(|(b, _)| b)
             .ok()
@@ -31,7 +29,7 @@ impl<'a> Context<'a> {
     ///
     /// This returns none if not enough data is available in the cost model.
     pub(crate) fn datatypes(&self) -> Option<&'a machine::Datatypes> {
-        let bytes_prefixed = self.model.get(DATATYPES_INDEX..)?.as_bytes();
+        let bytes_prefixed = self.model.get(machine::DATATYPES_INDEX..)?.as_bytes();
         machine::Datatypes::ref_from_prefix(bytes_prefixed)
             .map(|(d, _)| d)
             .ok()
@@ -60,6 +58,11 @@ pub struct Pair<E, M> {
     pub memory: M,
 }
 
+/// An argument that can be passed to a cost function.
+///
+/// It is valid to have `unreachable!` here, because inputs are checked at builtin entry, before
+/// being passed to cost accounting. A panic can only occur if there is a mismatch between the cost
+/// function and the builtin implementation (an implementation error).
 pub trait Argument: Copy {
     fn size(&self) -> u64 {
         unreachable!("The argument does not have a size");
