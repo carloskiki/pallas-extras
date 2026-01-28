@@ -3,7 +3,10 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use crate::{builtin::Builtin, constant::Constant, ConstantIndex, DeBruijn, Instruction, Program, TermIndex};
+use crate::{
+    ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
+    constant::Constant,
+};
 
 /// Represents a processed value in the CEK machine.
 #[derive(Debug, Clone)]
@@ -206,26 +209,39 @@ pub enum Frame {
 // - Don't clone constants all the time, only clone if they come from the environment.
 
 /// Run the given program according to the CEK machine.
-pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
+pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<Program<DeBruijn>> {
+    let base_costs = context.base()?;
+    context.apply_no_args(&base_costs.startup)?;
+    
     let mut stack = Vec::new();
     let mut environment: Vec<Value> = Vec::new();
     let mut index = 0;
 
     loop {
         let mut ret = match program.program[index] {
-            Instruction::Variable(var) => environment
+            Instruction::Variable(var) => {
+                context.apply_no_args(&base_costs.variable)?;
+                environment
                 .get(var.0 as usize)
                 .expect("variable exists")
-                .clone(),
-            Instruction::Delay => Value::Delay {
-                term: TermIndex(index as u32),
-                environment,
-            },
-            Instruction::Lambda(_) => Value::Lambda {
-                term: TermIndex(index as u32),
-                environment,
-            },
+                .clone()
+            }
+            Instruction::Delay => {
+                context.apply_no_args(&base_costs.delay)?;
+                Value::Delay {
+                    term: TermIndex(index as u32),
+                    environment,
+                }
+            }
+            Instruction::Lambda(_) => {
+                context.apply_no_args(&base_costs.lambda)?;
+                Value::Lambda {
+                    term: TermIndex(index as u32),
+                    environment,
+                }
+            }
             Instruction::Application => {
+                context.apply_no_args(&base_costs.application)?;
                 index += 1;
                 stack.push(Frame::ApplyLeftTerm {
                     environment: environment.clone(),
@@ -233,8 +249,12 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 });
                 continue;
             }
-            Instruction::Constant(constant_index) => Value::Constant(constant_index),
+            Instruction::Constant(constant_index) => {
+                context.apply_no_args(&base_costs.constant)?;
+                Value::Constant(constant_index)
+            }
             Instruction::Force => {
+                context.apply_no_args(&base_costs.force)?;
                 stack.push(Frame::Force);
                 index += 1;
                 continue;
@@ -242,16 +262,20 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
             Instruction::Error => {
                 return None;
             }
-            Instruction::Builtin(builtin) => Value::Builtin {
-                builtin,
-                polymorphism: builtin.quantifiers(),
-                args: Vec::new(),
-            },
+            Instruction::Builtin(builtin) => {
+                context.apply_no_args(&base_costs.builtin)?;
+                Value::Builtin {
+                    builtin,
+                    polymorphism: builtin.quantifiers(),
+                    args: Vec::new(),
+                }
+            }
             Instruction::Construct {
                 discriminant,
                 large_discriminant,
                 length,
             } => {
+                context.apply_no_args(&context.datatypes()?.construct)?;
                 if length != 0 {
                     stack.push(Frame::Construct {
                         remaining: length - 1,
@@ -271,6 +295,7 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                 }
             }
             Instruction::Case { count } => {
+                context.apply_no_args(&context.datatypes()?.case)?;
                 index += 1;
                 stack.push(Frame::Case {
                     count,
@@ -401,14 +426,16 @@ pub fn run(mut program: Program<DeBruijn>) -> Option<Program<DeBruijn>> {
                     },
                 ) if discriminant < count as u32 || large_discriminant => {
                     let discriminant = if large_discriminant {
-                        let Constant::Integer(discriminant) = &program.constants[discriminant as usize] else {
+                        let Constant::Integer(discriminant) =
+                            &program.constants[discriminant as usize]
+                        else {
                             panic!("large discriminant did not point to an integer constant");
                         };
                         discriminant.to_u64().expect("discriminant fits in u64")
                     } else {
                         discriminant as u64
                     };
-                    
+
                     stack.extend(values.into_iter().map(Frame::ApplyLeftValue).rev());
                     index = skip_terms(&program.program, next.0 as usize, discriminant);
                     environment

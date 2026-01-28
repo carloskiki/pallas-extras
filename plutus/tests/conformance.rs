@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
 use libtest2_mimic::{Harness, RunContext, RunError, Trial};
-use plutus::{DeBruijn, Program};
+use plutus::{Budget, Context, DeBruijn, Program};
 
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
+include!("conformance/cost-model.rs");
 
 fn main() {
     let mut directories = vec![PathBuf::from(BASE_DIR)];
@@ -108,7 +109,45 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         (Err(_), None) => {}
     }
 
-    let output = match (program_debruijn.evaluate(), expected_output.as_str()) {
+    let budget_path = program_path.with_extension("uplc.budget.expected");
+    let Ok(budget_str) = std::fs::read_to_string(&budget_path) else {
+        return Err(RunError::fail("Failed to read expected budget file"));
+    };
+    let budget = if expected_output == "evaluation failure" {
+        Budget { memory: u64::MAX, execution: u64::MAX }
+    } else {
+        let parse_err = || RunError::fail("Failed to parse expected budget");
+        let (execution, memory) = budget_str
+            .trim()
+            .strip_prefix("({")
+            .ok_or_else(parse_err)?
+            .strip_suffix("})")
+            .ok_or_else(parse_err)?
+            .split_once('|')
+            .ok_or_else(parse_err)?;
+        let execution = execution
+            .trim()
+            .strip_prefix("cpu:")
+            .ok_or_else(parse_err)?
+            .trim_start()
+            .parse::<u64>()
+            .map_err(|_| parse_err())?;
+        let memory = memory
+            .trim()
+            .strip_prefix("mem:")
+            .ok_or_else(parse_err)?
+            .trim_start()
+            .parse::<u64>()
+            .map_err(|_| parse_err())?;
+        Budget { memory, execution }
+    };
+    let output = match (
+        program_debruijn.evaluate(Context {
+            model: COST_MODEL,
+            budget,
+        }),
+        expected_output.as_str(),
+    ) {
         (Some(_), "evaluation failure") => {
             return Err(RunError::fail("Expected evaluation failure"));
         }

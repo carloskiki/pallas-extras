@@ -8,11 +8,12 @@ const BASE_INDEX: usize = 17;
 const DATATYPES_INDEX: usize = 193;
 
 /// Context for cost calculation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Context<'a> {
     /// The cost model in use.
     pub model: &'a [i64],
     /// Allowed budget for script execution.
-    pub budget: ledger::alonzo::script::execution::Units,
+    pub budget: super::Budget,
 }
 
 impl<'a> Context<'a> {
@@ -21,7 +22,9 @@ impl<'a> Context<'a> {
     /// This returns none if not enough data is available in the cost model.
     pub(crate) fn base(&self) -> Option<&'a machine::Base> {
         let bytes_prefixed = self.model.get(BASE_INDEX..)?.as_bytes();
-        machine::Base::ref_from_bytes(bytes_prefixed).ok()
+        machine::Base::ref_from_prefix(bytes_prefixed)
+            .map(|(b, _)| b)
+            .ok()
     }
 
     /// Get the cost model for datatype instructions (introduced in `1.1.0`).
@@ -29,7 +32,23 @@ impl<'a> Context<'a> {
     /// This returns none if not enough data is available in the cost model.
     pub(crate) fn datatypes(&self) -> Option<&'a machine::Datatypes> {
         let bytes_prefixed = self.model.get(DATATYPES_INDEX..)?.as_bytes();
-        machine::Datatypes::ref_from_bytes(bytes_prefixed).ok()
+        machine::Datatypes::ref_from_prefix(bytes_prefixed)
+            .map(|(d, _)| d)
+            .ok()
+    }
+
+    /// Apply a cost function with no arguments to the budget.
+    ///
+    /// Returns `Some(())` if the cost could be applied, `None` otherwise.
+    pub(crate) fn apply_no_args<E: Function, M: Function>(
+        &mut self,
+        cost: &Pair<E, M>,
+    ) -> Option<()> {
+        let exec_cost = cost.execution.cost((), (), ());
+        let mem_cost = cost.memory.cost((), (), ());
+        self.budget.execution = self.budget.execution.checked_sub_signed(exec_cost)?;
+        self.budget.memory = self.budget.memory.checked_sub_signed(mem_cost)?;
+        Some(())
     }
 }
 
@@ -41,7 +60,7 @@ pub struct Pair<E, M> {
     pub memory: M,
 }
 
-pub trait Argument {
+pub trait Argument: Copy {
     fn size(&self) -> u64 {
         unreachable!("The argument does not have a size");
     }
@@ -50,7 +69,9 @@ pub trait Argument {
     }
 }
 
+impl Argument for () {}
+
 /// A cost function that can be applied to arguments of a builtin.
 pub trait Function {
-    fn cost<X: Argument, Y: Argument, Z: Argument>(&self, x: X, y: Y, z: Y) -> i64;
+    fn cost<X: Argument, Y: Argument, Z: Argument>(&self, x: X, y: Y, z: Z) -> i64;
 }

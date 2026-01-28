@@ -24,14 +24,19 @@
 //! # Example
 //!
 //! ```rust
-//! use plutus::Program;
+//! use plutus::{Program, Context, Budget};
 //!
 //! const PROGRAM: &str = "(program 1.0.0 [ [ (builtin addInteger) (con integer 2)] (con integer 2) ])";
 //! const FOUR: &str = "(program 1.0.0 (con integer 4))";
 //!
 //! let program: Program<String> = PROGRAM.parse().unwrap();
 //! let program = program.into_de_bruijn().unwrap();
-//! let evaluated = program.evaluate().unwrap();
+//!
+//! let context = plutus::Context {
+//!     model: &[0; 297], // Free execution
+//!     budget: plutus::Budget { memory: u64::MAX, execution: u64::MAX }, // Maximum budget
+//! };
+//! let evaluated = program.evaluate(context).unwrap();
 //!
 //! let four: Program<String> = FOUR.parse().unwrap();
 //! let four = four.into_de_bruijn().unwrap();
@@ -46,6 +51,7 @@ mod builtin;
 mod constant;
 mod cost;
 pub use cost::Context;
+pub use ledger::alonzo::script::execution::Units as Budget;
 mod evaluate;
 mod flat;
 mod lex;
@@ -60,7 +66,7 @@ pub(crate) use ledger::alonzo::script::{Data, data::Construct};
 /// One should not to use this type directly.
 ///
 /// # Details
-/// 
+///
 ///  This type represents _reversed_ De Bruijn indices starting from `0`, where `0`
 /// represents the outermost variable. The reason behind this choice is that it makes indexing
 /// variables in a stack much simpler, since the variable is simply the index into the stack.
@@ -546,8 +552,8 @@ where
 impl Program<DeBruijn> {
     /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
     /// failed.
-    pub fn evaluate(self, cost_model: &[i64]) -> Option<Self> {
-        evaluate::run(self)
+    pub fn evaluate(self, context: Context<'_>) -> Option<Self> {
+        evaluate::run(self, context)
     }
 
     /// Decode a `Program<DeBruijn>` from its flat binary representation.
@@ -578,8 +584,8 @@ impl Program<DeBruijn> {
 ///
 /// let instructions = vec![
 ///     Instruction::Application, // (Term) `[ ... ... ]` -- Expect two sub-terms
-///     Instruction::Lambda(String::from(x)), // (Sub-term 1) `(lam x ...)` -- Expect one sub-term
-///     Instruction::Variable(String::from(x)),// (Sub-term 1.1) x -- Expect zero sub-terms
+///     Instruction::Lambda(String::from("x")), // (Sub-term 1) `(lam x ...)` -- Expect one sub-term
+///     Instruction::Variable(String::from("x")),// (Sub-term 1.1) x -- Expect zero sub-terms
 ///     Instruction::Delay,               // (Sub-term 2) `(delay ...)` -- Expect one sub-term
 ///     Instruction::Error,               // (Sub-term 2.1) `error` -- Expect zero sub-terms
 /// ];
