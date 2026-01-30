@@ -204,9 +204,10 @@ pub enum Frame {
 
 // Some ideas to make this faster:
 // - Find a way to avoid cloning the environment so much. We can probably use prefixes for this,
-// and only clone some of the time if we need to pop of the env.
+// and only clone some of the time if we need to pop off the env.
 // - Find a way to not store `next` and not `skip_terms` so much.
 // - Don't clone constants all the time, only clone if they come from the environment.
+// - Make builtins borrow by default.
 
 /// Run the given program according to the CEK machine.
 pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<Program<DeBruijn>> {
@@ -369,7 +370,7 @@ pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<P
                 ) => {
                     args.push(value);
                     if args.len() == builtin.arity() as usize {
-                        ret = builtin.apply(args, &mut program.constants)?;
+                        ret = builtin.apply(args, &mut program.constants, &mut context)?;
                         continue;
                     } else {
                         ret = Value::Builtin {

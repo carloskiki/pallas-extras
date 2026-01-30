@@ -1,5 +1,7 @@
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
+// TODO: make sure all cost functions saturate!.
+
 /// cost functions used by builtins.
 pub mod function;
 /// cost parameters for the cek machine.
@@ -38,12 +40,12 @@ impl<'a> Context<'a> {
     /// Apply a cost function with no arguments to the budget.
     ///
     /// Returns `Some(())` if the cost could be applied, `None` otherwise.
-    pub(crate) fn apply_no_args<E: Function, M: Function>(
+    pub(crate) fn apply_no_args<E: Function<()>, M: Function<()>>(
         &mut self,
         cost: &Pair<E, M>,
     ) -> Option<()> {
-        let exec_cost = cost.execution.cost((), (), ());
-        let mem_cost = cost.memory.cost((), (), ());
+        let exec_cost = cost.execution.cost(&());
+        let mem_cost = cost.memory.cost(&());
         self.budget.execution = self.budget.execution.checked_sub_signed(exec_cost)?;
         self.budget.memory = self.budget.memory.checked_sub_signed(mem_cost)?;
         Some(())
@@ -58,23 +60,7 @@ pub struct Pair<E, M> {
     pub memory: M,
 }
 
-/// An argument that can be passed to a cost function.
-///
-/// It is valid to have `unreachable!` here, because inputs are checked at builtin entry, before
-/// being passed to cost accounting. A panic can only occur if there is a mismatch between the cost
-/// function and the builtin implementation (an implementation error).
-pub trait Argument: Copy {
-    fn size(&self) -> u64 {
-        unreachable!("The argument does not have a size");
-    }
-    fn value(&self) -> u64 {
-        unreachable!("The argument does not have a value");
-    }
-}
-
-impl Argument for () {}
-
-/// A cost function that can be applied to arguments of a builtin.
-pub trait Function {
-    fn cost<X: Argument, Y: Argument, Z: Argument>(&self, x: X, y: Y, z: Z) -> i64;
+/// A cost function.
+pub trait Function<I>: FromBytes + Immutable + KnownLayout {
+    fn cost(&self, inputs: &I) -> i64;
 }

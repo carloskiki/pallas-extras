@@ -6,9 +6,13 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use crate::{constant::Constant, evaluate::Value};
-use macro_rules_attribute::apply;
+use crate::{
+    constant::Constant,
+    cost::{self, function as cf},
+    machine,
+};
 use strum::{EnumString, FromRepr};
+use zerocopy::{FromBytes, IntoBytes};
 
 mod array;
 mod bls12_381;
@@ -22,7 +26,7 @@ mod list;
 mod string;
 
 /// Builtin functions supported by the evaluator.
-/// 
+///
 /// Expected Invariants:
 /// - Quantifier arguments (`∀`) are found at the start, followed by value arguments.
 #[repr(u8)]
@@ -216,7 +220,7 @@ impl Builtin {
             Builtin::LessThanInteger => 2,
             Builtin::LessThanEqualsInteger => 2,
             Builtin::ExpModInteger => 3,
-            
+
             // Bytestrings
             Builtin::AppendByteString => 2,
             Builtin::ConsByteString => 2,
@@ -239,7 +243,7 @@ impl Builtin {
             Builtin::FindFirstSetBit => 1,
             Builtin::IntegerToByteString => 3,
             Builtin::ByteStringToInteger => 2,
-            
+
             // Cryptography and hashes
             Builtin::Sha2_256 => 1,
             Builtin::Sha3_256 => 1,
@@ -250,20 +254,20 @@ impl Builtin {
             Builtin::VerifyEd25519Signature => 3,
             Builtin::VerifyEcdsaSecp256k1Signature => 3,
             Builtin::VerifySchnorrSecp256k1Signature => 3,
-            
+
             // Strings
             Builtin::AppendString => 2,
             Builtin::EqualsString => 2,
             Builtin::EncodeUtf8 => 1,
             Builtin::DecodeUtf8 => 1,
-            
+
             // Bool
             Builtin::IfThenElse => 3,
             Builtin::ChooseUnit => 2,
             Builtin::Trace => 2,
             Builtin::FstPair => 1,
             Builtin::SndPair => 1,
-            
+
             // Lists
             Builtin::ChooseList => 3,
             Builtin::MkCons => 2,
@@ -271,7 +275,7 @@ impl Builtin {
             Builtin::TailList => 1,
             Builtin::NullList => 1,
             Builtin::DropList => 2,
-            
+
             // Data
             Builtin::ChooseData => 6,
             Builtin::ConstrData => 2,
@@ -289,7 +293,7 @@ impl Builtin {
             Builtin::MkPairData => 2,
             Builtin::MkNilData => 1,
             Builtin::MkNilPairData => 1,
-            
+
             // BLS12_381 operations
             Builtin::BlsG1Add => 2,
             Builtin::BlsG1Neg => 1,
@@ -310,7 +314,7 @@ impl Builtin {
             Builtin::BlsFinalVerify => 2,
             Builtin::BlsG1MultiScalarMul => 2,
             Builtin::BlsG2MultiScalarMul => 2,
-            
+
             // Arrays
             Builtin::LengthOfArray => 1,
             Builtin::ListToArray => 1,
@@ -325,227 +329,322 @@ impl Builtin {
     /// Panics if the number of arguments does not match the arity of the builtin function.
     pub fn apply(
         self,
-        args: Vec<Value>,
+        args: Vec<machine::Value>,
         constants: &mut Vec<Constant>,
-    ) -> Option<Value> {
-        let function = match self {
-            // Integers
-            Builtin::AddInteger => integer::add,
-            Builtin::SubtractInteger => integer::subtract,
-            Builtin::MultiplyInteger => integer::multiply,
-            Builtin::DivideInteger => integer::divide,
-            Builtin::QuotientInteger => integer::quotient,
-            Builtin::RemainderInteger => integer::remainder,
-            Builtin::ModInteger => integer::modulo,
-            Builtin::EqualsInteger => integer::equals,
-            Builtin::LessThanInteger => integer::less_than,
-            Builtin::LessThanEqualsInteger => integer::less_than_or_equal,
-            Builtin::ExpModInteger => integer::exp_mod,
-            
-            // Bytestrings
-            Builtin::AppendByteString => bytestring::append,
-            Builtin::ConsByteString => bytestring::cons_v2,
-            Builtin::SliceByteString => bytestring::slice,
-            Builtin::LengthOfByteString => bytestring::length,
-            Builtin::IndexByteString => bytestring::index,
-            Builtin::EqualsByteString => bytestring::equals,
-            Builtin::LessThanByteString => bytestring::less_than,
-            Builtin::LessThanEqualsByteString => bytestring::less_than_or_equal,
-            Builtin::AndByteString => bytestring::and,
-            Builtin::OrByteString => bytestring::or,
-            Builtin::XorByteString => bytestring::xor,
-            Builtin::ComplementByteString => bytestring::complement,
-            Builtin::ReadBit => bytestring::read_bit,
-            Builtin::WriteBits => bytestring::write_bits,
-            Builtin::ReplicateByte => bytestring::replicate_byte,
-            Builtin::ShiftByteString => bytestring::shift,
-            Builtin::RotateByteString => bytestring::rotate,
-            Builtin::CountSetBits => bytestring::count_set_bits,
-            Builtin::FindFirstSetBit => bytestring::first_set_bit,
-            Builtin::IntegerToByteString => integer::to_bytes,
-            Builtin::ByteStringToInteger => bytestring::to_integer,
-            
-            // Cryptography and hashes
-            Builtin::Sha2_256 => digest::sha2_256,
-            Builtin::Sha3_256 => digest::sha3_256,
-            Builtin::Blake2b256 => digest::blake2b256,
-            Builtin::Blake2b224 => digest::blake2b224,
-            Builtin::Keccak256 => digest::keccak256,
-            Builtin::Ripemd160 => digest::ripemd160,
-            Builtin::VerifyEd25519Signature => ed25519::verify,
-            Builtin::VerifyEcdsaSecp256k1Signature => k256::verify_ecdsa,
-            Builtin::VerifySchnorrSecp256k1Signature => k256::verify_schnorr,
-            
-            // Strings
-            Builtin::AppendString => string::append,
-            Builtin::EqualsString => string::equals,
-            Builtin::EncodeUtf8 => string::encode_utf8,
-            Builtin::DecodeUtf8 => string::decode_utf8,
-            
-            // Bool
-            Builtin::IfThenElse => if_then_else,
-            
-            // Unit
-            Builtin::ChooseUnit => choose_unit,
-            
-            // Tracing
-            Builtin::Trace => trace,
-            
-            // Pairs
-            Builtin::FstPair => first_pair,
-            Builtin::SndPair => second_pair,
-            
-            // Lists
-            Builtin::ChooseList => list::choose,
-            Builtin::MkCons => list::mk_cons,
-            Builtin::HeadList => list::head,
-            Builtin::TailList => list::tail,
-            Builtin::NullList => list::null,
-            Builtin::DropList => list::drop,
-            
-            // Data
-            Builtin::ChooseData => data::choose,
-            Builtin::ConstrData => data::construct,
-            Builtin::MapData => data::map,
-            Builtin::ListData => data::list,
-            Builtin::IData => data::integer,
-            Builtin::BData => data::bytes,
-            Builtin::UnConstrData => data::un_construct,
-            Builtin::UnMapData => data::un_map,
-            Builtin::UnListData => data::un_list,
-            Builtin::UnIData => data::un_integer,
-            Builtin::UnBData => data::un_bytes,
-            Builtin::EqualsData => data::equals,
-            Builtin::SerialiseData => data::serialize,
-            Builtin::MkPairData => data::mk_pair,
-            Builtin::MkNilData => data::mk_nil,
-            Builtin::MkNilPairData => data::mk_nil_pair,
-            
-            // BLS12_381 operations
-            Builtin::BlsG1Add => bls12_381::g1_add,
-            Builtin::BlsG1Neg => bls12_381::g1_neg,
-            Builtin::BlsG1ScalarMul => bls12_381::g1_scalar_mul,
-            Builtin::BlsG1Equal => bls12_381::g1_equals,
-            Builtin::BlsG1HashToGroup => bls12_381::g1_hash_to_group,
-            Builtin::BlsG1Compress => bls12_381::g1_compress,
-            Builtin::BlsG1Uncompress => bls12_381::g1_uncompress,
-            Builtin::BlsG2Add => bls12_381::g2_add,
-            Builtin::BlsG2Neg => bls12_381::g2_neg,
-            Builtin::BlsG2ScalarMul => bls12_381::g2_scalar_mul,
-            Builtin::BlsG2Equal => bls12_381::g2_equals,
-            Builtin::BlsG2HashToGroup => bls12_381::g2_hash_to_group,
-            Builtin::BlsG2Compress => bls12_381::g2_compress,
-            Builtin::BlsG2Uncompress => bls12_381::g2_uncompress,
-            Builtin::BlsMillerLoop => bls12_381::miller_loop,
-            Builtin::BlsMulMlResult => bls12_381::mul_ml_result,
-            Builtin::BlsFinalVerify => bls12_381::final_verify,
-            Builtin::BlsG1MultiScalarMul => bls12_381::g1_multi_scalar_mul,
-            Builtin::BlsG2MultiScalarMul => bls12_381::g2_multi_scalar_mul,
-            
-            // Arrays
-            Builtin::LengthOfArray => array::length,
-            Builtin::ListToArray => list::to_array,
-            Builtin::IndexArray => array::index,
-        };
-        
+        context: &mut cost::Context,
+    ) -> Option<machine::Value> {
+        const fn offset(builtin: Builtin) -> usize {
+            let mut offset = 0;
+            let mut i = 0;
+            while i < OFFSETS.len() {
+                if OFFSETS[i].0 as u8 == builtin as u8 {
+                    if offset >= cost::machine::BASE_INDEX {
+                        offset += std::mem::size_of::<cost::machine::Base>() / 8;
+                    }
+                    if offset >= cost::machine::DATATYPES_INDEX {
+                        offset += std::mem::size_of::<cost::machine::Datatypes>() / 8;
+                    }
 
-        function(args, constants)
+                    return offset;
+                }
+                offset += OFFSETS[i].1;
+                i += 1;
+            }
+            panic!("all builtins are in the list");
+        }
+
+        // IMPORTANT: The order matters here! The builtins are listed in order of cost model
+        // appearance.
+        builtins! {
+            [self, args, constants, context]
+            AddInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Affine<cf::Max<cf::First, cf::Second>>> => integer::add,
+            AppendByteString<cf::Affine<cf::Add<cf::First, cf::Second>>, cf::Affine<cf::Add<cf::First, cf::Second>>> => bytestring::append,
+            AppendString<cf::Affine<cf::Add<cf::First, cf::Second>>, cf::Affine<cf::Add<cf::First, cf::Second>>> => string::append,
+            BData<cf::Constant, cf::Constant> => data::bytes,
+            Blake2b256<cf::Affine<cf::First>, cf::Constant> => digest::blake2b256,
+            ChooseData<cf::Constant, cf::Constant> => data::choose,
+            ChooseList<cf::Constant, cf::Constant> => list::choose,
+            ChooseUnit<cf::Constant, cf::Constant> => choose_unit,
+            ConsByteString<cf::Affine<cf::Second>, cf::Affine<cf::Add<cf::First, cf::Second>>> => bytestring::cons_v2,
+            ConstrData<cf::Constant, cf::Constant> => data::construct,
+            DecodeUtf8<cf::Affine<cf::First>, cf::Affine<cf::First>> => string::decode_utf8,
+            DivideInteger<cf::Divide, cf::Add<cf::Constant, cf::Mul<cf::Max<cf::Sub<cf::First, cf::Second>, cf::Constant>, cf::Constant>>> => integer::divide,
+            EncodeUtf8<cf::Affine<cf::First>, cf::Affine<cf::First>> => string::encode_utf8,
+            EqualsByteString<cf::StringEquals, cf::Constant> => bytestring::equals,
+            EqualsData<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => data::equals,
+            EqualsInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Constant> => integer::equals,
+            EqualsString<cf::StringEquals, cf::Constant> => string::equals,
+            FstPair<cf::Constant, cf::Constant> => first_pair,
+            HeadList<cf::Constant, cf::Constant> => list::head,
+            IData<cf::Constant, cf::Constant> => data::integer,
+            IfThenElse<cf::Constant, cf::Constant> => if_then_else,
+            IndexByteString<cf::Constant, cf::Constant> => bytestring::index,
+            LengthOfByteString<cf::Constant, cf::Constant> => bytestring::length,
+            LessThanByteString<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => bytestring::less_than,
+            LessThanEqualsByteString<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => bytestring::less_than_or_equal,
+            LessThanEqualsInteger<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => integer::less_than_or_equal,
+            LessThanInteger<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => integer::less_than,
+            ListData<cf::Constant, cf::Constant> => data::list,
+            MapData<cf::Constant, cf::Constant> => data::map,
+            MkCons<cf::Constant, cf::Constant> => list::mk_cons,
+            MkNilData<cf::Constant, cf::Constant> => data::mk_nil,
+            MkNilPairData<cf::Constant, cf::Constant> => data::mk_nil_pair,
+            MkPairData<cf::Constant, cf::Constant> => data::mk_pair,
+            ModInteger<cf::Divide, cf::Affine<cf::Second>> => integer::modulo,
+            MultiplyInteger<cf::Affine<cf::Mul<cf::First, cf::Second>>, cf::Affine<cf::Add<cf::First, cf::Second>>> => integer::multiply,
+            NullList<cf::Constant, cf::Constant> => list::null,
+            QuotientInteger<cf::Divide, cf::Add<cf::Constant, cf::Mul<cf::Max<cf::Sub<cf::First, cf::Second>, cf::Constant>, cf::Constant>>> => integer::quotient,
+            RemainderInteger<cf::Divide, cf::Affine<cf::Second>> => integer::remainder,
+            SerialiseData<cf::Affine<cf::First>, cf::Affine<cf::First>> => data::serialize,
+            Sha2_256<cf::Affine<cf::First>, cf::Constant> => digest::sha2_256,
+            Sha3_256<cf::Affine<cf::First>, cf::Constant> => digest::sha3_256,
+            SliceByteString<cf::Affine<cf::Third>, cf::Affine<cf::Third>> => bytestring::slice,
+            SndPair<cf::Constant, cf::Constant> => second_pair,
+            SubtractInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Affine<cf::Max<cf::First, cf::Second>>> => integer::subtract,
+            TailList<cf::Constant, cf::Constant> => list::tail,
+            Trace<cf::Constant, cf::Constant> => trace,
+            UnBData<cf::Constant, cf::Constant> => data::un_bytes,
+            UnConstrData<cf::Constant, cf::Constant> => data::un_construct,
+            UnIData<cf::Constant, cf::Constant> => data::un_integer,
+            UnListData<cf::Constant, cf::Constant> => data::un_list,
+            UnMapData<cf::Constant, cf::Constant> => data::un_map,
+            VerifyEcdsaSecp256k1Signature<cf::Constant, cf::Constant> => k256::verify_ecdsa,
+            VerifyEd25519Signature<cf::Affine<cf::Second>, cf::Constant> => ed25519::verify,
+            VerifySchnorrSecp256k1Signature<cf::Affine<cf::Second>, cf::Constant> => k256::verify_schnorr,
+            BlsG1Add<cf::Constant, cf::Constant> => bls12_381::g1_add,
+            BlsG1Compress<cf::Constant, cf::Constant> => bls12_381::g1_compress,
+            BlsG1Equal<cf::Constant, cf::Constant> => bls12_381::g1_equals,
+            BlsG1HashToGroup<cf::Affine<cf::First>, cf::Constant> => bls12_381::g1_hash_to_group,
+            BlsG1Neg<cf::Constant, cf::Constant> => bls12_381::g1_neg,
+            BlsG1ScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g1_scalar_mul,
+            BlsG1Uncompress<cf::Constant, cf::Constant> => bls12_381::g1_uncompress,
+            BlsG2Add<cf::Constant, cf::Constant> => bls12_381::g2_add,
+            BlsG2Compress<cf::Constant, cf::Constant> => bls12_381::g2_compress,
+            BlsG2Equal<cf::Constant, cf::Constant> => bls12_381::g2_equals,
+            BlsG2HashToGroup<cf::Affine<cf::First>, cf::Constant> => bls12_381::g2_hash_to_group,
+            BlsG2Neg<cf::Constant, cf::Constant> => bls12_381::g2_neg,
+            BlsG2ScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g2_scalar_mul,
+            BlsG2Uncompress<cf::Constant, cf::Constant> => bls12_381::g2_uncompress,
+            BlsFinalVerify<cf::Constant, cf::Constant> => bls12_381::final_verify,
+            BlsMillerLoop<cf::Constant, cf::Constant> => bls12_381::miller_loop,
+            BlsMulMlResult<cf::Constant, cf::Constant> => bls12_381::mul_ml_result,
+            Keccak256<cf::Affine<cf::First>, cf::Constant> => digest::keccak256,
+            Blake2b224<cf::Affine<cf::First>, cf::Constant> => digest::blake2b224,
+            IntegerToByteString<cf::Quadratic<cf::Third>, cf::IntegerToByteStringMemory> => integer::to_bytes,
+            ByteStringToInteger<cf::Quadratic<cf::Second>, cf::Affine<cf::Second>> => bytestring::to_integer,
+            AndByteString<cf::Affine2<cf::Second, cf::Third>, cf::Affine<cf::Max<cf::Second, cf::Third>>> => bytestring::and,
+            OrByteString<cf::Affine2<cf::Second, cf::Third>, cf::Affine<cf::Max<cf::Second, cf::Third>>> => bytestring::or,
+            XorByteString<cf::Affine2<cf::Second, cf::Third>, cf::Affine<cf::Max<cf::Second, cf::Third>>> => bytestring::xor,
+            ComplementByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::complement,
+            ReadBit<cf::Constant, cf::Constant> => bytestring::read_bit,
+            WriteBits<cf::Affine<cf::Second>, cf::Affine<cf::First>> => bytestring::write_bits,
+            ReplicateByte<cf::Affine<cf::FirstValue>, cf::Affine<cf::FirstValue>> => bytestring::replicate_byte,
+            ShiftByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::shift,
+            RotateByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::rotate,
+            CountSetBits<cf::Affine<cf::First>, cf::Constant> => bytestring::count_set_bits,
+            FindFirstSetBit<cf::Affine<cf::First>, cf::Constant> => bytestring::first_set_bit,
+            Ripemd160<cf::Affine<cf::First>, cf::Constant> => digest::ripemd160,
+            
+            ExpModInteger<cf::ExpModIntegerExecution, cf::Affine<cf::Third>> => integer::exp_mod,
+            DropList<cf::Affine<cf::FirstValue>, cf::Constant> => list::drop,
+            LengthOfArray<cf::Constant, cf::Constant> => array::length,
+            ListToArray<cf::Affine<cf::First>, cf::Affine<cf::First>> => list::to_array,
+            IndexArray<cf::Constant, cf::Constant> => array::index,
+            BlsG1MultiScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g1_multi_scalar_mul,
+            BlsG2MultiScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g2_multi_scalar_mul,
+        }
+        
     }
 }
 
-#[apply(builtin)]
-pub fn if_then_else(cond: bool, then: Value, else_: Value) -> Value {
+pub fn if_then_else(cond: bool, then: machine::Value, else_: machine::Value) -> machine::Value {
     if cond { then } else { else_ }
 }
 
-#[apply(builtin)]
-pub fn choose_unit(_u: (), then: Value) -> Value {
+pub fn choose_unit(_: (), then: machine::Value) -> machine::Value {
     then
 }
 
-#[apply(builtin)]
-pub fn trace(message: String, value: Value) -> Value {
+pub fn trace(message: String, value: machine::Value) -> machine::Value {
     log::info!("{message}");
     value
 }
 
-#[apply(builtin)]
 pub fn first_pair(pair: (Constant, Constant)) -> Constant {
     pair.0
 }
 
-#[apply(builtin)]
 pub fn second_pair(pair: (Constant, Constant)) -> Constant {
     pair.1
 }
 
-/// Converts a builtin function with typed arguments and return type into
-/// a function that does type checking at runtime.
-/// 
-/// ```ignore
-/// // From
-/// fn builtin(arg1: Type1, arg2: Type2, ...) -> ReturnType;
-/// // To
-/// pub fn builtin(args: Vec<Value>) -> Option<Value>;
-/// ```
-macro_rules! builtin {
-    (pub fn $name:ident ( $($args:tt)+ ) -> $($rest:tt)+) => {
-        #[allow(unused_mut, clippy::ptr_arg)]
-        pub fn $name (args: Vec<$crate::evaluate::Value>, constants: &mut Vec<$crate::constant::Constant>) -> Option<$crate::evaluate::Value> {
-            // #[allow(unused_variables)]
-            // let $crate::program::evaluate::Value::Constant(const_index) = args[0] else {
-            //     unreachable!("Invariant violation: expected the first argument to builtin to be a constant");
-            // };
-            
-            let mut __iter = args.into_iter();
-            builtin!(@unwrap ( $($args)+ ) __iter, constants, args);
+/// Convert a machine value into a builtin argument.
+pub trait Input: Sized {
+    fn from(value: machine::Value, constants: &[Constant]) -> Option<Self>;
+}
 
-            builtin!(@result $($rest)+; constants);
-        }
-    };
+/// Convert a builtin return value into a machine value.
+pub trait Output {
+    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value>;
+}
 
-    (@unwrap ($arg_name:ident: Value $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
-        let $arg_name: Value = $iter.next().expect("builtin has enough arguments");
-        builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args)
-    };
-    
-    (@unwrap (mut $arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
-        builtin!(@unwrap ($arg_name: $arg_ty $(, $($rest)*)?) $iter, $constants, $args);
-    };
-
-    (@unwrap ($arg_name:ident: $arg_ty:ty $(, $($rest:tt)*)? ) $iter:ident, $constants:ident, $args:ident) => {
-        let mut $arg_name: $arg_ty = {
-            let $crate::evaluate::Value::Constant(constant_index) = $iter.next().expect("builtin has enough arguments") else {
-                return None;
-            };
-            (&$constants[constant_index.0 as usize]).clone().try_into().ok()?
+/// Any constant can be used as a value.
+impl<C: TryFrom<Constant>> Input for C {
+    fn from(value: machine::Value, constants: &[Constant]) -> Option<Self> {
+        let machine::Value::Constant(constant_index) = value else {
+            return None;
         };
-        builtin!(@unwrap ($($($rest)*)?) $iter, $constants, $args);
-    };
-
-    (@unwrap () $iter:ident, $constants:ident, $args:ident) => {};
-
-    (@result Value $block:block; $constants:ident) => {
-        #[allow(clippy::redundant_closure_call)]
-        return Some((|| $block)());
-    };
-
-    (@result Option<$ret:ty> $block:block; $constants:ident) => {{
-        #[allow(clippy::redundant_closure_call)]
-        let result: $ret = (|| $block)()?;
-        builtin!(@wrap $ret; $constants, result);
-    }};
-
-    (@result $ret:ty $block:block; $constants:ident) => {{
-        #[allow(clippy::redundant_closure_call)]
-        let result: $ret = (|| $block)();
-        builtin!(@wrap $ret; $constants, result);
-    }};
-
-    (@wrap $ret:ty; $constants:ident, $result:ident) => {
-        let index = $constants.len();
-        $constants.push($result.into());
-        return Some($crate::evaluate::Value::Constant($crate::ConstantIndex(index as u32)));
+        (constants[constant_index.0 as usize])
+            .clone()
+            .try_into()
+            .ok()
     }
 }
-use builtin;
+
+impl<C: Into<Constant>> Output for C {
+    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value> {
+        let constant = value.into();
+        let index = constants.len();
+        constants.push(constant);
+        Some(machine::Value::Constant(crate::ConstantIndex(index as u32)))
+    }
+}
+
+impl<C: Into<Constant>> Output for Option<C> {
+    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value> {
+        match value {
+            Some(v) => Output::into(v, constants),
+            None => None,
+        }
+    }
+}
+
+/// Any machine value can be used as a builtin input.
+impl Input for machine::Value {
+    fn from(value: machine::Value, _constants: &[Constant]) -> Option<Self> {
+        Some(value)
+    }
+}
+
+/// Any machine value can be used as a builtin return value.
+impl Output for machine::Value {
+    fn into(value: Self, _constants: &mut Vec<Constant>) -> Option<machine::Value> {
+        Some(value)
+    }
+}
+
+/// A builtin function that can be applied to arguments.
+pub trait Function<I, CE, CM> {
+    fn apply(
+        self,
+        args: Vec<machine::Value>,
+        constants: &mut Vec<Constant>,
+        context: &mut cost::Context,
+    ) -> Option<machine::Value>;
+}
+
+impl_function!(A);
+impl_function!(A, B);
+impl_function!(A, B, C);
+impl_function!(A, B, C, D);
+impl_function!(A, B, C, D, E);
+impl_function!(A, B, C, D, E, F);
+
+macro_rules! impl_function {
+    ($($ty:ident),*) => {
+        #[allow(unused_parens, non_snake_case)]
+        impl<O: Output, FN, CE, CM, $($ty: Input),*> Function<($($ty,)*), CE, CM> for FN
+        where
+            FN: Fn($($ty),*) -> O,
+            CE: cost::Function<($($ty),*)>,
+            CM: cost::Function<($($ty),*)>,
+        {
+            fn apply(
+                self,
+                args: Vec<machine::Value>,
+                constants: &mut Vec<Constant>,
+                context: &mut cost::Context,
+            ) -> Option<machine::Value> {
+                let mut args = args.into_iter();
+                let tuple = (
+                    $(
+                        $ty::from(
+                            args.next().expect("correct number of arguments passed"),
+                            constants
+                        )?
+                    ),*
+                );
+
+                let cost::Pair { execution, memory } = cost::Pair::<CE, CM>::ref_from_prefix(
+                    context.model.as_bytes(),
+                ).ok()?.0;
+                let execution_cost = execution.cost(&tuple);
+                context.budget.execution = context
+                    .budget
+                    .execution
+                    .checked_sub_signed(execution_cost)?;
+                let memory_cost = memory.cost(&tuple);
+                context.budget.memory = context
+                    .budget
+                    .memory
+                    .checked_sub_signed(memory_cost)?;
+
+                let ($($ty),*) = tuple;
+                let output = (self)($($ty),*);
+                O::into(output, constants)
+            }
+        }
+    };
+}
+use impl_function;
+
+/// Provide the builtins in order of cost model entry.
+///
+/// This calls the `Function::apply` implementation for each builtin with the specified cost_model
+/// and correct offset based on the function's index.
+macro_rules! builtins {
+    ([$var:ident, $args:ident, $constants:ident, $context:ident] $($builtin:ident<$execution:ty, $memory:ty> => $fn:path),* $(,)?) => {
+        const OFFSETS: &[(Builtin, usize)] = &[
+            $(
+                (
+                    Builtin::$builtin,
+                    std::mem::size_of::<cost::Pair<$execution, $memory>>() / 8,
+                ),
+            )*
+        ];
+
+        let full_model = $context.model;
+        let ret = match $var {
+            $(
+                b @ Builtin::$builtin => <_ as Function<
+                    _,
+                    $execution,
+                    $memory,
+                >>::apply($fn, $args, $constants, {
+                    $context.model = &$context.model[offset(b)..];
+                    $context
+                }),
+            )*
+        };
+        $context.model = full_model;
+        ret
+    };
+}
+use builtins;
+
+// #[test]
+// fn bisect_list() {
+//     let builtin = Builtin::EqualsInteger;
+// 
+//     builtin.apply(
+//         vec![],
+//         &mut vec![],
+//         &mut cost::Context {
+//             model: &[],
+//             budget: crate::Budget {
+//                 memory: u64::MAX,
+//                 execution: u64::MAX,
+//             },
+//         }
+//     );
+// }

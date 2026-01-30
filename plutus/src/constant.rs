@@ -584,19 +584,6 @@ impl From<Array> for Constant {
     }
 }
 
-impl<T: Into<Constant> + Default> From<Box<[T]>> for Constant {
-    fn from(value: Box<[T]>) -> Self {
-        Constant::Array(if value.is_empty() {
-            Array::empty(T::default().into().type_of())
-        } else {
-            let elements: Box<[Constant]> = value.into_iter().map(Into::into).collect();
-            Array {
-                elements: Ok(elements),
-            }
-        })
-    }
-}
-
 impl<T1: Into<Constant>, T2: Into<Constant>> From<(T1, T2)> for Constant {
     fn from(value: (T1, T2)) -> Self {
         Constant::Pair(Box::new((value.0.into(), value.1.into())))
@@ -739,25 +726,6 @@ impl TryFrom<Constant> for List {
             Ok(list)
         } else {
             Err(())
-        }
-    }
-}
-
-impl<T: TryFrom<Constant>> TryFrom<Constant> for Box<[T]> {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        match value {
-            Constant::Array(Array { elements: Err(_) }) => Ok(Box::new([])),
-            Constant::Array(Array {
-                elements: Ok(elems),
-            }) => elems
-                .into_iter()
-                .map(T::try_from)
-                .collect::<Result<Box<[_]>, _>>()
-                .map_err(|_| ()),
-
-            _ => Err(()),
         }
     }
 }

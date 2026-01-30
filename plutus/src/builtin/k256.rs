@@ -1,4 +1,3 @@
-use super::builtin;
 use k256::{
     ecdsa::{
         self,
@@ -6,9 +5,7 @@ use k256::{
     },
     schnorr,
 };
-use macro_rules_attribute::apply;
 
-#[apply(builtin)]
 pub fn verify_ecdsa(verifying_key: Vec<u8>, message: Vec<u8>, signature: Vec<u8>) -> Option<bool> {
     if message.len() != 32 {
         return None;
@@ -19,7 +16,6 @@ pub fn verify_ecdsa(verifying_key: Vec<u8>, message: Vec<u8>, signature: Vec<u8>
     Some(verifying_key.verify_prehash(&message, &signature).is_ok())
 }
 
-#[apply(builtin)]
 pub fn verify_schnorr(
     verifying_key: Vec<u8>,
     message: Vec<u8>,

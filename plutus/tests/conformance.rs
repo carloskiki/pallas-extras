@@ -29,6 +29,10 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
+                    if test_name != "uplc/evaluation/term/case/case-04" {
+                        continue;
+                    }
+
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
                     }));

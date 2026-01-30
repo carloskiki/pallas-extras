@@ -1,9 +1,5 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use macro_rules_attribute::apply;
 
-use super::builtin;
-
-#[apply(builtin)]
 pub fn verify(public_key: Vec<u8>, message: Vec<u8>, signature: Vec<u8>) -> Option<bool> {
     let array_bytes: [u8; 32] = public_key.try_into().ok()?;
     let Ok(public_key) = VerifyingKey::from_bytes(&array_bytes) else {

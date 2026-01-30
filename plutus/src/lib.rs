@@ -52,7 +52,7 @@ mod constant;
 mod cost;
 pub use cost::Context;
 pub use ledger::alonzo::script::execution::Units as Budget;
-mod evaluate;
+mod machine;
 mod flat;
 mod lex;
 
@@ -553,7 +553,7 @@ impl Program<DeBruijn> {
     /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
     /// failed.
     pub fn evaluate(self, context: Context<'_>) -> Option<Self> {
-        evaluate::run(self, context)
+        machine::run(self, context)
     }
 
     /// Decode a `Program<DeBruijn>` from its flat binary representation.

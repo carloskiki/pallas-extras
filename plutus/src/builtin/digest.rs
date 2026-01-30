@@ -1,12 +1,8 @@
 use blake2::{Blake2b, Blake2b256};
-use macro_rules_attribute::apply;
 use sha2::{Digest, Sha256, digest::array::Array};
 use sha3::{Keccak256, Sha3_256};
 use ripemd::{Ripemd160};
 
-use super::builtin;
-
-#[apply(builtin)]
 pub fn sha2_256(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(&data);
@@ -19,7 +15,6 @@ pub fn sha2_256(mut data: Vec<u8>) -> Vec<u8> {
     data
 }
 
-#[apply(builtin)]
 pub fn sha3_256(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Sha3_256::new();
     hasher.update(&data);
@@ -32,7 +27,6 @@ pub fn sha3_256(mut data: Vec<u8>) -> Vec<u8> {
     data
 }
 
-#[apply(builtin)]
 pub fn blake2b256(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Blake2b256::new();
     hasher.update(&data);
@@ -45,7 +39,6 @@ pub fn blake2b256(mut data: Vec<u8>) -> Vec<u8> {
     data
 }
 
-#[apply(builtin)]
 pub fn keccak256(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Keccak256::new();
     hasher.update(&data);
@@ -58,7 +51,6 @@ pub fn keccak256(mut data: Vec<u8>) -> Vec<u8> {
     data
 }
 
-#[apply(builtin)]
 pub fn blake2b224(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Blake2b::<blake2::digest::consts::U28>::new();
     hasher.update(&data);
@@ -71,7 +63,6 @@ pub fn blake2b224(mut data: Vec<u8>) -> Vec<u8> {
     data
 }
 
-#[apply(builtin)]
 pub fn ripemd160(mut data: Vec<u8>) -> Vec<u8> {
     let mut hasher = Ripemd160::new();
     hasher.update(&data);

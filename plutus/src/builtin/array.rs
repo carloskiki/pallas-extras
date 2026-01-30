@@ -1,8 +1,5 @@
-use super::builtin;
 use crate::constant::{Array, Constant};
-use macro_rules_attribute::apply;
 
-#[apply(builtin)]
 pub fn length(arr: Array) -> rug::Integer {
     rug::Integer::from(match arr.elements {
         Ok(contains) => contains.len(),
@@ -10,7 +7,6 @@ pub fn length(arr: Array) -> rug::Integer {
     })
 }
 
-#[apply(builtin)]
 pub fn index(arr: Array, index: rug::Integer) -> Option<Constant> {
     let index = index.to_usize()?;
     match arr.elements {
