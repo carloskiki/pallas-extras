@@ -14,7 +14,7 @@ where
     B: Function<I>,
 {
     fn cost(&self, input: &I) -> i64 {
-        self.0.cost(input) + self.1.cost(input)
+        self.0.cost(input).saturating_add(self.1.cost(input))
     }
 }
 
@@ -45,7 +45,7 @@ where
     B: Function<I>,
 {
     fn cost(&self, input: &I) -> i64 {
-        self.0.cost(input).max(self.1.cost(input))
+        self.0.cost(input).min(self.1.cost(input))
     }
 }
 
@@ -60,7 +60,7 @@ where
     B: Function<I>,
 {
     fn cost(&self, input: &I) -> i64 {
-        self.0.cost(input) * self.1.cost(input)
+        self.0.cost(input).saturating_mul(self.1.cost(input))
     }
 }
 
@@ -75,6 +75,6 @@ where
     B: Function<I>,
 {
     fn cost(&self, input: &I) -> i64 {
-        self.0.cost(input) - self.1.cost(input)
+        self.0.cost(input).saturating_sub(self.1.cost(input))
     }
 }

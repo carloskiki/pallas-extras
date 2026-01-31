@@ -29,7 +29,7 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    if test_name != "uplc/evaluation/term/case/case-04" {
+                    if test_name != "uplc/evaluation/builtin/semantics/replicateByte/case-08" {
                         continue;
                     }
 
@@ -118,7 +118,10 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         return Err(RunError::fail("Failed to read expected budget file"));
     };
     let budget = if expected_output == "evaluation failure" {
-        Budget { memory: u64::MAX, execution: u64::MAX }
+        Budget {
+            memory: u64::MAX,
+            execution: u64::MAX,
+        }
     } else {
         let parse_err = || RunError::fail("Failed to parse expected budget");
         let (execution, memory) = budget_str

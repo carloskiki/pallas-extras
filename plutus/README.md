@@ -1,5 +1,10 @@
 - [github pages doc](https://www.reddit.com/r/rust/comments/195ao81/publishing_documentation_as_github_page/)
 
+## TODOs for failing tests
+
+DropList: If the expected budget is i64::MAX, then we should accept failing evaluation if it fails with exceeded budget.
+ReplicateByte: Incorrect cost model, it needs to be `NumBytesCostedAsNumWords` like for `IntegerToByteStringMemory`.
+
 ## Version support
 
 - All plutus versions are supported. This currently means `1.0.0` and `1.1.0`.

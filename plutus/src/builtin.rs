@@ -370,10 +370,10 @@ impl Builtin {
             DecodeUtf8<cf::Affine<cf::First>, cf::Affine<cf::First>> => string::decode_utf8,
             DivideInteger<cf::Divide, cf::Add<cf::Constant, cf::Mul<cf::Max<cf::Sub<cf::First, cf::Second>, cf::Constant>, cf::Constant>>> => integer::divide,
             EncodeUtf8<cf::Affine<cf::First>, cf::Affine<cf::First>> => string::encode_utf8,
-            EqualsByteString<cf::StringEquals, cf::Constant> => bytestring::equals,
+            EqualsByteString<cf::StringEqualsExecution, cf::Constant> => bytestring::equals,
             EqualsData<cf::Affine<cf::Min<cf::First, cf::Second>>, cf::Constant> => data::equals,
             EqualsInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Constant> => integer::equals,
-            EqualsString<cf::StringEquals, cf::Constant> => string::equals,
+            EqualsString<cf::StringEqualsExecution, cf::Constant> => string::equals,
             FstPair<cf::Constant, cf::Constant> => first_pair,
             HeadList<cf::Constant, cf::Constant> => list::head,
             IData<cf::Constant, cf::Constant> => data::integer,
@@ -634,7 +634,7 @@ use builtins;
 
 // #[test]
 // fn bisect_list() {
-//     let builtin = Builtin::EqualsInteger;
+//     let builtin = Builtin::ByteStringToInteger;
 // 
 //     builtin.apply(
 //         vec![],

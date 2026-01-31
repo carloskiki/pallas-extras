@@ -1,3 +1,5 @@
+use std::num::Saturating;
+
 use crate::cost::Function;
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
@@ -41,22 +43,22 @@ pub struct Divide {
 
 impl Function<(rug::Integer, rug::Integer)> for Divide {
     fn cost(&self, inputs: &(rug::Integer, rug::Integer)) -> i64 {
-        let x = First.cost(&inputs.0);
-        let y = First.cost(&inputs.1);
-        let Self {
-            constant,
-            c00,
-            c01,
-            c02,
-            c10,
-            c11,
-            c20,
-            minimum,
-        } = self;
+        let x = Saturating(First.cost(&inputs.0));
+        let y = Saturating(First.cost(&inputs.1));
+        let c00 = Saturating(self.c00);
+        let c01 = Saturating(self.c01);
+        let c02 = Saturating(self.c02);
+        let c10 = Saturating(self.c10);
+        let c11 = Saturating(self.c11);
+        let c20 = Saturating(self.c20);
+        let minimum = Saturating(self.minimum);
+
         if x < y {
-            return *constant;
+            return self.constant;
         }
-        (*minimum).max(c00 + *c10 * x + c20 * x * x + c01 * y + c11 * x * y + c02 * y * y)
+        minimum
+            .max(c00 + c10 * x + c20 * x * x + c01 * y + c11 * x * y + c02 * y * y)
+            .0
     }
 }
 
@@ -71,35 +73,41 @@ pub struct ExpModIntegerExecution {
 
 impl Function<(rug::Integer, rug::Integer, rug::Integer)> for ExpModIntegerExecution {
     fn cost(&self, inputs: &(rug::Integer, rug::Integer, rug::Integer)) -> i64 {
-        let base = First.cost(&inputs.0);
-        let exp = First.cost(&inputs.1);
-        let modulus = First.cost(&inputs.2);
-        let Self { c00, c11, c12 } = self;
+        let base = Saturating(First.cost(&inputs.0));
+        let exp = Saturating(First.cost(&inputs.1));
+        let modulus = Saturating(First.cost(&inputs.2));
+        let c00 = Saturating(self.c00);
+        let c11 = Saturating(self.c11);
+        let c12 = Saturating(self.c12);
+
         let mut cost = c00 + c11 * exp * modulus + c12 * exp * modulus * modulus;
         if base > modulus {
-            cost += cost / 2;
+            cost += cost / Saturating(2);
         }
-        cost
+        cost.0
     }
 }
 
 /// IntegerToByteString memory cost function.
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]
-pub struct IntegerToByteStringMemory;
+pub struct IntegerToByteStringMemory {
+    pub affine: Affine<Third>,
+}
 
 impl<A, B> Function<(A, rug::Integer, B)> for IntegerToByteStringMemory
 where
     First: Function<B>,
 {
-    fn cost(&self, (_, int, third): &(A, rug::Integer, B)) -> i64 {
+    fn cost(&self, inputs @ (_, int, _): &(A, rug::Integer, B)) -> i64 {
         if int.is_zero() {
-            return First.cost(third);
+            return self.affine.cost(inputs);
         }
 
+        // TODO: Check if this is the correct implementation.
         use rug::az::SaturatingCast;
         let value: i64 = int.saturating_cast();
-        ((value.unsigned_abs() - 1).div_ceil(8) + 1) as i64
+        value.unsigned_abs().div_ceil(8) as i64
     }
 }
 
@@ -117,20 +125,20 @@ where
 {
     fn cost(&self, input: &I) -> i64 {
         let Self { affine, c2 } = self;
-        let x = affine.1.1.cost(input);
-        affine.cost(input) + c2 * x * x
+        let x = Saturating(affine.1.1.cost(input));
+        (Saturating(affine.cost(input)) + Saturating(*c2) * x * x).0
     }
 }
 
 /// Equality for strings and bytestrings.
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]
-pub struct StringEquals {
+pub struct StringEqualsExecution {
     pub constant: i64,
     pub affine: Affine<First>,
 }
 
-impl<I> Function<I> for StringEquals
+impl<I> Function<I> for StringEqualsExecution
 where
     First: Function<I>,
     Second: Function<I>,
@@ -139,11 +147,10 @@ where
         let x = First.cost(inputs);
         let y = Second.cost(inputs);
         let Self { constant, affine } = self;
-        if x == y {
+        if x != y {
             *constant
         } else {
             affine.cost(inputs)
         }
     }
 }
-

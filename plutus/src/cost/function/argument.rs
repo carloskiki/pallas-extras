@@ -1,3 +1,5 @@
+use std::num::Saturating;
+
 use crate::{
     constant::{Array, Constant, List},
     cost::Function,
@@ -11,7 +13,7 @@ pub struct First;
 
 impl Function<rug::Integer> for First {
     fn cost(&self, input: &rug::Integer) -> i64 {
-        (std::mem::size_of_val(input.as_limbs()) / 8) as i64 + 1
+        (std::mem::size_of_val(input.as_limbs()) / 8).max(1) as i64
     }
 }
 
@@ -53,15 +55,18 @@ impl Function<String> for First {
 
 impl Function<crate::Data> for First {
     fn cost(&self, inputs: &crate::Data) -> i64 {
-        4 + match inputs {
-            crate::Data::Map(items) => items.iter().map(|(k, v)| self.cost(k) + self.cost(v)).sum(),
-            crate::Data::List(datas)
-            | crate::Data::Construct(crate::Construct { value: datas, .. }) => {
-                datas.iter().map(|d| self.cost(d)).sum()
-            }
-            crate::Data::Bytes(items) => self.cost(items),
-            crate::Data::Integer(integer) => self.cost(integer),
-        }
+        (Saturating(4)
+            + match inputs {
+                crate::Data::Map(items) => items.iter().fold(Saturating(0), |a, (k, v)| {
+                    Saturating(self.cost(k)) + Saturating(self.cost(v)) + a
+                }),
+                crate::Data::List(datas)
+                | crate::Data::Construct(crate::Construct { value: datas, .. }) => datas
+                    .iter()
+                    .fold(Saturating(0), |a, d| Saturating(self.cost(d)) + a),
+                crate::Data::Bytes(items) => Saturating(self.cost(items)),
+                crate::Data::Integer(integer) => Saturating(self.cost(integer)),
+            }).0
     }
 }
 
@@ -124,7 +129,7 @@ pub struct FirstValue;
 
 impl Function<rug::Integer> for FirstValue {
     fn cost(&self, input: &rug::Integer) -> i64 {
-        <_ as SaturatingCast<i64>>::saturating_cast(input).abs()
+        <_ as SaturatingCast<i64>>::saturating_cast(input).saturating_abs()
     }
 }
 
