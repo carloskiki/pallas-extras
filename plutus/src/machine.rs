@@ -210,7 +210,7 @@ pub enum Frame {
 // - Make builtins borrow by default.
 
 /// Run the given program according to the CEK machine.
-pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<Program<DeBruijn>> {
+pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<Program<DeBruijn>> {
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
     
@@ -219,6 +219,8 @@ pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<P
     let mut index = 0;
 
     loop {
+        dbg!(stack.len(), environment.len(), index, program.constants.len());
+        
         let mut ret = match program.program[index] {
             Instruction::Variable(var) => {
                 context.apply_no_args(&base_costs.variable)?;
@@ -370,7 +372,7 @@ pub fn run(mut program: Program<DeBruijn>, mut context: Context<'_>) -> Option<P
                 ) => {
                     args.push(value);
                     if args.len() == builtin.arity() as usize {
-                        ret = builtin.apply(args, &mut program.constants, &mut context)?;
+                        ret = builtin.apply(args, &mut program.constants, context)?;
                         continue;
                     } else {
                         ret = Value::Builtin {

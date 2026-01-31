@@ -4,7 +4,7 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use crate::{lex, Data, Construct};
+use crate::{Construct, Data, lex};
 use bwst::{g1, g2, group::GroupEncoding};
 use std::str::FromStr;
 
@@ -405,32 +405,38 @@ fn parse_data(s: &str) -> Option<(Data, &str)> {
         .split_once(char::is_whitespace)
         .map(|(a, b)| (a, b.trim_start()))
         .unwrap_or((s, ""));
-    let (word_str, mut rest) = data_str
-        .find(',')
-        .map(|pos| (data_str[..pos].trim_end(), &data_str[pos..]))
-        .unwrap_or((data_str.trim_end(), ""));
-    let data = match ty {
+    Some(match ty {
         "B" => {
-            let hex = word_str.strip_prefix("#")?;
+            let data_str = data_str.strip_prefix("#")?;
+            let (hex, rest) = data_str
+                .find(|c: char| !c.is_ascii_hexdigit())
+                .map(|pos| (&data_str[..pos], data_str[pos..].trim_start()))
+                .unwrap_or((data_str.trim_end(), ""));
             let bytes = const_hex::decode(hex).ok()?;
-            Data::Bytes(bytes)
+            (Data::Bytes(bytes), rest.trim_start())
         }
         "I" => {
-            let int = rug::Integer::from_str_radix(word_str, 10).ok()?;
-            Data::Integer(int)
+            let (int_str, rest) = data_str
+                .find(|c: char| !c.is_ascii_digit() && c != '-')
+                .map(|pos| (&data_str[..pos], data_str[pos..].trim_start()))
+                .unwrap_or((data_str.trim_end(), ""));
+            let int = rug::Integer::from_str_radix(int_str, 10).ok()?;
+            (Data::Integer(int), rest.trim_start())
         }
         "List" => {
-            let (data, list_rest) = data_list(data_str)?;
-            rest = list_rest;
-            Data::List(data)
+            let (data, rest) = data_list(data_str)?;
+            (Data::List(data), rest)
         }
         "Map" => {
-            let (mut items_str, map_rest) = lex::group::<b'[', b']'>(data_str)?;
-            rest = map_rest.strip_prefix(',').unwrap_or(map_rest).trim_start();
+            let (mut items_str, rest) = lex::group::<b'[', b']'>(data_str)?;
             let mut items = Vec::new();
             while !items_str.is_empty() {
-                let (pair, rest) = lex::group::<b'(', b')'>(items_str)?;
-                items_str = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+                let (pair, other_pairs) = lex::group::<b'(', b')'>(items_str)?;
+                items_str = other_pairs
+                    .strip_prefix(',')
+                    .map(|s| s.trim_start())
+                    .unwrap_or(other_pairs);
+
                 let (key, rest) = parse_data(pair)?;
                 let (value, "") = parse_data(rest.strip_prefix(',')?.trim_start())? else {
                     return None;
@@ -439,33 +445,28 @@ fn parse_data(s: &str) -> Option<(Data, &str)> {
                 items.push((key, value));
             }
 
-            Data::Map(items)
+            (Data::Map(items), rest)
         }
         "Constr" => {
-            let (tag_str, tag_rest) = data_str.split_once(char::is_whitespace)?;
+            let (tag_str, fields) = data_str.split_once(|c: char| !c.is_ascii_digit())?;
             let tag = u64::from_str(tag_str).ok()?;
-            let (value, constr_rest) = data_list(tag_rest)?;
-            rest = constr_rest;
-            Data::Construct(Construct { tag, value })
+            let (value, rest) = data_list(fields.trim_start())?;
+            (Data::Construct(Construct { tag, value }), rest)
         }
         _ => return None,
-    };
-
-    Some((data, rest))
+    })
 }
 
 fn data_list(s: &str) -> Option<(Vec<Data>, &str)> {
     let (mut items_str, rest) = lex::group::<b'[', b']'>(s)?;
     let mut items = Vec::new();
     while !items_str.is_empty() {
-        let (item, mut list_rest) = parse_data(items_str)?;
+        let (item, other_items) = parse_data(items_str)?;
         items.push(item);
-        if let Some(rest) = list_rest.strip_prefix(',') {
-            list_rest = rest.trim_start();
-        } else if !list_rest.is_empty() {
-            return None;
-        }
-        items_str = list_rest;
+        items_str = other_items
+            .strip_prefix(',')
+            .map(|s| s.trim_start())
+            .unwrap_or(other_items);
     }
 
     Some((items, rest))

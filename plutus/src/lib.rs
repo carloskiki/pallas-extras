@@ -32,11 +32,11 @@
 //! let program: Program<String> = PROGRAM.parse().unwrap();
 //! let program = program.into_de_bruijn().unwrap();
 //!
-//! let context = plutus::Context {
+//! let mut context = plutus::Context {
 //!     model: &[0; 297], // Free execution
 //!     budget: plutus::Budget { memory: u64::MAX, execution: u64::MAX }, // Maximum budget
 //! };
-//! let evaluated = program.evaluate(context).unwrap();
+//! let evaluated = program.evaluate(&mut context).unwrap();
 //!
 //! let four: Program<String> = FOUR.parse().unwrap();
 //! let four = four.into_de_bruijn().unwrap();
@@ -552,7 +552,7 @@ where
 impl Program<DeBruijn> {
     /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
     /// failed.
-    pub fn evaluate(self, context: Context<'_>) -> Option<Self> {
+    pub fn evaluate(self, context: &mut Context<'_>) -> Option<Self> {
         machine::run(self, context)
     }
 

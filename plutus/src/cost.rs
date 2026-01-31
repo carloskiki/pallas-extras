@@ -1,7 +1,5 @@
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-// TODO: make sure all cost functions saturate!.
-
 /// cost functions used by builtins.
 pub mod function;
 /// cost parameters for the cek machine.

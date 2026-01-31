@@ -148,11 +148,12 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             .map_err(|_| parse_err())?;
         Budget { memory, execution }
     };
+    let mut context = Context {
+        model: COST_MODEL,
+        budget,
+    };
     let output = match (
-        program_debruijn.evaluate(Context {
-            model: COST_MODEL,
-            budget,
-        }),
+        program_debruijn.evaluate(&mut context),
         expected_output.as_str(),
     ) {
         (Some(_), "evaluation failure") => {
@@ -174,6 +175,11 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
     if expected_program != output.into_de_bruijn().unwrap() {
         return Err(RunError::fail(
             "Output program does not match expected program",
+        ));
+    }
+    if context.budget.execution != 0 || context.budget.memory != 0 {
+        return Err(RunError::fail(
+            "Budget not fully consumed after evaluation",
         ));
     }
 

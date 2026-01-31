@@ -10,12 +10,12 @@ test = []
 [dependencies]
 # Codec
 const-hex = { workspace = true }
-tinycbor = { workspace = true }
 embedded-io = "0.7"
+tinycbor = { workspace = true }
 
 # Data types
-rug = { workspace = true }
 ledger = { path = "../ledger" }
+rug = { workspace = true }
 
 # Hashing
 blake2 = { workspace = true }
@@ -26,20 +26,25 @@ sha3 = { workspace = true, features = ["alloc"] }
 
 # Public Key Cryptography
 bwst = { git = "https://github.com/carloskiki/bwst.git", tag = "v0.1.6", features = [
-  "alloc",
+    "alloc",
 ] }
 ed25519-dalek = { workspace = true, features = ["alloc"] }
 
 # Utilities
-zerocopy = "0.8"
 log = "0.4"
 macro_rules_attribute = { workspace = true }
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = { workspace = true }
+zerocopy = "0.8"
 
 [dev-dependencies]
+criterion = { version = "0.8" }
 libtest2-mimic = "0.0.4"
 
 [[test]]
 harness = false
 name = "conformance"
+
+[[bench]]
+harness = false
+name = "validation"

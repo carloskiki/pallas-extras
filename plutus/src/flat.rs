@@ -607,12 +607,21 @@ impl Decode<'_> for Program<DeBruijn> {
         let minor = u64::decode(reader)?;
         let patch = u64::decode(reader)?;
 
+        /// Frame for tracking `case` and `construct` instructions.
         struct Frame {
+            /// The index of the `case` or `construct` instruction in the program.
             index: u32,
+            /// The number of elements it contains so far. (branches for `case`, fields for
+            /// `construct`).
             length: u16,
         }
 
-        // (remaining, frame, bound_var)
+        // Ok(<frame>): element is part of a list of terms of unknown length. Used by `case` and
+        // `construct`.
+        //
+        // Err((remaining, variable_bound?)):
+        //  - `remaining`: number of terms remaining to be read in the current level.
+        //  - `variable_bound`: whether a variable was bound in this level.
         let mut stack: Vec<Result<Frame, (u16, bool)>> = vec![Err((1, false))];
         let mut instructions = Vec::new();
         let mut constants = Vec::new();
@@ -640,7 +649,10 @@ impl Decode<'_> for Program<DeBruijn> {
                 }
                 3 => {
                     instructions.push(Instruction::Application);
-                    increment(&mut stack, 1);
+                    match stack.last_mut().expect("stack is not empty") {
+                        Err((x, _)) => *x += 1,
+                        Ok(_) => stack.push(Err((2, false))),
+                    }
                 }
                 4 => {
                     let constant = Constant::decode(reader)?;
@@ -751,12 +763,6 @@ impl Decode<'_> for Program<DeBruijn> {
                 }
             }
             Some(())
-        }
-        fn increment(stack: &mut Vec<Result<Frame, (u16, bool)>>, count: u16) {
-            match stack.last_mut().expect("stack is not empty") {
-                Err((x, _)) => *x += count,
-                Ok(_) => stack.push(Err((1, false))),
-            }
         }
     }
 }

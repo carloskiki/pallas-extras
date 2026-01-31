@@ -1125,6 +1125,7 @@ dependencies = [
  "blake2",
  "bwst",
  "const-hex",
+ "criterion",
  "ed25519-dalek",
  "embedded-io",
  "k256",

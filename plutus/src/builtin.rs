@@ -466,6 +466,7 @@ pub fn choose_unit(_: (), then: machine::Value) -> machine::Value {
 
 pub fn trace(message: String, value: machine::Value) -> machine::Value {
     log::info!("{message}");
+    println!("{message}");
     value
 }
 
