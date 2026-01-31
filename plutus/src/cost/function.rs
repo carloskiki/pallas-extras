@@ -104,10 +104,7 @@ where
             return self.affine.cost(inputs);
         }
 
-        // TODO: Check if this is the correct implementation.
-        use rug::az::SaturatingCast;
-        let value: i64 = int.saturating_cast();
-        value.unsigned_abs().div_ceil(8) as i64
+        FirstIntegerAsBytes.cost(int)
     }
 }
 

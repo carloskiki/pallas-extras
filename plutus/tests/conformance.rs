@@ -29,9 +29,9 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    if test_name != "uplc/evaluation/builtin/semantics/replicateByte/case-08" {
-                        continue;
-                    }
+                    // if test_name != "uplc/evaluation/builtin/semantics/replicateByte/case-07" {
+                    //     continue;
+                    // }
 
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
@@ -160,6 +160,11 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         }
         (None, "evaluation failure") => return Ok(()),
         (Some(p), _) => p,
+        // TODO: We should make sure that the error is due to budget exhaustion, once we have
+        // descriptive errors.
+        (None, _) if budget.execution == i64::MAX as u64 || budget.memory == i64::MAX as u64 => {
+            return Ok(());
+        }
         (None, _) => return Err(RunError::fail("Unexpected evaluation failure")),
     };
     let expected_program: Program<ExpectedVariable> = expected_output

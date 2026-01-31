@@ -438,22 +438,21 @@ impl Builtin {
             ComplementByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::complement,
             ReadBit<cf::Constant, cf::Constant> => bytestring::read_bit,
             WriteBits<cf::Affine<cf::Second>, cf::Affine<cf::First>> => bytestring::write_bits,
-            ReplicateByte<cf::Affine<cf::FirstValue>, cf::Affine<cf::FirstValue>> => bytestring::replicate_byte,
+            ReplicateByte<cf::Affine<cf::FirstIntegerAsBytes>, cf::Affine<cf::FirstIntegerAsBytes>> => bytestring::replicate_byte,
             ShiftByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::shift,
             RotateByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::rotate,
             CountSetBits<cf::Affine<cf::First>, cf::Constant> => bytestring::count_set_bits,
             FindFirstSetBit<cf::Affine<cf::First>, cf::Constant> => bytestring::first_set_bit,
             Ripemd160<cf::Affine<cf::First>, cf::Constant> => digest::ripemd160,
-            
+
             ExpModInteger<cf::ExpModIntegerExecution, cf::Affine<cf::Third>> => integer::exp_mod,
-            DropList<cf::Affine<cf::FirstValue>, cf::Constant> => list::drop,
+            DropList<cf::Affine<cf::FirstInteger>, cf::Constant> => list::drop,
             LengthOfArray<cf::Constant, cf::Constant> => array::length,
             ListToArray<cf::Affine<cf::First>, cf::Affine<cf::First>> => list::to_array,
             IndexArray<cf::Constant, cf::Constant> => array::index,
             BlsG1MultiScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g1_multi_scalar_mul,
             BlsG2MultiScalarMul<cf::Affine<cf::First>, cf::Constant> => bls12_381::g2_multi_scalar_mul,
         }
-        
     }
 }
 
@@ -635,7 +634,7 @@ use builtins;
 // #[test]
 // fn bisect_list() {
 //     let builtin = Builtin::ByteStringToInteger;
-// 
+//
 //     builtin.apply(
 //         vec![],
 //         &mut vec![],
