@@ -213,21 +213,19 @@ pub enum Frame {
 pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<Program<DeBruijn>> {
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
-    
+
     let mut stack = Vec::new();
     let mut environment: Vec<Value> = Vec::new();
     let mut index = 0;
 
     loop {
-        dbg!(stack.len(), environment.len(), index, program.constants.len());
-        
         let mut ret = match program.program[index] {
             Instruction::Variable(var) => {
                 context.apply_no_args(&base_costs.variable)?;
                 environment
-                .get(var.0 as usize)
-                .expect("variable exists")
-                .clone()
+                    .get(var.0 as usize)
+                    .expect("variable exists")
+                    .clone()
             }
             Instruction::Delay => {
                 context.apply_no_args(&base_costs.delay)?;
