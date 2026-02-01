@@ -17,7 +17,7 @@ pub fn bench(c: &mut Criterion) {
                     .unwrap();
 
             let mut group = c.benchmark_group(bench_name);
-            group.bench_with_input("parse", &flat, |b, input| {
+            group.bench_with_input("decode", &flat, |b, input| {
                 b.iter(|| {
                     Program::from_flat(input).unwrap();
                 });

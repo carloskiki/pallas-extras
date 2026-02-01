@@ -4,7 +4,7 @@ use libtest2_mimic::{Harness, RunContext, RunError, Trial};
 use plutus::{Budget, Context, DeBruijn, Program};
 
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
-include!("conformance/cost-model.rs");
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
 fn main() {
     let mut directories = vec![PathBuf::from(BASE_DIR)];
@@ -53,6 +53,8 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "unionValue"
             || c.as_os_str() == "constant-case"
             || c.as_os_str() == "scaleValue"
+            || c.as_os_str() == "valueData"
+            || c.as_os_str() == "unValueData"
     }) {
         return ctx.ignore_for("Requires value built-in type support");
     }

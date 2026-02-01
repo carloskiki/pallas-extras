@@ -2,10 +2,7 @@ use std::str::FromStr;
 
 use plutus::{Budget, DeBruijn, Program};
 
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/tests/conformance/cost-model.rs"
-));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
 /// Parse an expected result file with the following format:
 ///
