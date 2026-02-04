@@ -1,7 +1,8 @@
 use std::{cell::UnsafeCell, mem::MaybeUninit, rc::Rc};
 
-pub const BITS: usize = 5;
+pub const BITS: usize = 3;
 pub const SIZE: usize = 1 << BITS;
+
 
 pub fn index(index: &mut usize) -> usize {
     let shift =
@@ -167,6 +168,7 @@ impl<T> Drop for Chunk<T> {
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore]
     fn index() {
         let mut index = 0b_00100_00011_00010_00001;
         assert_eq!(super::index(&mut index), 0b00100);

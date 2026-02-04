@@ -211,8 +211,7 @@ pub enum Frame {
 
 // Some ideas to make this faster:
 // - Use Rc<[Value]> instead of Vec<Value> in value.
-// - Find a way to not store `next` and not `skip_terms` so much. (store the `next` in the
-// instruction)
+// - Find a way to not store `next` and not `skip_terms` so much. (Find a fix for case as well.)
 // - Don't clone constants all the time, only clone if they come from the environment. Borrow in
 // builtins?
 

@@ -51,18 +51,19 @@ pub struct Vector<T> {
 
 impl<T> Vector<T> {
     pub fn get(&self, index: usize) -> Option<&T> {
+        const MASK: usize = (1 << bucket::BITS) - 1;
+        
         let tree_size = self.size * bucket::SIZE;
         if index >= tree_size + self.tail.len() {
             return None;
         } else if index >= tree_size {
             // Safety: The tail contains the element.
-            return Some(unsafe { self.tail.get(index & 31) });
+            return Some(unsafe { self.tail.get(index & MASK) });
         }
 
-        const MASK: usize = (1 << bucket::BITS) - 1;
         let mut node = &self.root;
         let mut shift =
-            (usize::BITS - (self.size - 1).leading_zeros()) as usize / bucket::BITS * bucket::BITS;
+            (usize::BITS - (tree_size - 1).leading_zeros()) as usize / bucket::BITS * bucket::BITS;
         loop {
             match node {
                 Node::Branch(chunk) => {
