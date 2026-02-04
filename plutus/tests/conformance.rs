@@ -29,7 +29,7 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    // if test_name != "uplc/evaluation/builtin/semantics/replicateByte/case-07" {
+                    // if test_name != "uplc/evaluation/term/constant-case/unit/unit-01" {
                     //     continue;
                     // }
 
@@ -56,7 +56,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "valueData"
             || c.as_os_str() == "unValueData"
     }) {
-        return ctx.ignore_for("Requires value built-in type support");
+        ctx.ignore_for("Requires value built-in type or constant-case support")?;
     }
 
     let program = std::fs::read_to_string(program_path).unwrap();
