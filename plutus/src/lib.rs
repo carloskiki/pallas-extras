@@ -220,11 +220,19 @@ impl<T: FromStr> FromStr for Program<T> {
 
         let mut constants = Vec::new();
         let mut program = Vec::new();
-        let mut stack = Vec::new();
-        stack.push(term);
+        let mut stack: Vec<(&str, Option<u32>)> = Vec::new();
+        stack.push((term, None));
 
-        while let Some(&s) = stack.last() {
+        while let Some(&(s, write_back)) = stack.last() {
             if s.is_empty() {
+                if let Some(index) = write_back {
+                    let next = program.len() as u32;
+                    let Some(Instruction::Application(i)) = program.get_mut(index as usize) else {
+                        unreachable!("index points to an application instruction");
+                    };
+                    *i = TermIndex(next);
+                }
+                
                 stack.pop();
                 continue;
             }
@@ -234,12 +242,12 @@ impl<T: FromStr> FromStr for Program<T> {
                 b'(' => {
                     let (group, rest) = lex::stripped_group::<b'(', b')'>(&s[1..])
                         .ok_or(ParseError::UnmatchedDelimiter)?;
-                    *top = rest;
+                    top.0 = rest;
                     let (keyword, rest) = lex::word(group);
                     match keyword {
                         "delay" => {
                             program.push(Instruction::Delay);
-                            stack.push(rest);
+                            stack.push((rest, None));
                         }
                         "lam" => {
                             let (var, rest) = lex::word(rest);
@@ -247,7 +255,7 @@ impl<T: FromStr> FromStr for Program<T> {
                             program.push(Instruction::Lambda(
                                 var.parse().map_err(ParseError::Variable)?,
                             ));
-                            stack.push(rest.trim_start());
+                            stack.push((rest.trim_start(), None));
                         }
                         "con" => {
                             constants.push(Constant::from_str(rest)?);
@@ -256,11 +264,11 @@ impl<T: FromStr> FromStr for Program<T> {
                         }
                         "force" => {
                             program.push(Instruction::Force);
-                            stack.push(rest);
+                            stack.push((rest, None));
                         }
                         "error" => {
                             program.push(Instruction::Error);
-                            stack.push(rest);
+                            stack.push((rest, None));
                         }
                         "builtin" => {
                             let builtin =
@@ -287,7 +295,7 @@ impl<T: FromStr> FromStr for Program<T> {
                                 let (prefix, arg) =
                                     lex::right_term(rest).ok_or(ParseError::UnmatchedDelimiter)?;
                                 rest = prefix;
-                                stack.push(arg);
+                                stack.push((arg, None));
                                 count += 1;
                             }
                             program.push(Instruction::Construct {
@@ -303,7 +311,7 @@ impl<T: FromStr> FromStr for Program<T> {
                                 let (prefix, arg) =
                                     lex::right_term(rest).ok_or(ParseError::UnmatchedDelimiter)?;
                                 rest = prefix;
-                                stack.push(arg);
+                                stack.push((arg, None));
                                 count += 1;
                             }
                             program.push(Instruction::Case {
@@ -318,30 +326,29 @@ impl<T: FromStr> FromStr for Program<T> {
                 b'[' => {
                     let (application, rest) = lex::stripped_group::<b'[', b']'>(&s[1..])
                         .ok_or(ParseError::UnmatchedDelimiter)?;
-                    *top = rest;
-                    let mut count = 0usize;
+                    top.0 = rest;
                     let mut rest = application;
+                    
+                    let args_start = stack.len() + 1;
                     while !rest.is_empty() {
                         let (prefix, arg) =
                             lex::right_term(rest).ok_or(ParseError::UnmatchedDelimiter)?;
                         rest = prefix;
-                        stack.push(arg);
-                        count += 1;
+                        stack.push((arg, None));
                     }
 
-                    count = count.saturating_sub(1);
-                    if count == 0 {
+                    if args_start >= stack.len() {
                         return Err(ParseError::Application);
                     }
 
-                    for _ in 0..count {
-                        // program.push(Instruction::Application);
-                        todo!()
+                    for frame in stack[args_start..].iter_mut() {
+                        frame.1 = Some(program.len() as u32);
+                        program.push(Instruction::Application(TermIndex(0)));
                     }
                 }
                 _ => {
                     let (var, rest) = lex::word(s);
-                    *top = rest;
+                    top.0 = rest;
                     program.push(Instruction::Variable(
                         var.parse().map_err(ParseError::Variable)?,
                     ));
@@ -518,7 +525,7 @@ where
                     self.constants[a.0 as usize] == other.constants[b.0 as usize]
                 }
                 (Instruction::Delay, Instruction::Delay) => true,
-                (Instruction::Application(a), Instruction::Application(b)) => a == b,
+                (Instruction::Application(_), Instruction::Application(_)) => true,
                 (Instruction::Force, Instruction::Force) => true,
                 (Instruction::Error, Instruction::Error) => true,
                 (

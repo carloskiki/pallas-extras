@@ -153,6 +153,12 @@ impl<T> Default for Vector<T> {
 mod test {
     use super::*;
 
+    impl<T> Vector<T> {
+        fn len(&self) -> usize {
+            self.size * bucket::SIZE + self.tail.len()
+        }
+    }
+
     #[test]
     fn len() {
         let mut vector: Vector<i32> = Vector::default();

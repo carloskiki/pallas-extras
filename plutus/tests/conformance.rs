@@ -29,7 +29,7 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    // if test_name != "uplc/evaluation/term/constant-case/unit/unit-01" {
+                    // if test_name != "uplc/evaluation/term/app/app-9" {
                     //     continue;
                     // }
 
