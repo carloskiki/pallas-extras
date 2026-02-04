@@ -8,6 +8,8 @@ use crate::{
     constant::Constant,
 };
 
+pub mod bvt;
+
 /// Represents a processed value in the CEK machine.
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
