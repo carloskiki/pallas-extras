@@ -7,6 +7,7 @@ use crate::{
     ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
     constant::Constant,
 };
+use bvt::Vector;
 
 pub mod bvt;
 
@@ -16,11 +17,11 @@ pub(crate) enum Value {
     Constant(ConstantIndex),
     Delay {
         term: TermIndex,
-        environment: Vec<Value>,
+        environment: Vector<Value>,
     },
     Lambda {
         term: TermIndex,
-        environment: Vec<Value>,
+        environment: Vector<Value>,
     },
     Construct {
         discriminant: u32,
@@ -50,7 +51,7 @@ impl Value {
                 term: TermIndex,
                 // This is a number of terms, so u16 is sufficient.
                 remaining: u16,
-                environment: Vec<Value>,
+                environment: Vector<Value>,
             },
             Construct {
                 discriminant: u32,
@@ -187,26 +188,24 @@ pub enum Frame {
     ApplyLeftValue(Value),
     ApplyRightValue(Value),
     ApplyLeftTerm {
-        environment: Vec<Value>,
+        environment: Vector<Value>,
         next: TermIndex,
     },
     Construct {
         remaining: u16,
         discriminant: u32,
         large_discriminant: bool,
-        environment_len: u16,
-        environment_and_values: Vec<Value>,
+        environment: Vector<Value>,
+        values: Vec<Value>, // TODO
     },
     Case {
         count: u16,
         next: TermIndex,
-        environment: Vec<Value>,
+        environment: Vector<Value>,
     },
 }
 
 // Some ideas to make this faster:
-// - Find a way to avoid cloning the environment so much. We can probably use prefixes for this,
-// and only clone some of the time if we need to pop off the env.
 // - Find a way to not store `next` and not `skip_terms` so much.
 // - Don't clone constants all the time, only clone if they come from the environment.
 // - Make builtins borrow by default.
@@ -217,7 +216,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
     context.apply_no_args(&base_costs.startup)?;
 
     let mut stack = Vec::new();
-    let mut environment: Vec<Value> = Vec::new();
+    let mut environment: Vector<Value> = Vector::default();
     let mut index = 0;
 
     loop {
@@ -282,8 +281,8 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 if length != 0 {
                     stack.push(Frame::Construct {
                         remaining: length - 1,
-                        environment_len: environment.len() as u16,
-                        environment_and_values: environment.clone(),
+                        environment: environment.clone(),
+                        values: Vec::new(),
                         discriminant,
                         large_discriminant,
                     });
@@ -388,30 +387,27 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                         discriminant,
                         large_discriminant,
                         mut remaining,
-                        environment_len,
-                        mut environment_and_values,
+                        environment,
+                        mut values,
                     }),
                     value,
                 ) => {
-                    environment_and_values.push(value);
+                    values.push(value);
                     if remaining == 0 {
                         ret = Value::Construct {
                             discriminant,
                             large_discriminant,
-                            values: environment_and_values
-                                .drain(environment_len as usize..)
-                                .collect(),
+                            values,
                         };
                         continue;
                     }
                     remaining -= 1;
-                    let environment = environment_and_values[..environment_len as usize].to_vec();
                     stack.push(Frame::Construct {
                         discriminant,
                         large_discriminant,
                         remaining,
-                        environment_len,
-                        environment_and_values,
+                        environment: environment.clone(),
+                        values,
                     });
                     index = skip_terms(&program.program, index, 1);
                     environment
