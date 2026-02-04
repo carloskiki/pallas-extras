@@ -335,7 +335,8 @@ impl<T: FromStr> FromStr for Program<T> {
                     }
 
                     for _ in 0..count {
-                        program.push(Instruction::Application);
+                        // program.push(Instruction::Application);
+                        todo!()
                     }
                 }
                 _ => {
@@ -457,9 +458,9 @@ impl<T: PartialEq> Program<T> {
 
                         Instruction::Lambda(DeBruijn(index as u32))
                     }
-                    Instruction::Application => {
+                    Instruction::Application(i) => {
                         increment_stack(&mut stack, 1);
-                        Instruction::Application
+                        Instruction::Application(i)
                     }
 
                     Instruction::Case { count: len } => {
@@ -517,7 +518,7 @@ where
                     self.constants[a.0 as usize] == other.constants[b.0 as usize]
                 }
                 (Instruction::Delay, Instruction::Delay) => true,
-                (Instruction::Application, Instruction::Application) => true,
+                (Instruction::Application(a), Instruction::Application(b)) => a == b,
                 (Instruction::Force, Instruction::Force) => true,
                 (Instruction::Error, Instruction::Error) => true,
                 (
@@ -606,7 +607,8 @@ enum Instruction<T> {
     Variable(T),
     Delay,
     Lambda(T),
-    Application,
+    /// The index of the second term in the application.
+    Application(TermIndex),
     /// Index into the constants pool.
     Constant(ConstantIndex),
     Force,

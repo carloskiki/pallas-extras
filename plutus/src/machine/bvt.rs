@@ -81,10 +81,6 @@ impl<T> Vector<T> {
             }
         }
     }
-
-    pub fn len(&self) -> usize {
-        self.size * bucket::SIZE + self.tail.len()
-    }
 }
 
 impl<T: Clone> Vector<T> {

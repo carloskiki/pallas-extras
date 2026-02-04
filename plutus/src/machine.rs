@@ -132,7 +132,7 @@ impl Value {
                             | Instruction::Construct { length: 0, .. } => {
                                 remaining -= 1;
                             }
-                            Instruction::Application => {
+                            Instruction::Application(_) => {
                                 remaining += 1;
                             }
                             Instruction::Construct { length, .. } => {
@@ -163,7 +163,10 @@ impl Value {
                     args,
                     force_count,
                 } => {
-                    instructions.extend(std::iter::repeat_n(Instruction::Application, args.len()));
+                    // TODO: Currently an evaluated program cannot be re-evaluated (even though
+                    // re-evaluation would do nothing), becuase discharging the value of a builtin
+                    // does not properly set the term index of the builtin's applications.
+                    instructions.extend(std::iter::repeat_n(Instruction::Application(TermIndex(0)), args.len()));
                     instructions.extend(std::iter::repeat_n(
                         Instruction::Force,
                         force_count as usize,
@@ -207,9 +210,11 @@ pub enum Frame {
 }
 
 // Some ideas to make this faster:
-// - Find a way to not store `next` and not `skip_terms` so much.
-// - Don't clone constants all the time, only clone if they come from the environment.
-// - Make builtins borrow by default.
+// - Use Rc<[Value]> instead of Vec<Value> in value.
+// - Find a way to not store `next` and not `skip_terms` so much. (store the `next` in the
+// instruction)
+// - Don't clone constants all the time, only clone if they come from the environment. Borrow in
+// builtins?
 
 /// Run the given program according to the CEK machine.
 pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<Program<DeBruijn>> {
@@ -243,12 +248,12 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                     environment,
                 }
             }
-            Instruction::Application => {
+            Instruction::Application(next) => {
                 context.apply_no_args(&base_costs.application)?;
                 index += 1;
                 stack.push(Frame::ApplyLeftTerm {
                     environment: environment.clone(),
-                    next: TermIndex(skip_terms(&program.program, index, 1) as u32),
+                    next,
                 });
                 continue;
             }
@@ -461,7 +466,7 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u64) -> usiz
             | Instruction::Builtin(_) => {
                 remaining -= 1;
             }
-            Instruction::Application => {
+            Instruction::Application(_) => {
                 remaining += 1;
             }
             Instruction::Construct { length: 0, .. } => {
@@ -489,7 +494,7 @@ mod tests {
             Instruction::Constant(ConstantIndex(0)),
             Instruction::Delay,
             Instruction::Constant(ConstantIndex(1)),
-            Instruction::Application,
+            Instruction::Application(TermIndex(4)),
             Instruction::Lambda(0),
             Instruction::Constant(ConstantIndex(2)),
         ]

@@ -11,10 +11,7 @@ use rug::Integer;
 use tinycbor::CborLen;
 
 use crate::{
-    ConstantIndex, DeBruijn, Instruction, Program, Version,
-    builtin::Builtin,
-    constant::{self, Array, Constant, List},
-    Data,
+    ConstantIndex, Data, DeBruijn, Instruction, Program, TermIndex, Version, builtin::Builtin, constant::{self, Array, Constant, List}
 };
 
 /// Trait for encoding an object into a Buffer.
@@ -240,7 +237,7 @@ impl Encode for Program<DeBruijn> {
                     list_stack.push(Err((1, true)));
                     var_count += 1;
                 }
-                Instruction::Application => {
+                Instruction::Application(_) => {
                     buffer.write_bits::<4>(0b11);
                     match list_stack.last_mut().expect("stack is not empty") {
                         Err((x, _)) => *x += 1,
@@ -607,22 +604,37 @@ impl Decode<'_> for Program<DeBruijn> {
         let minor = u64::decode(reader)?;
         let patch = u64::decode(reader)?;
 
-        /// Frame for tracking `case` and `construct` instructions.
-        struct Frame {
-            /// The index of the `case` or `construct` instruction in the program.
-            index: u32,
-            /// The number of elements it contains so far. (branches for `case`, fields for
-            /// `construct`).
-            length: u16,
+        enum Frame {
+            /// Frame for tracking `case` and `construct` instructions which have a size.
+            Sized {
+                /// The index of the `case` or `construct` instruction in the program.
+                index: u32,
+                /// The number of elements it contains so far. (branches for `case`, fields for
+                /// `construct`).
+                length: u16,
+            },
+            /// Frame for tracking an application instruction.
+            Application {
+                /// The index of the `application` instruction in the program.
+                /// 
+                /// Used to write back where the second argument starts.
+                index: u32,
+            },
+            /// Frame for tracking a lambda. After the lambda is read, we need to pop a variable
+            /// off the stack.
+            Variable,
+            /// Frame for tracking other instructions which do not need special handling.
+            Other,
+            
         }
-
+        
         // Ok(<frame>): element is part of a list of terms of unknown length. Used by `case` and
         // `construct`.
         //
         // Err((remaining, variable_bound?)):
         //  - `remaining`: number of terms remaining to be read in the current level.
         //  - `variable_bound`: whether a variable was bound in this level.
-        let mut stack: Vec<Result<Frame, (u16, bool)>> = vec![Err((1, false))];
+        let mut stack: Vec<Frame> = vec![Frame::Other];
         let mut instructions = Vec::new();
         let mut constants = Vec::new();
         let mut variable_count: u32 = 0;
@@ -641,18 +653,15 @@ impl Decode<'_> for Program<DeBruijn> {
                 }
                 2 => {
                     instructions.push(Instruction::Lambda(DeBruijn(variable_count)));
-                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
-                        *top -= 1;
-                    }
                     variable_count += 1;
-                    stack.push(Err((1, true)));
+                    stack.push(Frame::Variable);
                 }
                 3 => {
-                    instructions.push(Instruction::Application);
-                    match stack.last_mut().expect("stack is not empty") {
-                        Err((x, _)) => *x += 1,
-                        Ok(_) => stack.push(Err((2, false))),
-                    }
+                    let index = instructions.len() as u32;
+                    instructions.push(Instruction::Application(TermIndex(0)));
+                    stack.push(Frame::Application {
+                        index,
+                    });
                 }
                 4 => {
                     let constant = Constant::decode(reader)?;
@@ -692,23 +701,15 @@ impl Decode<'_> for Program<DeBruijn> {
                         });
                     }
 
-                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
-                        *top -= 1;
-                    }
-
-                    stack.push(Ok(Frame { index, length: 0 }));
+                    stack.push(Frame::Sized { index, length: 0 });
                     decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 9 => {
                     let index = instructions.len() as u32;
                     instructions.push(Instruction::Case { count: 0 });
 
-                    if let Err((top, _)) = stack.last_mut().expect("stack is not empty") {
-                        *top -= 1;
-                    }
-
-                    stack.push(Ok(Frame { index, length: 0 }));
-                    stack.push(Err((1, false)));
+                    stack.push(Frame::Sized { index, length: 0 });
+                    stack.push(Frame::Other);
                 }
                 _ => return None,
             }
@@ -729,24 +730,20 @@ impl Decode<'_> for Program<DeBruijn> {
         });
 
         fn decrement(
-            stack: &mut Vec<Result<Frame, (u16, bool)>>,
+            stack: &mut Vec<Frame>,
             reader: &mut Reader<'_>,
             program: &mut [Instruction<DeBruijn>],
             variable_count: &mut u32,
         ) -> Option<()> {
-            if let Err((x, _)) = stack.last_mut().expect("stack is not empty") {
-                *x -= 1;
-            };
-
             while let Some(top) = stack.last_mut() {
                 match top {
-                    Ok(Frame { length, index }) => {
+                    Frame::Sized { index, length } => {
                         let bit = reader.read_bits::<1>()?;
                         if bit == 1 {
                             *length += 1;
                             break;
                         }
-
+                        
                         let (Instruction::Construct { length: count, .. }
                         | Instruction::Case { count }) = &mut program[*index as usize]
                         else {
@@ -754,12 +751,23 @@ impl Decode<'_> for Program<DeBruijn> {
                         };
                         *count = *length;
                         stack.pop();
-                    }
-                    Err((0, bound_var)) => {
-                        *variable_count -= *bound_var as u32;
+                    },
+                    Frame::Application { index } => {
+                        let next = program.len() as u32;
+                        let Instruction::Application(i) = &mut program[*index as usize] else {
+                            panic!("Instruction at index should be Application");
+                        };
+                        i.0 = next;
+                        *top = Frame::Other;
+                        break;
+                    },
+                    Frame::Variable => {
+                        *variable_count -= 1;
                         stack.pop();
-                    }
-                    _ => break,
+                    },
+                    Frame::Other => {
+                        stack.pop();
+                    },
                 }
             }
             Some(())
