@@ -11,7 +11,7 @@
 //!   implementation.
 //! - __Well-documented__: Both the library API _and_ the internal implementation must be
 //!   well-documented, to facilitate understanding and maintenance. This includes documenting
-//!   all items, both public and private, and writing clear code over succinct code.
+//!   all items, both public and private.
 //! - __Simple__: The internal implementation must be as simple as possible.
 //! - __Performant__: The interpreter is architectured with performance in mind, by using
 //!   principles from bytecode interpreters. However, performance is not a primary goal, and
