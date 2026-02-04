@@ -178,6 +178,7 @@ impl Value {
     }
 }
 
+// TODO: Check how performance improves if this fits in 64 bytes.
 /// Represents a frame of the CEK machine's stack.
 ///
 /// Defined in the [specification][spec] figure 2.9.

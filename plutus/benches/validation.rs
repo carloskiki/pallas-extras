@@ -22,19 +22,19 @@ pub fn bench(c: &mut Criterion) {
                     Program::from_flat(input).unwrap();
                 });
             });
-            // group.bench_with_input("evaluate", &(flat, output, budget), |b, (flat, output, budget)| {
-            //     b.iter(|| {
-            //         let program = Program::from_flat(flat).unwrap();
-            //         let mut context = Context {
-            //             model: shared::COST_MODEL,
-            //             budget: *budget,
-            //         };
-            //         let result = program.evaluate(&mut context).unwrap();
-            //         assert_eq!(&result, output);
-            //         assert_eq!(context.budget.execution, 0);
-            //         assert_eq!(context.budget.memory, 0);
-            //     });
-            // });
+            group.bench_with_input("evaluate", &(flat, output, budget), |b, (flat, output, budget)| {
+                b.iter(|| {
+                    let program = Program::from_flat(flat).unwrap();
+                    let mut context = Context {
+                        model: shared::COST_MODEL,
+                        budget: *budget,
+                    };
+                    let result = program.evaluate(&mut context).unwrap();
+                    assert_eq!(&result, output);
+                    assert_eq!(context.budget.execution, 0);
+                    assert_eq!(context.budget.memory, 0);
+                });
+            });
         }
     }
 }
