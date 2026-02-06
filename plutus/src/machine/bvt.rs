@@ -1,6 +1,6 @@
 //! A bitmapped vector tree for the machine's environment.
 //!
-//! This vector is implemented with a left leaning tree having bucket size of 32 (5 bits per level).
+//! This vector is implemented with a left leaning tree having bucket size of 8 (3 bits per level).
 
 use std::{hint::unreachable_unchecked, rc::Rc};
 
@@ -52,7 +52,7 @@ pub struct Vector<T> {
 impl<T> Vector<T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         const MASK: usize = (1 << bucket::BITS) - 1;
-        
+
         let tree_size = self.size * bucket::SIZE;
         if index >= tree_size + self.tail.len() {
             return None;
@@ -62,12 +62,13 @@ impl<T> Vector<T> {
         }
 
         let mut node = &self.root;
-        let mut shift =
-            (usize::BITS - (tree_size - 1).leading_zeros()) as usize / bucket::BITS * bucket::BITS;
+        let mut shift = (usize::BITS - (tree_size - 1).leading_zeros()).saturating_sub(1) as usize
+            / bucket::BITS
+            * bucket::BITS;
         loop {
             match node {
                 Node::Branch(chunk) => {
-                    let b = index >> shift;
+                    let b = (index >> shift) & MASK;
                     shift -= bucket::BITS;
                     // Safety: The index is valid since the tree is well formed.
                     node = unsafe { chunk.get(b) };
@@ -95,12 +96,11 @@ impl<T: Clone> Vector<T> {
             loop {
                 let b = bucket::index(&mut index);
                 match node {
-                    // The leaf is full, we need to grow it into a branch.
                     Node::Leaf(bucket) if bucket.len() != bucket::SIZE => {
                         bucket.push(tail);
                     }
                     // The rest of the index being zero means we need to push a new child.
-                    // `b == 1` means we are at a power of 32. The node is full, we need to grow.
+                    // `b == 1` means we are at a power of 8. The node is full, we need to grow.
                     Node::Leaf(_) | Node::Branch(_) if index == 0 && b == 1 => {
                         let chunk = node.grow();
                         let mut bucket = Bucket::default();
@@ -190,9 +190,10 @@ mod test {
         let limit = 32 * 32 * 32 + 1;
         let mut vector = Vector::default();
 
-        for i in 0..limit {
+        for i in 0..(limit - 1) {
             vector.push(i + 1);
         }
+        vector.push(limit);
 
         assert_eq!(vector.get(0), Some(&1));
         assert_eq!(vector.get(2020), Some(&2021));

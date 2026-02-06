@@ -168,13 +168,13 @@ impl<T> Drop for Chunk<T> {
 #[cfg(test)]
 mod tests {
     #[test]
-    #[ignore]
     fn index() {
-        let mut index = 0b_00100_00011_00010_00001;
-        assert_eq!(super::index(&mut index), 0b00100);
-        assert_eq!(super::index(&mut index), 0b00011);
-        assert_eq!(super::index(&mut index), 0b00010);
-        assert_eq!(super::index(&mut index), 0b00001);
+        let mut index = 0b_010_011_100_101_110;
+        assert_eq!(super::index(&mut index), 0b010);
+        assert_eq!(super::index(&mut index), 0b011);
+        assert_eq!(super::index(&mut index), 0b100);
+        assert_eq!(super::index(&mut index), 0b101);
+        assert_eq!(super::index(&mut index), 0b110);
         assert_eq!(index, 0);
     }
 }

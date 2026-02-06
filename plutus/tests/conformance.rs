@@ -51,7 +51,6 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
             || c.as_os_str() == "insertCoin"
             || c.as_os_str() == "valueContains"
             || c.as_os_str() == "unionValue"
-            || c.as_os_str() == "constant-case"
             || c.as_os_str() == "scaleValue"
             || c.as_os_str() == "valueData"
             || c.as_os_str() == "unValueData"

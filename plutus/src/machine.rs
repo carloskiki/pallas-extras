@@ -5,7 +5,7 @@
 
 use crate::{
     ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
-    constant::Constant,
+    constant::{Constant, List},
 };
 use bvt::Vector;
 
@@ -166,7 +166,10 @@ impl Value {
                     // TODO: Currently an evaluated program cannot be re-evaluated (even though
                     // re-evaluation would do nothing), becuase discharging the value of a builtin
                     // does not properly set the term index of the builtin's applications.
-                    instructions.extend(std::iter::repeat_n(Instruction::Application(TermIndex(0)), args.len()));
+                    instructions.extend(std::iter::repeat_n(
+                        Instruction::Application(TermIndex(0)),
+                        args.len(),
+                    ));
                     instructions.extend(std::iter::repeat_n(
                         Instruction::Force,
                         force_count as usize,
@@ -456,6 +459,90 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 }
                 (None, value) => {
                     return Some(value.discharge(program));
+                }
+                (
+                    Some(Frame::Case {
+                        count,
+                        next,
+                        environment,
+                    }),
+                    Value::Constant(constant_index),
+                ) => {
+                    index = match &program.constants[constant_index.0 as usize] {
+                        Constant::Integer(integer) => {
+                            let discriminant = integer.to_u16()?;
+                            if discriminant >= count {
+                                return None;
+                            }
+                            skip_terms(&program.program, next.0 as usize, discriminant as u64)
+                        }
+                        Constant::Unit => {
+                            if count != 1 {
+                                return None;
+                            }
+                            next.0 as usize
+                        }
+                        Constant::Boolean(bool) => {
+                            let discriminant = if *bool { 1 } else { 0 };
+                            if !(1..=2).contains(&count) || discriminant >= count {
+                                return None;
+                            }
+                            skip_terms(&program.program, next.0 as usize, discriminant as u64)
+                        }
+                        Constant::List(list) => {
+                            let discriminant = match &list.elements {
+                                Ok(l) => {
+                                    let mut list = l.clone();
+                                    let head = list.pop().expect("list is not empty");
+                                    let tail = if list.is_empty() {
+                                        List {
+                                            elements: Err(head.type_of()),
+                                        }
+                                    } else {
+                                        List {
+                                            elements: Ok(list),
+                                        }
+                                    };
+                                    let tail_index = program.constants.len() as u32;
+                                    program.constants.push(Constant::List(tail));
+                                    program.constants.push(head);
+                                    stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
+                                        tail_index,
+                                    ))));
+                                    stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
+                                        tail_index + 1,
+                                    ))));
+                                    0
+                                },
+                                Err(_) => {
+                                    1
+                                },
+                            };
+                            if !(1..=2).contains(&count) || discriminant >= count {
+                                return None;
+                            }
+                            skip_terms(&program.program, next.0 as usize, discriminant as u64)
+                        }
+                        Constant::Pair(p) => {
+                            if count != 1 {
+                                return None;
+                            }
+                            let p0_index = program.constants.len() as u32;
+                            let p0 = p.0.clone();
+                            let p1 = p.1.clone();
+                            program.constants.push(p0);
+                            program.constants.push(p1);
+                            stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
+                                p0_index + 1,
+                            ))));
+                            stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
+                                p0_index,
+                            ))));
+                            next.0 as usize
+                        }
+                        _ => return None,
+                    };
+                    environment
                 }
                 _ => return None,
             };
