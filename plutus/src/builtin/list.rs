@@ -79,7 +79,7 @@ pub fn drop(count: rug::Integer, list: List) -> List {
             };
         }
     };
-    return list;
+    list
 }
 
 pub fn to_array(list: List) -> Array {
