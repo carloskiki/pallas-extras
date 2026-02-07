@@ -58,7 +58,7 @@ impl<T> Vector<T> {
             return None;
         } else if index >= tree_size {
             // Safety: The tail contains the element.
-            return Some(unsafe { self.tail.get(index & MASK) });
+            return Some(unsafe { self.tail.get(index - tree_size) });
         }
 
         let mut node = &self.root;

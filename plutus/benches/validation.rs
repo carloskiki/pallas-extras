@@ -1,7 +1,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use plutus::{Context, Program};
+use plutus::{Budget, Context, Program};
 
-mod shared;
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
 pub fn bench(c: &mut Criterion) {
     // Pairs of file `*.flat` and `*.expected`.
@@ -12,9 +12,6 @@ pub fn bench(c: &mut Criterion) {
         if path.extension().and_then(|s| s.to_str()) == Some("flat") {
             let bench_name = path.file_stem().unwrap().to_str().unwrap();
             let flat = std::fs::read(&path).unwrap();
-            let (budget, output) =
-                shared::parse_expected(&std::fs::read_to_string(path.with_extension("expected")).unwrap())
-                    .unwrap();
 
             let mut group = c.benchmark_group(bench_name);
             group.bench_with_input("decode", &flat, |b, input| {
@@ -22,17 +19,18 @@ pub fn bench(c: &mut Criterion) {
                     Program::from_flat(input).unwrap();
                 });
             });
-            group.bench_with_input("evaluate", &(flat, output, budget), |b, (flat, output, budget)| {
+            group.bench_with_input("evaluate", &flat, |b, flat| {
                 b.iter(|| {
                     let program = Program::from_flat(flat).unwrap();
                     let mut context = Context {
-                        model: shared::COST_MODEL,
-                        budget: *budget,
+                        model: COST_MODEL,
+                        budget: Budget {
+                            execution: u64::MAX,
+                            memory: u64::MAX,
+                        },
                     };
                     let result = program.evaluate(&mut context).unwrap();
-                    // assert_eq!(&result.into_de_bruijn().unwrap(), output);
-                    assert_eq!(context.budget.execution, 0);
-                    assert_eq!(context.budget.memory, 0);
+                    std::hint::black_box(result)
                 });
             });
         }

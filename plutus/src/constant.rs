@@ -747,7 +747,6 @@ impl<T1: TryFrom<Constant>, T2: TryFrom<Constant>> TryFrom<Constant> for (T1, T2
     type Error = ();
 
     fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        dbg!(&value);
         if let Constant::Pair(boxed) = value {
             let first = T1::try_from(boxed.0).map_err(|_| ())?;
             let second = T2::try_from(boxed.1).map_err(|_| ())?;

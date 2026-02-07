@@ -4,7 +4,8 @@
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
 use crate::{
-    ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
+    ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex,
+    builtin::Builtin,
     constant::{Constant, List},
 };
 use bvt::Vector;
@@ -213,10 +214,7 @@ pub enum Frame {
 }
 
 // Some ideas to make this faster:
-// - Use Rc<[Value]> instead of Vec<Value> in value.
-// - Find a way to not store `next` and not `skip_terms` so much. (Find a fix for case as well.)
-// - Don't clone constants all the time, only clone if they come from the environment. Borrow in
-// builtins?
+// - Find a way to not store `next` and not `skip_terms` so much. (Find a fix for case).
 //
 // Most important:
 // - Reduce clone in builtins, specifically with `Data`.
@@ -237,10 +235,23 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
     let mut environment: Vector<Value> = Vector::default();
     let mut index = 0;
 
+    let mut counter = 0;
     loop {
+        counter += 1;
+        if counter > 350 {
+            dbg!(counter);
+            dbg!(environment.get(11));
+        }
+        
         let mut ret = match program.program[index] {
             Instruction::Variable(var) => {
                 context.apply_no_args(&base_costs.variable)?;
+                if var.0 == 11
+                    && let Value::Constant(c) = environment.get(var.0 as usize).unwrap()
+                {
+                    dbg!(c, program.constants.get(c.0 as usize));
+                };
+
                 environment
                     .get(var.0 as usize)
                     .expect("variable exists")
@@ -499,24 +510,20 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                                             elements: Err(head.type_of()),
                                         }
                                     } else {
-                                        List {
-                                            elements: Ok(list),
-                                        }
+                                        List { elements: Ok(list) }
                                     };
                                     let tail_index = program.constants.len() as u32;
                                     program.constants.push(Constant::List(tail));
                                     program.constants.push(head);
-                                    stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
-                                        tail_index,
-                                    ))));
-                                    stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
-                                        tail_index + 1,
-                                    ))));
+                                    stack.push(Frame::ApplyLeftValue(Value::Constant(
+                                        ConstantIndex(tail_index),
+                                    )));
+                                    stack.push(Frame::ApplyLeftValue(Value::Constant(
+                                        ConstantIndex(tail_index + 1),
+                                    )));
                                     0
-                                },
-                                Err(_) => {
-                                    1
-                                },
+                                }
+                                Err(_) => 1,
                             };
                             if !(1..=2).contains(&count) || discriminant >= count {
                                 return None;

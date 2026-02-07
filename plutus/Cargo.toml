@@ -45,6 +45,10 @@ libtest2-mimic = "0.0.4"
 harness = false
 name = "conformance"
 
+[[test]]
+harness = false
+name = "validation"
+
 [[bench]]
 harness = false
 name = "validation"
