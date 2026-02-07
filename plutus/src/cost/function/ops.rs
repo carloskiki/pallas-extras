@@ -1,3 +1,5 @@
+//! Combinators for cost functions.
+
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use crate::cost::Function;

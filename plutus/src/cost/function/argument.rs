@@ -1,3 +1,5 @@
+//! Cost functions that return the cost of one of their arguments.
+
 use std::num::Saturating;
 
 use crate::{

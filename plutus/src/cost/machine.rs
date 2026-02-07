@@ -1,3 +1,5 @@
+//! cost parameters for the CEK machine.
+
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use crate::cost::function;
@@ -27,4 +29,4 @@ pub struct Datatypes {
     pub case: Cost,
 }
 
-type Cost = super::Pair<function::Constant, function::Constant>;
+type Cost = super::function::Pair<function::Constant, function::Constant>;

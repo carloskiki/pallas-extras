@@ -1,5 +1,6 @@
-//! Evaluation of programs according to the CEK machine defined in the [specification][spec]
-//! section 2.4.
+//! Evaluation of programs by a CEK machine.
+//! 
+//! Defined in the [specification][spec] section 2.4.
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
@@ -191,7 +192,7 @@ impl Value {
 /// Defined in the [specification][spec] figure 2.9.
 ///
 /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-pub enum Frame {
+enum Frame {
     Force,
     ApplyLeftValue(Value),
     ApplyRightValue(Value),

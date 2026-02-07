@@ -1,14 +1,17 @@
+//! Cost accounting.
+//!
+//! This module defines the cost accounting [`Context`], as well as the cost [`Function`]s and
+//! parameters used by the CEK machine and built-in functions.
+
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-/// cost functions used by builtins.
 pub mod function;
-/// cost parameters for the cek machine.
 pub mod machine;
 
-/// Context for cost calculation.
+/// Cost accounting context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Context<'a> {
-    /// The cost model in use.
+    /// The cost model.
     pub model: &'a [i64],
     /// Allowed budget for script execution.
     pub budget: super::Budget,
@@ -40,7 +43,7 @@ impl<'a> Context<'a> {
     /// Returns `Some(())` if the cost could be applied, `None` otherwise.
     pub(crate) fn apply_no_args<E: Function<()>, M: Function<()>>(
         &mut self,
-        cost: &Pair<E, M>,
+        cost: &function::Pair<E, M>,
     ) -> Option<()> {
         let exec_cost = cost.execution.cost(&());
         let mem_cost = cost.memory.cost(&());
@@ -50,15 +53,14 @@ impl<'a> Context<'a> {
     }
 }
 
-/// A pair of execution and memory costs.
-#[derive(FromBytes, Immutable, KnownLayout)]
-#[repr(C)]
-pub struct Pair<E, M> {
-    pub execution: E,
-    pub memory: M,
-}
-
-/// A cost function.
+/// A cost function for a [`builtin`](crate::builtin).
+/// 
+/// A simple example is [`function::Constant`], which ignores its inputs and returns the cost given
+/// by the cost model. Other functions are combinators, such as [`function::ops::Add`], which sums
+/// the cost of its two sub-functions. Concretely, an affine function of the first input (i.e., `a
+/// + b*x`) is simply `Add<Constant, Mul<Constant, First>>`. This is a common pattern, so there is
+/// a type alias [`function::Affine`] for it.
 pub trait Function<I>: FromBytes + Immutable + KnownLayout {
+    /// Compute the cost for the given inputs.
     fn cost(&self, inputs: &I) -> i64;
 }

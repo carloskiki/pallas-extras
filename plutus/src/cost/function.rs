@@ -1,3 +1,5 @@
+//! cost functions used by builtins.
+
 use std::num::Saturating;
 
 use crate::cost::Function;
@@ -16,6 +18,15 @@ pub type Affine2<X, Y> = Add<Affine<X>, Factor<Y>>;
 /// `a * x`
 pub type Factor<X> = Mul<Constant, X>;
 
+/// A pair of execution and memory costs functions.
+#[derive(FromBytes, Immutable, KnownLayout)]
+#[repr(C)]
+pub struct Pair<E, M> {
+    pub execution: E,
+    pub memory: M,
+}
+
+/// Constant cost from the cost model.
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]
 pub struct Constant {
@@ -28,6 +39,7 @@ impl<I> Function<I> for Constant {
     }
 }
 
+/// The cost model for the `DivideInteger`, `QuotientInteger`, etc. family of builtins.
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]
 pub struct Divide {

@@ -1,9 +1,11 @@
+//! [`Bucket`]s and [`Chunk`]s.
+
 use std::{cell::UnsafeCell, mem::MaybeUninit, rc::Rc};
 
 pub const BITS: usize = 3;
 pub const SIZE: usize = 1 << BITS;
 
-
+/// Get the bucket index (`0..SIZE`) for a given index, and update the index accordingly.
 pub fn index(index: &mut usize) -> usize {
     let shift =
         (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / BITS * BITS;
@@ -12,6 +14,10 @@ pub fn index(index: &mut usize) -> usize {
     ret
 }
 
+/// A [`Bucket`] that can hold up to [`SIZE`] elements.
+///
+///
+/// Acts as a clone-on-write container for a chunk of elements.
 #[derive(Debug)]
 pub struct Bucket<T> {
     data: Rc<UnsafeCell<Chunk<T>>>,
@@ -97,7 +103,7 @@ impl<T> Clone for Bucket<T> {
     }
 }
 
-// A bucket that can hold up to `SIZE` elements.
+// An inline vector of up to [`SIZE`] elements.
 #[derive(Debug)]
 pub struct Chunk<T> {
     data: [MaybeUninit<T>; SIZE],

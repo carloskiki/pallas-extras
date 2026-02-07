@@ -14,18 +14,21 @@ use crate::{
     ConstantIndex, Data, DeBruijn, Instruction, Program, TermIndex, Version, builtin::Builtin, constant::{self, Array, Constant, List}
 };
 
-/// Trait for encoding an object into a Buffer.
+/// Trait for encoding into a [`Buffer`].
 ///
 /// This is a failable oepration since not all constants can currently be encoded.
 pub trait Encode {
     fn encode(&self, buffer: &mut Buffer) -> Option<()>;
 }
 
-/// Trait for decoding an object from a Reader.
+/// Trait for decoding an object from a [`Reader`].
 pub trait Decode<'a>: Sized {
     fn decode(reader: &mut Reader<'a>) -> Option<Self>;
 }
 
+/// A [`Buffer`] that is byte aligned.
+///
+/// Obtained by calling `Buffer::with_pad`.
 struct CleanBuffer<'a> {
     buf: &'a mut Buffer,
 }
@@ -50,6 +53,7 @@ impl<'a> CleanBuffer<'a> {
     }
 }
 
+/// A buffer of flat content.
 #[derive(Debug)]
 pub struct Buffer {
     buf: Vec<u8>,
@@ -72,7 +76,7 @@ impl Buffer {
     /// The contents provided are in the lower part of the `contents`. The msb is the
     /// first "element", and the least significant bit is the last.
     ///
-    /// Panics if COUNT > 64.
+    /// Panics at compile time if COUNT > 64.
     fn write_bits<const COUNT: u8>(&mut self, contents: u64) {
         const {
             assert!(
@@ -506,9 +510,10 @@ impl Encode for Integer {
     }
 }
 
+/// Reader of `flat` content.
 pub struct Reader<'a> {
     buf: &'a [u8],
-    // bit position.
+    /// bit position.
     position: usize,
 }
 

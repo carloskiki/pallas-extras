@@ -1,4 +1,4 @@
-//! Builtin functions supported by the evaluator.
+//! Builtin functions supported by the CEK machine.
 //!
 //! Each builtin function is defined in the [specification][spec] section 4.3.
 //!
@@ -26,9 +26,6 @@ mod list;
 mod string;
 
 /// Builtin functions supported by the evaluator.
-///
-/// Expected Invariants:
-/// - Quantifier arguments (`∀`) are found at the start, followed by value arguments.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromRepr, EnumString)]
 #[strum(serialize_all = "camelCase")]
@@ -175,7 +172,7 @@ pub enum Builtin {
     BlsG1MultiScalarMul,
     #[strum(serialize = "bls12_381_G2_multiScalarMul")]
     BlsG2MultiScalarMul,
-    // // Values
+    // // Values (not stable yet)
     // InsertCoin,
     // LookupCoin,
     // UnionValue,
@@ -326,7 +323,8 @@ impl Builtin {
     ///
     /// # Panic
     ///
-    /// Panics if the number of arguments does not match the arity of the builtin function.
+    /// Panics if the number of arguments does not match the arity of the builtin function. This
+    /// is theoretically unreachable with a properly constructed CEK machine.
     pub fn apply(
         self,
         args: Vec<machine::Value>,
@@ -353,8 +351,8 @@ impl Builtin {
             panic!("all builtins are in the list");
         }
 
-        // IMPORTANT: The order matters here! The builtins are listed in order of cost model
-        // appearance.
+        // IMPORTANT: order matters here! The builtins are listed in order of cost model
+        // appearance, so that the correct cost model parameters are extracted.
         builtins! {
             [self, args, constants, context]
             AddInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Affine<cf::Max<cf::First, cf::Second>>> => integer::add,
@@ -550,6 +548,7 @@ impl_function!(A, B, C, D);
 impl_function!(A, B, C, D, E);
 impl_function!(A, B, C, D, E, F);
 
+/// Implement `Function` for builtin functions with varying number of arguments.
 macro_rules! impl_function {
     ($($ty:ident),*) => {
         #[allow(unused_parens, non_snake_case)]
@@ -575,7 +574,7 @@ macro_rules! impl_function {
                     ),*
                 );
 
-                let cost::Pair { execution, memory } = cost::Pair::<CE, CM>::ref_from_prefix(
+                let cf::Pair { execution, memory } = cf::Pair::<CE, CM>::ref_from_prefix(
                     context.model.as_bytes(),
                 ).ok()?.0;
                 let execution_cost = execution.cost(&tuple);
@@ -600,15 +599,15 @@ use impl_function;
 
 /// Provide the builtins in order of cost model entry.
 ///
-/// This calls the `Function::apply` implementation for each builtin with the specified cost_model
-/// and correct offset based on the function's index.
+/// This calls the `Function::apply` implementation for each builtin with the specified cost model
+/// function, and correct offset based on the function's position in the list.
 macro_rules! builtins {
     ([$var:ident, $args:ident, $constants:ident, $context:ident] $($builtin:ident<$execution:ty, $memory:ty> => $fn:path),* $(,)?) => {
         const OFFSETS: &[(Builtin, usize)] = &[
             $(
                 (
                     Builtin::$builtin,
-                    std::mem::size_of::<cost::Pair<$execution, $memory>>() / 8,
+                    std::mem::size_of::<cf::Pair<$execution, $memory>>() / 8,
                 ),
             )*
         ];
@@ -631,20 +630,3 @@ macro_rules! builtins {
     };
 }
 use builtins;
-
-// #[test]
-// fn bisect_list() {
-//     let builtin = Builtin::ByteStringToInteger;
-//
-//     builtin.apply(
-//         vec![],
-//         &mut vec![],
-//         &mut cost::Context {
-//             model: &[],
-//             budget: crate::Budget {
-//                 memory: u64::MAX,
-//                 execution: u64::MAX,
-//             },
-//         }
-//     );
-// }

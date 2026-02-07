@@ -21,6 +21,9 @@
 //!
 //! This crate's public API is very minimal. One may start by reading the documentation for [`Program`].
 //!
+//! Private items (identified by a 🔒) are also documented. They briefly explain the underlying
+//! implementation.
+//!
 //! # Example
 //!
 //! ```rust
@@ -51,6 +54,7 @@ mod builtin;
 mod constant;
 mod cost;
 pub use cost::Context;
+/// Script execution budget.
 pub use ledger::alonzo::script::execution::Units as Budget;
 mod machine;
 mod flat;
@@ -119,9 +123,9 @@ pub struct Version {
 /// This type represents a parsed uplc program, parameterized over the variable representation
 /// `T`. This can be anything, although the only known use cases are [`String`] and [`DeBruijn`].
 ///
-/// There are two main ways to obtain a `Program<T>`:
+/// There are two ways to obtain a `Program<T>`:
 ///  - Parsing it from its textual representation using the [`FromStr`] implementation.
-///  - Decoding it from its flat binary representation using [`Program::from_flat`].
+///  - Decoding it from its `flat` binary representation using [`Program::from_flat`].
 ///
 /// # Parsing
 ///

@@ -1,4 +1,4 @@
-//! A bitmapped vector tree for the machine's environment.
+//! A bitmapped vector trie for the machine's environment.
 //!
 //! This vector is implemented with a left leaning tree having bucket size of 8 (3 bits per level).
 
@@ -7,16 +7,22 @@ use std::{hint::unreachable_unchecked, rc::Rc};
 mod bucket;
 use bucket::{Bucket, Chunk};
 
+/// A node in the tree.
 #[derive(Debug)]
 enum Node<T> {
+    /// A branch node.
     Branch(Rc<Chunk<Node<T>>>),
+    /// A leaf node.
+    ///
+    /// Instead of cotaining a chunk of elements. It contains a chunk of "tails".
+    /// Every time the tail is full, it is pushed into the tree as a child to a leaf node.
     Leaf(Bucket<Bucket<T>>),
 }
 
 impl<T> Node<T> {
     /// Grow the node into a branch.
     ///
-    /// `N -> Branch([N])`.
+    /// `N -> Branch([N])`
     fn grow(&mut self) -> &mut Chunk<Node<T>> {
         let old_self = std::mem::replace(self, Node::Branch(Rc::new(Chunk::default())));
         let Node::Branch(new_chunk) = self else {
@@ -39,13 +45,14 @@ impl<T> Clone for Node<T> {
     }
 }
 
+/// A bitmapped vector trie.
 #[derive(Debug)]
 pub struct Vector<T> {
-    // The root node of the tree.
+    /// The root node of the tree.
     root: Node<T>,
-    // The number of full chunks in the root.
+    /// The number of full chunks in the root.
     size: usize,
-    // The tail chunk.
+    /// The tail chunk.
     tail: Bucket<T>,
 }
 
