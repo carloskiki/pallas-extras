@@ -21,10 +21,6 @@ fn main() {
             let flat = std::fs::read(&path).unwrap();
             let test_name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
-            if test_name != "coop-1" {
-                return None;
-            }
-
             Some(Trial::test(test_name, move |_| {
                 perform_test(&flat, budget, &output)
             }))
@@ -33,7 +29,6 @@ fn main() {
 }
 
 fn perform_test(flat: &[u8], budget: Budget, expected: &Program<DeBruijn>) -> Result<(), RunError> {
-    dbg!(&budget);
     let program = Program::from_flat(flat).unwrap();
     let mut context = Context {
         model: COST_MODEL,

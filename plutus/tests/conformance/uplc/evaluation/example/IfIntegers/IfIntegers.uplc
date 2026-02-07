@@ -12,7 +12,7 @@
                 (lam
                   y
                   [
-                    (case b y x) (con unit ())
+                    [ [ [(force (builtin ifThenElse)) b] x] y] (con unit ())
                   ]
                 )
               )

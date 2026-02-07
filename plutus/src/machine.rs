@@ -203,8 +203,9 @@ pub enum Frame {
         remaining: u16,
         discriminant: u32,
         large_discriminant: bool,
-        environment: Vector<Value>,
         values: Vec<Value>, // TODO
+        environment: Vector<Value>,
+        next: TermIndex,
     },
     Case {
         count: u16,
@@ -235,23 +236,10 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
     let mut environment: Vector<Value> = Vector::default();
     let mut index = 0;
 
-    let mut counter = 0;
     loop {
-        counter += 1;
-        if counter > 350 {
-            dbg!(counter);
-            dbg!(environment.get(11));
-        }
-        
         let mut ret = match program.program[index] {
             Instruction::Variable(var) => {
                 context.apply_no_args(&base_costs.variable)?;
-                if var.0 == 11
-                    && let Value::Constant(c) = environment.get(var.0 as usize).unwrap()
-                {
-                    dbg!(c, program.constants.get(c.0 as usize));
-                };
-
                 environment
                     .get(var.0 as usize)
                     .expect("variable exists")
@@ -307,6 +295,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 length,
             } => {
                 context.apply_no_args(&context.datatypes()?.construct)?;
+                index += 1;
                 if length != 0 {
                     stack.push(Frame::Construct {
                         remaining: length - 1,
@@ -314,8 +303,8 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                         values: Vec::new(),
                         discriminant,
                         large_discriminant,
+                        next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                     });
-                    index += 1;
                     continue;
                 }
 
@@ -418,6 +407,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                         mut remaining,
                         environment,
                         mut values,
+                        next,
                     }),
                     value,
                 ) => {
@@ -431,14 +421,15 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                         continue;
                     }
                     remaining -= 1;
+                    index = next.0 as usize;
                     stack.push(Frame::Construct {
                         discriminant,
+                        next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                         large_discriminant,
                         remaining,
                         environment: environment.clone(),
                         values,
                     });
-                    index = skip_terms(&program.program, index, 1);
                     environment
                 }
                 (
