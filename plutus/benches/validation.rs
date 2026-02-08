@@ -4,7 +4,6 @@ use plutus::{Budget, Context, Program};
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
 pub fn bench(c: &mut Criterion) {
-    // Pairs of file `*.flat` and `*.expected`.
     let dir = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/benches/validation"));
     for entry in dir.unwrap() {
         let entry = entry.unwrap();
