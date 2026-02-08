@@ -3,7 +3,7 @@
 use crate::{Evolve, KeyEvolvingSignature};
 use digest::{
     Key,
-    crypto_common::{Generate, KeySizeUser, TryKeyInit},
+    common::{Generate, KeySizeUser, TryKeyInit},
 };
 use ref_cast::RefCast;
 use signature::{Keypair, KeypairRef, Signer, Verifier};
@@ -28,7 +28,7 @@ impl<T> TryKeyInit for SingleUse<T>
 where
     T: TryKeyInit,
 {
-    fn new(key: &Key<Self>) -> Result<Self, digest::crypto_common::InvalidKey> {
+    fn new(key: &Key<Self>) -> Result<Self, digest::common::InvalidKey> {
         T::new(key).map(SingleUse)
     }
 }

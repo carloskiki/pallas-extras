@@ -1,5 +1,5 @@
 use crate::{Evolve, KeyEvolvingSignature, sum};
-use digest::{Digest, OutputSizeUser, crypto_common::KeySizeUser};
+use digest::{Digest, OutputSizeUser, common::KeySizeUser};
 use either::Either::{Left, Right};
 use signature::{Keypair, KeypairRef, Signer, Verifier};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};

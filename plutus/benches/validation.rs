@@ -9,31 +9,29 @@ pub fn bench(c: &mut Criterion) {
     for entry in dir.unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("flat") {
-            let bench_name = path.file_stem().unwrap().to_str().unwrap();
-            let flat = std::fs::read(&path).unwrap();
+        let bench_name = path.file_stem().unwrap().to_str().unwrap();
+        let flat = std::fs::read(&path).unwrap();
 
-            let mut group = c.benchmark_group(bench_name);
-            group.bench_with_input("decode", &flat, |b, input| {
-                b.iter(|| {
-                    Program::from_flat(input).unwrap();
-                });
+        let mut group = c.benchmark_group(bench_name);
+        group.bench_with_input("decode", &flat, |b, input| {
+            b.iter(|| {
+                Program::from_flat(input).unwrap();
             });
-            group.bench_with_input("evaluate", &flat, |b, flat| {
-                b.iter(|| {
-                    let program = Program::from_flat(flat).unwrap();
-                    let mut context = Context {
-                        model: COST_MODEL,
-                        budget: Budget {
-                            execution: u64::MAX,
-                            memory: u64::MAX,
-                        },
-                    };
-                    let result = program.evaluate(&mut context).unwrap();
-                    std::hint::black_box(result)
-                });
+        });
+        group.bench_with_input("evaluate", &flat, |b, flat| {
+            b.iter(|| {
+                let program = Program::from_flat(flat).unwrap();
+                let mut context = Context {
+                    model: COST_MODEL,
+                    budget: Budget {
+                        execution: u64::MAX,
+                        memory: u64::MAX,
+                    },
+                };
+                let result = program.evaluate(&mut context).unwrap();
+                std::hint::black_box(result)
             });
-        }
+        });
     }
 }
 

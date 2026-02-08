@@ -1,3 +1,2 @@
-/target
-/ledger/tests/data
+**/target
 /snapshots

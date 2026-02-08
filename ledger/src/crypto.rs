@@ -1,4 +1,4 @@
-use digest::{consts::{U28, U32}, crypto_common::KeySizeUser};
+use digest::{consts::{U28, U32}, common::KeySizeUser};
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
 pub type Blake2b224Digest = [u8; 28];

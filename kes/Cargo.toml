@@ -8,7 +8,6 @@ blake2 = { workspace = true }
 digest = { workspace = true, features = ["rand_core", "getrandom"] }
 either = { workspace = true }
 signature = { workspace = true, features = ["alloc"] }
-hybrid-array = { workspace = true }
 
 ref-cast = { workspace = true }
 zerocopy = { workspace = true }

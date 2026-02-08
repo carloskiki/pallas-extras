@@ -1,29 +1,32 @@
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use libtest2_mimic::{Harness, RunError, Trial};
 use plutus::{Budget, Context, DeBruijn, Program};
 
-const DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/validation");
+const FLAT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/validation");
+const EXPECTED_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/validation");
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
 fn main() {
-    let dir = std::fs::read_dir(DIR).unwrap();
+    let dir = std::fs::read_dir(FLAT_DIR).unwrap();
 
     Harness::with_env()
-        .discover(dir.filter_map(|entry| {
+        .discover(dir.map(|entry| {
             let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("flat") {
-                return None;
-            }
-            let (budget, output) =
-                parse_expected(&std::fs::read_to_string(path.with_extension("expected")).unwrap())
-                    .unwrap();
             let flat = std::fs::read(&path).unwrap();
+            let file_name = path.file_name().unwrap();
+            let (budget, output) = parse_expected(
+                &std::fs::read_to_string(
+                    <_ as AsRef<Path>>::as_ref(EXPECTED_DIR)
+                        .join(file_name)
+                        .with_extension("expected"),
+                )
+                .unwrap(),
+            )
+            .unwrap();
             let test_name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
-            Some(Trial::test(test_name, move |_| {
-                perform_test(&flat, budget, &output)
-            }))
+            Trial::test(test_name, move |_| perform_test(&flat, budget, &output))
         }))
         .main()
 }

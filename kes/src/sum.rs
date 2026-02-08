@@ -10,7 +10,7 @@ use blake2::{Blake2b, Blake2bVarCore};
 use digest::{
     Digest, Key, KeyInit, Output, OutputSizeUser,
     array::{Array, ArraySize},
-    crypto_common::{Generate, KeySizeUser, TryKeyInit},
+    common::{Generate, KeySizeUser, TryKeyInit},
     typenum::{IsLessOrEqual, True, Unsigned},
 };
 use either::Either::{self, Left, Right};
@@ -80,7 +80,7 @@ where
     R::KeySize: IsLessOrEqual<Blake2bMaxSize, Output = True>,
     H: Digest,
 {
-    fn new(key: &Key<Self>) -> Result<Self, digest::crypto_common::InvalidKey> {
+    fn new(key: &Key<Self>) -> Result<Self, digest::common::InvalidKey> {
         let (left, right) = double_length(key);
         let left_key = L::new(&left)?;
         let right_key = R::new(&right)?;

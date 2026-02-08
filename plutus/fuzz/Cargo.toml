@@ -1,0 +1,10 @@
+[package]
+name = "fuzz"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+afl = "0.17.1"
+plutus = { path = ".." }
+
+[workspace]

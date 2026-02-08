@@ -27,17 +27,17 @@ bip32 = { path = "../bip32" }
 ed25519-dalek = { workspace = true, features = ["digest", "pkcs8"] }
 # TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
 ed25519 = { workspace = true }
-hybrid-array = { workspace = true }
 kes = { path = "../kes" }
 
 # Utilities
 bech32 = "0.11"
-thiserror = { workspace = true }
 displaydoc = { workspace = true }
-zerocopy = { workspace = true }
+duplicate = { path = "duplicate" }
+hybrid-array = { workspace = true, features = ["zerocopy"] }
 ref-cast = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
-duplicate = { path = "duplicate" }
+thiserror = { workspace = true }
+zerocopy = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1"

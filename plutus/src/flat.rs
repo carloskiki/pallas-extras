@@ -889,6 +889,9 @@ impl Decode<'_> for u64 {
         let mut result = 0u64;
         let mut shift = 0;
         loop {
+            if shift >= 64 {
+                return None;
+            }
             let byte = reader.read_bits::<8>()?;
             result |= u64::from(byte & 0x7F) << shift;
             if byte & 0x80 == 0 {
