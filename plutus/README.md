@@ -21,3 +21,11 @@ costs immediately lead to failure of script execution. Another difference is tha
 immediately if the cost model is missing a cek machine step cost, whereas the reference
 only errors when the step is actually needed. We consider this situation degenerate enough to
 not support partial cost models for cek machine steps.
+
+## Available Optimizations
+
+- Arena for Constants.
+- Store `next` in the instruction for `case` and construct?
+- Packed instruction representation.
+- Reduce size of `Frame`, `Value`, and `DischargeValue`.
+  This implies reducing the size of `bvt::Vector`, using `ThinVec`, etc.

@@ -215,19 +215,6 @@ enum Frame {
     },
 }
 
-// Some ideas to make this faster:
-// - Find a way to not store `next` and not `skip_terms` so much. (Find a fix for case).
-//
-// Most important:
-// - Reduce clone in builtins, specifically with `Data`.
-//
-// Invaiants not exploited yet:
-// - The constant pool is append only. (It is not worth tracking if a constant is in the env,
-//   because almost all of them are.)
-// - All operations on `Data` do not modify the data, they only wrap, unwrap, or read it.
-//   But, we have casts from `Data` to `Constant` e.g., `un_construct`, which is `Data ->
-//   (Integer, Vec<Data>)`, but that returned tuple is transformed into a `Pair(Integer, List)`.
-
 /// Run the given program according to the CEK machine.
 pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<Program<DeBruijn>> {
     let base_costs = context.base()?;
