@@ -8,118 +8,41 @@ use crate::{Construct, Data, lex};
 use bwst::{g1, g2, group::GroupEncoding};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq)]
-/// A plutus list constant which stores its type if it is empty.
-pub struct List {
-    /// Elements are stored in reverse order for efficient `cons` operation.
+mod arena;
+pub use arena::Arena;
+
+pub type Array<'a> = List<'a>;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum List<'a> {
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    Integer(&'a [rug::Integer]),
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    Bytes(&'a [&'a [u8]]),
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    String(&'a [&'a str]),
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    Unit(&'a [()]),
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    Boolean(&'a [bool]),
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    /// Introduced in batch 1 (specification section 4.3.1.1).
+    Data(&'a [Data]),
+    /// Specialized for faster processing of `UnMapData`.
+    PairData(&'a [(Data, Data)]),
+    /// Introduced in batch 4 (specification section 4.3.4.2).
+    BLSG1Element(&'a [g1::Projective]),
+    /// Introduced in batch 4 (specification section 4.3.4.2).
+    BLSG2Element(&'a [g2::Projective]),
+    /// Introduced in batch 4 (specification section 4.3.4.2).
+    MillerLoopResult(&'a [bwst::miller_loop::Result]),
+    /// Generic list for when the type is nested.
     ///
-    /// INVARIANTS:
-    /// - If `Ok`, the list has at least one element.
-    /// - All elements in the list have the same type.
-    pub elements: Result<Vec<Constant>, Type>,
-}
-
-impl List {
-    /// Create an empty list with the given element type.
-    pub fn empty(element_type: Type) -> Self {
-        Self {
-            elements: Err(element_type),
-        }
-    }
-
-    /// Iterate over the elements of the list in order.
-    pub fn iter(&self) -> impl Iterator<Item = &Constant> {
-        match &self.elements {
-            Ok(elems) => elems.iter().rev(),
-            Err(_) => [].iter().rev(),
-        }
-    }
-
-    /// Create a list from a vector of elements and the element type.
-    ///
-    /// The all the elements and the type must be consistent. Otherwise, the behavior is
-    /// undefined.
-    pub fn from_vec_ty(mut elements: Vec<Constant>, element_type: Type) -> Self {
-        debug_assert!(elements.iter().all(|e| e.type_of() == element_type),);
-
-        if elements.is_empty() {
-            Self::empty(element_type)
-        } else {
-            elements.reverse();
-            Self {
-                elements: Ok(elements),
-            }
-        }
-    }
-}
-
-impl<U: Into<Constant> + Default> FromIterator<U> for List {
-    fn from_iter<T: IntoIterator<Item = U>>(iter: T) -> Self {
-        let mut elements: Vec<Constant> = iter.into_iter().map(Into::into).collect();
-        if elements.is_empty() {
-            Self::empty(U::default().into().type_of())
-        } else {
-            elements.reverse();
-            Self {
-                elements: Ok(elements),
-            }
-        }
-    }
-}
-
-/// A plutus array constant which stores its type if it is empty.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Array {
-    /// INVARIANTS:
-    /// - If `Ok`, the array has at least one element.
-    /// - All elements in the array have the same type.
-    pub elements: Result<Box<[Constant]>, Type>,
-}
-
-impl Array {
-    /// Create an empty array with the given element type.
-    pub fn empty(element_type: Type) -> Self {
-        Self {
-            elements: Err(element_type),
-        }
-    }
-
-    /// Iterate over the elements of the array in order.
-    pub fn iter(&self) -> impl Iterator<Item = &Constant> {
-        match &self.elements {
-            Ok(elems) => elems.iter(),
-            Err(_) => [].iter(),
-        }
-    }
-
-    /// Create an array from a boxed slice of elements and the element type.
-    ///
-    /// The all the elements and the type must be consistent. Otherwise, the behavior is
-    /// undefined.
-    pub fn from_boxed_ty(elements: Box<[Constant]>, element_type: Type) -> Self {
-        debug_assert!(elements.iter().all(|e| e.type_of() == element_type),);
-
-        if elements.is_empty() {
-            Self::empty(element_type)
-        } else {
-            Self {
-                elements: Ok(elements),
-            }
-        }
-    }
-}
-
-impl<U: Into<Constant> + Default> FromIterator<U> for Array {
-    fn from_iter<T: IntoIterator<Item = U>>(iter: T) -> Self {
-        let elements: Vec<Constant> = iter.into_iter().map(Into::into).collect();
-        if elements.is_empty() {
-            Self::empty(U::default().into().type_of())
-        } else {
-            Self {
-                elements: Ok(elements.into_boxed_slice()),
-            }
-        }
-    }
+    /// This includes:
+    /// - list (pair _ _)
+    /// - list (list _)
+    /// - list (array _)
+    Generic(Result<&'a [Constant<'a>], Type<'a>>),
 }
 
 /// A plutus constant.
@@ -129,60 +52,65 @@ impl<U: Into<Constant> + Default> FromIterator<U> for Array {
 /// to.
 ///
 /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-#[derive(Debug, Clone, PartialEq)]
-pub enum Constant {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Constant<'a> {
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Integer(rug::Integer),
+    Integer(&'a rug::Integer),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Bytes(Vec<u8>),
+    Bytes(&'a [u8]),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    String(String),
+    String(&'a str),
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Unit,
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Boolean(bool),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    List(List),
+    List(List<'a>),
     /// Introduced in batch 6 (specification section 4.3.6.1).
-    Array(Array),
+    Array(Array<'a>),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Pair(Box<(Constant, Constant)>),
+    Pair(&'a Constant<'a>, &'a Constant<'a>),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Data(Data),
+    Data(&'a Data),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    BLSG1Element(Box<g1::Projective>),
+    BLSG1Element(&'a g1::Projective),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    BLSG2Element(Box<g2::Projective>),
+    BLSG2Element(&'a g2::Projective),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    MillerLoopResult(Box<bwst::miller_loop::Result>),
+    MillerLoopResult(&'a bwst::miller_loop::Result),
 }
 
-impl Constant {
-    pub fn type_of(&self) -> Type {
+impl Constant<'_> {
+    pub fn type_of<'a>(&'a self, arena: &'a Arena) -> Type<'a> {
+        fn list_type_of<'a>(list: &List<'a>, arena: &'a Arena) -> Type<'a> {
+            match list {
+                List::Integer(_) => Type::Integer,
+                List::Bytes(_) => Type::Bytes,
+                List::String(_) => Type::String,
+                List::Unit(_) => Type::Unit,
+                List::Boolean(_) => Type::Boolean,
+                List::Data(_) => Type::Data,
+                List::PairData(_) => Type::Pair(arena.alloc((Type::Data, Type::Data))),
+                List::BLSG1Element(_) => Type::BLSG1Element,
+                List::BLSG2Element(_) => Type::BLSG2Element,
+                List::MillerLoopResult(_) => Type::MillerLoopResult,
+                List::Generic(Err(ty)) => *ty,
+                List::Generic(Ok(elements)) => {
+                    elements.first().expect("non-empty list").type_of(arena)
+                }
+            }
+        }
+
         match self {
             Constant::Integer(_) => Type::Integer,
             Constant::Bytes(_) => Type::Bytes,
             Constant::String(_) => Type::String,
             Constant::Unit => Type::Unit,
             Constant::Boolean(_) => Type::Boolean,
-            Constant::List(list) => {
-                let element_type = match &list.elements {
-                    Ok(elems) => elems[0].type_of(),
-                    Err(elem_type) => elem_type.clone(),
-                };
-                Type::List(Box::new(element_type))
-            }
-            Constant::Array(array) => {
-                let element_type = match &array.elements {
-                    Ok(elems) => elems[0].type_of(),
-                    Err(elem_type) => elem_type.clone(),
-                };
-                Type::Array(Box::new(element_type))
-            }
-            Constant::Pair(boxed) => {
-                let first_type = boxed.0.type_of();
-                let second_type = boxed.1.type_of();
-                Type::Pair(Box::new((first_type, second_type)))
+            Constant::List(list) => Type::List(arena.alloc(list_type_of(list, arena))),
+            Constant::Array(array) => Type::Array(arena.alloc(list_type_of(array, arena))),
+            Constant::Pair(first, second) => {
+                Type::Pair(arena.alloc((first.type_of(arena), second.type_of(arena))))
             }
             Constant::Data(_) => Type::Data,
             Constant::BLSG1Element(_) => Type::BLSG1Element,
@@ -190,84 +118,81 @@ impl Constant {
             Constant::MillerLoopResult(_) => Type::MillerLoopResult,
         }
     }
+
+    pub fn from_str(s: &str, arena: &Arena) -> Result<Self, ParseError> {
+        let (ty_str, rest) = lex::constant_type(s).ok_or(ParseError::UnknownType)?;
+        let (constant, rest) = from_split(ty_str, rest.trim_start(), arena)?;
+        if !rest.is_empty() {
+            Err(ParseError::TrailingContent)
+        } else {
+            Ok(constant)
+        }
+    }
 }
 
 /// The type of a plutus constant, without its value.
 ///
 /// This is used for type annotations on lists and arrays, and helps when parsing constants.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Type<'a> {
     Integer,
     Bytes,
     String,
     Unit,
     Boolean,
-    List(Box<Type>),
-    Pair(Box<(Type, Type)>),
+    List(&'a Type<'a>),
+    Pair(&'a (Type<'a>, Type<'a>)),
     Data,
     BLSG1Element,
     BLSG2Element,
     MillerLoopResult,
-    Array(Box<Type>),
+    Array(&'a Type<'a>),
 }
 
-impl FromStr for Type {
-    type Err = ();
+fn type_from_str<'a>(s: &str, arena: &'a Arena) -> Result<Type<'a>, ()> {
+    let (main_ty, mut rest) = lex::word(s);
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (main_ty, mut rest) = lex::word(s);
+    let ret = match main_ty {
+        "integer" => Type::Integer,
+        "bytestring" => Type::Bytes,
+        "string" => Type::String,
+        "bool" => Type::Boolean,
+        "unit" => Type::Unit,
+        "data" => Type::Data,
+        "bls12_381_G1_element" => Type::BLSG1Element,
+        "bls12_381_G2_element" => Type::BLSG2Element,
+        "list" | "array" => {
+            let (element_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
+            rest = new_rest;
 
-        let ret = match main_ty {
-            "integer" => Type::Integer,
-            "bytestring" => Type::Bytes,
-            "string" => Type::String,
-            "bool" => Type::Boolean,
-            "unit" => Type::Unit,
-            "data" => Type::Data,
-            "bls12_381_G1_element" => Type::BLSG1Element,
-            "bls12_381_G2_element" => Type::BLSG2Element,
-            "list" | "array" => {
-                let (element_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
-                rest = new_rest;
-
-                let element_const = Type::from_str(element_ty)?;
-                if main_ty == "array" {
-                    Type::Array(Box::new(element_const))
-                } else {
-                    Type::List(Box::new(element_const))
-                }
+            let element_const = type_from_str(element_ty, arena)?;
+            if main_ty == "array" {
+                Type::Array(arena.alloc(element_const))
+            } else {
+                Type::List(arena.alloc(element_const))
             }
-            "pair" => {
-                let (first_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
-                let (second_ty, new_rest) = lex::constant_type(new_rest).ok_or(())?;
-                rest = new_rest;
+        }
+        "pair" => {
+            let (first_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
+            let (second_ty, new_rest) = lex::constant_type(new_rest).ok_or(())?;
+            rest = new_rest;
 
-                let first_const = Type::from_str(first_ty)?;
-                let second_const = Type::from_str(second_ty)?;
-                Type::Pair(Box::new((first_const, second_const)))
-            }
+            let first_const = type_from_str(first_ty, arena)?;
+            let second_const = type_from_str(second_ty, arena)?;
+            Type::Pair(arena.alloc((first_const, second_const)))
+        }
 
-            _ => return Err(()),
-        };
+        _ => return Err(()),
+    };
 
-        if !rest.is_empty() { Err(()) } else { Ok(ret) }
-    }
+    if !rest.is_empty() { Err(()) } else { Ok(ret) }
 }
 
-impl FromStr for Constant {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (ty, constant) = lex::constant_type(s).ok_or(ParseError::UnknownType)?;
-        let (constant, "") = from_split(ty, constant)? else {
-            return Err(ParseError::TrailingContent);
-        };
-
-        Ok(constant)
-    }
-}
-
-fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), ParseError> {
+fn from_split<'a, 'b>(
+    ty: &str,
+    konst: &'b str,
+    arena: &'a Arena,
+) -> Result<(Constant<'a>, &'b str), ParseError> {
     let (ty_start, ty_rest) = lex::word(ty);
 
     let (konst_word, mut konst_rest) = konst
@@ -275,103 +200,63 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
         .map(|pos| (konst[..pos].trim_end(), &konst[pos..]))
         .unwrap_or((konst, ""));
     let constant = match ty_start {
-        "integer" => {
-            let int =
-                rug::Integer::from_str_radix(konst_word, 10).map_err(|_| ParseError::Integer)?;
-            Constant::Integer(int)
-        }
-        "bytestring" => {
-            let hex = konst_word.strip_prefix("#").ok_or(ParseError::Bytestring)?;
-            let bytes = const_hex::decode(hex).map_err(|_| ParseError::Bytestring)?;
-            Constant::Bytes(bytes)
-        }
+        "integer" => integer(konst_word)
+            .ok_or(ParseError::Integer)
+            .map(|i| Constant::Integer(arena.integer(i)))?,
+        "bytestring" => bytestring(konst_word, arena)
+            .ok_or(ParseError::Bytestring)
+            .map(Constant::Bytes)?,
         "string" => {
-            let (string, rest) = lex::string(konst).ok_or(ParseError::String)?;
+            let (string, rest) = lex::string(konst_word).ok_or(ParseError::String)?;
             konst_rest = rest;
+            let string = arena.string(&string);
 
             Constant::String(string)
         }
 
-        "bool" => match konst_word {
-            "True" => Constant::Boolean(true),
-            "False" => Constant::Boolean(false),
-            _ => return Err(ParseError::Boolean),
-        },
-        "unit" => {
-            if konst_word != "()" {
-                return Err(ParseError::Unit);
-            }
-            Constant::Unit
-        }
+        "bool" => bool(konst_word)
+            .ok_or(ParseError::Boolean)
+            .map(Constant::Boolean)?,
+        "unit" => unit(konst_word)
+            .ok_or(ParseError::Unit)
+            .map(|_| Constant::Unit)?,
         "data" => {
             // FIXME: https://github.com/IntersectMBO/plutus/issues/7383
             // let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
             let (data, rest) = if konst.starts_with('(') {
                 let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(ParseError::Data)?;
-                let Some((data, "")) = parse_data(data_str) else {
+                let Some((data, "")) = data(data_str) else {
                     return Err(ParseError::Data);
                 };
                 (data, rest)
             } else {
-                parse_data(konst).ok_or(ParseError::Data)?
+                data(konst).ok_or(ParseError::Data)?
             };
             konst_rest = rest;
-            Constant::Data(data)
+            Constant::Data(arena.data(data))
         }
-        "bls12_381_G1_element" => {
-            let hex = konst_word
-                .strip_prefix("0x")
-                .ok_or(ParseError::BLSG1Element)?;
-            let bytes = const_hex::decode(hex).map_err(|_| ParseError::BLSG1Element)?;
-            Constant::BLSG1Element(Box::new(
-                g1::Projective::from_bytes(&g1::Compressed(
-                    bytes.try_into().map_err(|_| ParseError::BLSG1Element)?,
-                ))
-                .into_option()
-                .ok_or(ParseError::BLSG1Element)?,
-            ))
-        }
-        "bls12_381_G2_element" => {
-            let hex = konst_word
-                .strip_prefix("0x")
-                .ok_or(ParseError::BLSG2Element)?;
-            let bytes = const_hex::decode(hex).map_err(|_| ParseError::BLSG2Element)?;
-            Constant::BLSG2Element(Box::new(
-                g2::Projective::from_bytes(&g2::Compressed(
-                    bytes.try_into().map_err(|_| ParseError::BLSG2Element)?,
-                ))
-                .into_option()
-                .ok_or(ParseError::BLSG2Element)?,
-            ))
-        }
+        "bls12_381_G1_element" => g1(konst_word)
+            .ok_or(ParseError::BLSG1Element)
+            .map(|p| Constant::BLSG1Element(arena.alloc(p)))?,
+        "bls12_381_G2_element" => g2(konst_word)
+            .ok_or(ParseError::BLSG2Element)
+            .map(|p| Constant::BLSG2Element(arena.alloc(p)))?,
         "list" | "array" => {
-            let Some((list_ty, "")) = lex::constant_type(ty_rest) else {
-                return Err(ParseError::List);
-            };
-            let mut items = Vec::new();
-            let (mut items_str, rest) = lex::group::<b'[', b']'>(konst).ok_or(ParseError::List)?;
-            while !items_str.is_empty() {
-                let (item, mut list_rest) = from_split(list_ty, items_str)?;
-                if let Some(rest) = list_rest.strip_prefix(',') {
-                    list_rest = rest.trim_start();
-                } else if !list_rest.is_empty() {
-                    return Err(ParseError::List);
-                }
-                items_str = list_rest;
-                items.push(item);
-            }
-            konst_rest = rest;
-            let element_type = Type::from_str(list_ty).map_err(|_| {
-                if ty_start == "array" {
-                    ParseError::Array
-                } else {
-                    ParseError::List
-                }
-            })?;
-            if ty_start == "array" {
-                Constant::Array(Array::from_boxed_ty(items.into_boxed_slice(), element_type))
+            let err_type = if ty_start == "list" {
+                ParseError::List
             } else {
-                Constant::List(List::from_vec_ty(items, element_type))
+                ParseError::Array
+            };
+            let Some((element_ty, "")) = lex::constant_type(ty_rest) else {
+                return Err(err_type);
+            };
+            let (konst_str, rest) = lex::group::<b'[', b']'>(konst).ok_or(err_type)?;
+            konst_rest = rest;
+            let list = list_from_split(element_ty, konst_str, arena)?;
+            if ty_start == "list" {
+                Constant::List(list.into())
+            } else {
+                Constant::Array(list.into())
             }
         }
         "pair" => {
@@ -383,16 +268,17 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
 
             let (konst_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(ParseError::Pair)?;
             konst_rest = rest;
-            let (first, rest) = from_split(first_ty, konst_str)?;
+            let (first, rest) = from_split(first_ty, konst_str, arena)?;
             let (second, rest) = from_split(
                 second_ty,
                 rest.strip_prefix(',').ok_or(ParseError::Pair)?.trim_start(),
+                arena,
             )?;
             if !rest.is_empty() {
                 return Err(ParseError::Pair);
             }
 
-            Constant::Pair(Box::new((first, second)))
+            Constant::Pair(arena.alloc(first), arena.alloc(second))
         }
         _ => return Err(ParseError::UnknownType),
     };
@@ -400,7 +286,128 @@ fn from_split<'a>(ty: &str, konst: &'a str) -> Result<(Constant, &'a str), Parse
     Ok((constant, konst_rest))
 }
 
-fn parse_data(s: &str) -> Option<(Data, &str)> {
+fn list_from_split<'a>(
+    ty: &str,
+    items_str: &str,
+    arena: &'a Arena,
+) -> Result<List<'a>, ParseError> {
+    let (ty_start, ty_rest) = lex::word(ty);
+    let words = items_str.split(',').map(str::trim);
+
+    match ty_start {
+        "integer" => words
+            .map(integer)
+            .collect::<Option<Vec<rug::Integer>>>()
+            .ok_or(ParseError::Integer)
+            .map(|ints| List::Integer(arena.integers(ints))),
+        "bytestring" => words
+            .map(|w| bytestring(w, arena))
+            .collect::<Option<Vec<&'a [u8]>>>()
+            .ok_or(ParseError::Bytestring)
+            .map(|bytes| List::Bytes(arena.slice_fill(bytes.into_iter()))),
+        "string" => list_from_fn(items_str, lex::string)
+            .ok_or(ParseError::String)
+            .map(|strings| {
+                List::String(
+                    arena.slice_fill(strings.into_iter().map(|s| arena.string(&s) as &str)),
+                )
+            }),
+        "bool" => words
+            .map(bool)
+            .collect::<Option<Vec<bool>>>()
+            .ok_or(ParseError::Boolean)
+            .map(|bools| List::Boolean(arena.slice_fill(bools.into_iter()))),
+        "unit" => words
+            .map(unit)
+            .collect::<Option<Vec<()>>>()
+            .ok_or(ParseError::Unit)
+            .map(|units| List::Unit(arena.slice_fill(units.into_iter()))),
+        "data" => list_from_fn(items_str, data)
+            .ok_or(ParseError::Data)
+            .map(|data| List::Data(arena.datas(data))),
+        "bls12_381_G1_element" => words
+            .map(g1)
+            .collect::<Option<Vec<g1::Projective>>>()
+            .ok_or(ParseError::BLSG1Element)
+            .map(|g1s| List::BLSG1Element(arena.slice_fill(g1s.into_iter()))),
+        "bls12_381_G2_element" => words
+            .map(g2)
+            .collect::<Option<Vec<g2::Projective>>>()
+            .ok_or(ParseError::BLSG2Element)
+            .map(|g2s| List::BLSG2Element(arena.slice_fill(g2s.into_iter()))),
+        "list" if lex::constant_type(ty_rest) == Some(("pair data data", "")) => {
+            list_from_fn(items_str, |s| {
+                let (pair_str, rest) = lex::group::<b'(', b')'>(s)?;
+                let (key, r) = data(pair_str)?;
+                let Some((value, "")) = data(r.strip_prefix(',')?.trim_start()) else {
+                    return None;
+                };
+                Some(((key, value), rest))
+            })
+            .ok_or(ParseError::List)
+            .map(|pairs| List::PairData(arena.pair_data(pairs)))
+        }
+
+        "list" | "array" | "pair" => {
+            let mut items = Vec::new();
+            let mut items_str = items_str;
+            while !items_str.is_empty() {
+                let (item, mut list_rest) = from_split(ty, items_str, arena)?;
+                if let Some(rest) = list_rest.strip_prefix(',') {
+                    list_rest = rest.trim_start();
+                } else if !list_rest.is_empty() {
+                    return Err(ParseError::List);
+                }
+                items_str = list_rest;
+                items.push(item);
+            }
+            if items.is_empty() {
+                Ok(List::Generic(Err(
+                    type_from_str(ty, arena).map_err(|_| ParseError::UnknownType)?
+                )))
+            } else {
+                Ok(List::Generic(Ok(arena.slice_fill(items.into_iter()))))
+            }
+        }
+        _ => return Err(ParseError::UnknownType),
+    }
+}
+
+fn integer(s: &str) -> Option<rug::Integer> {
+    rug::Integer::from_str_radix(s, 10).ok()
+}
+
+fn bytestring<'a>(s: &str, arena: &'a Arena) -> Option<&'a [u8]> {
+    let hex = s.strip_prefix("#")?;
+    let value = const_hex::decode(hex).ok()?;
+    Some(arena.slice_fill(value))
+}
+
+fn bool(s: &str) -> Option<bool> {
+    match s {
+        "True" => Some(true),
+        "False" => Some(false),
+        _ => None,
+    }
+}
+
+fn unit(s: &str) -> Option<()> {
+    (s == "()").then_some(())
+}
+
+fn g1(s: &str) -> Option<g1::Projective> {
+    let hex = s.strip_prefix("0x")?;
+    let bytes = const_hex::decode(hex).ok()?;
+    g1::Projective::from_bytes(&g1::Compressed(bytes.try_into().ok()?)).into_option()
+}
+
+fn g2(s: &str) -> Option<g2::Projective> {
+    let hex = s.strip_prefix("0x")?;
+    let bytes = const_hex::decode(hex).ok()?;
+    g2::Projective::from_bytes(&g2::Compressed(bytes.try_into().ok()?)).into_option()
+}
+
+fn data(s: &str) -> Option<(Data, &str)> {
     let (ty, data_str) = s
         .split_once(char::is_whitespace)
         .map(|(a, b)| (a, b.trim_start()))
@@ -424,8 +431,8 @@ fn parse_data(s: &str) -> Option<(Data, &str)> {
             (Data::Integer(int), rest.trim_start())
         }
         "List" => {
-            let (data, rest) = data_list(data_str)?;
-            (Data::List(data), rest)
+            let (items_str, rest) = lex::group::<b'[', b']'>(data_str)?;
+            (Data::List(list_from_fn(items_str, data)?), rest)
         }
         "Map" => {
             let (mut items_str, rest) = lex::group::<b'[', b']'>(data_str)?;
@@ -437,8 +444,8 @@ fn parse_data(s: &str) -> Option<(Data, &str)> {
                     .map(|s| s.trim_start())
                     .unwrap_or(other_pairs);
 
-                let (key, rest) = parse_data(pair)?;
-                let (value, "") = parse_data(rest.strip_prefix(',')?.trim_start())? else {
+                let (key, rest) = data(pair)?;
+                let (value, "") = data(rest.strip_prefix(',')?.trim_start())? else {
                     return None;
                 };
 
@@ -450,26 +457,30 @@ fn parse_data(s: &str) -> Option<(Data, &str)> {
         "Constr" => {
             let (tag_str, fields) = data_str.split_once(|c: char| !c.is_ascii_digit())?;
             let tag = u64::from_str(tag_str).ok()?;
-            let (value, rest) = data_list(fields.trim_start())?;
+            let (fields, rest) = lex::group::<b'[', b']'>(fields.trim_start())?;
+            let value = list_from_fn(fields, data)?;
             (Data::Construct(Construct { tag, value }), rest)
         }
         _ => return None,
     })
 }
 
-fn data_list(s: &str) -> Option<(Vec<Data>, &str)> {
-    let (mut items_str, rest) = lex::group::<b'[', b']'>(s)?;
+fn list_from_fn<T>(
+    items_str: &str,
+    f: impl for<'a> Fn(&'a str) -> Option<(T, &'a str)>,
+) -> Option<Vec<T>> {
     let mut items = Vec::new();
-    while !items_str.is_empty() {
-        let (item, other_items) = parse_data(items_str)?;
+    let mut rest = items_str;
+    while !rest.is_empty() {
+        let (item, new_rest) = f(rest)?;
         items.push(item);
-        items_str = other_items
-            .strip_prefix(',')
-            .map(|s| s.trim_start())
-            .unwrap_or(other_items);
+        if let Some(r) = new_rest.strip_prefix(',') {
+            rest = r.trim_start();
+        } else if !rest.is_empty() {
+            return None;
+        }
     }
-
-    Some((items, rest))
+    Some(items)
 }
 
 /// An error that can occur when parsing a constant.
@@ -501,258 +512,4 @@ pub enum ParseError {
     Pair,
     #[error("trailing content after constant")]
     TrailingContent,
-}
-
-// Implement `From` and `TryFrom` to help with macro-generated builtin type handling.
-
-impl From<rug::Integer> for Constant {
-    fn from(value: rug::Integer) -> Self {
-        Constant::Integer(value)
-    }
-}
-
-impl From<Vec<u8>> for Constant {
-    fn from(value: Vec<u8>) -> Self {
-        Constant::Bytes(value)
-    }
-}
-
-impl From<String> for Constant {
-    fn from(value: String) -> Self {
-        Constant::String(value)
-    }
-}
-
-impl From<bool> for Constant {
-    fn from(value: bool) -> Self {
-        Constant::Boolean(value)
-    }
-}
-
-impl From<Data> for Constant {
-    fn from(value: Data) -> Self {
-        Constant::Data(value)
-    }
-}
-
-impl From<g1::Projective> for Constant {
-    fn from(value: g1::Projective) -> Self {
-        Constant::BLSG1Element(Box::new(value))
-    }
-}
-
-impl From<g2::Projective> for Constant {
-    fn from(value: g2::Projective) -> Self {
-        Constant::BLSG2Element(Box::new(value))
-    }
-}
-
-impl From<bwst::miller_loop::Result> for Constant {
-    fn from(value: bwst::miller_loop::Result) -> Self {
-        Constant::MillerLoopResult(Box::new(value))
-    }
-}
-
-impl From<()> for Constant {
-    fn from(_: ()) -> Self {
-        Constant::Unit
-    }
-}
-
-impl From<List> for Constant {
-    fn from(value: List) -> Self {
-        Constant::List(value)
-    }
-}
-
-impl<T: Into<Constant> + Default> From<Vec<T>> for Constant {
-    fn from(value: Vec<T>) -> Self {
-        Constant::List(if value.is_empty() {
-            List::empty(T::default().into().type_of())
-        } else {
-            let mut elements: Vec<Constant> = value.into_iter().map(Into::into).collect();
-            elements.reverse();
-            List {
-                elements: Ok(elements),
-            }
-        })
-    }
-}
-
-impl From<Array> for Constant {
-    fn from(value: Array) -> Self {
-        Constant::Array(value)
-    }
-}
-
-impl<T1: Into<Constant>, T2: Into<Constant>> From<(T1, T2)> for Constant {
-    fn from(value: (T1, T2)) -> Self {
-        Constant::Pair(Box::new((value.0.into(), value.1.into())))
-    }
-}
-
-impl TryFrom<Constant> for rug::Integer {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Integer(int) = value {
-            Ok(int)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for Vec<u8> {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Bytes(bytes) = value {
-            Ok(bytes)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for String {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::String(string) = value {
-            Ok(string)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for bool {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Boolean(b) = value {
-            Ok(b)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for Data {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Data(data) = value {
-            Ok(data)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for g1::Projective {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::BLSG1Element(p) = value {
-            Ok(*p)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for g2::Projective {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::BLSG2Element(p) = value {
-            Ok(*p)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for bwst::miller_loop::Result {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::MillerLoopResult(r) = value {
-            Ok(*r)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for () {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Unit = value {
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<T: TryFrom<Constant>> TryFrom<Constant> for Vec<T> {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        match value {
-            Constant::List(List { elements: Err(_) }) => Ok(Vec::new()),
-            Constant::List(List {
-                elements: Ok(elems),
-            }) => elems
-                .into_iter()
-                .rev()
-                .map(T::try_from)
-                .collect::<Result<_, _>>()
-                .map_err(|_| ()),
-
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<Constant> for List {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::List(list) = value {
-            Ok(list)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl TryFrom<Constant> for Array {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Array(array) = value {
-            Ok(array)
-        } else {
-            Err(())
-        }
-    }
-}
-
-impl<T1: TryFrom<Constant>, T2: TryFrom<Constant>> TryFrom<Constant> for (T1, T2) {
-    type Error = ();
-
-    fn try_from(value: Constant) -> Result<Self, Self::Error> {
-        if let Constant::Pair(boxed) = value {
-            let first = T1::try_from(boxed.0).map_err(|_| ())?;
-            let second = T2::try_from(boxed.1).map_err(|_| ())?;
-            Ok((first, second))
-        } else {
-            Err(())
-        }
-    }
 }

@@ -56,9 +56,9 @@ mod cost;
 pub use cost::Context;
 /// Script execution budget.
 pub use ledger::alonzo::script::execution::Units as Budget;
-mod machine;
 mod flat;
 mod lex;
+mod machine;
 
 pub(crate) use ledger::alonzo::script::{Data, data::Construct};
 
@@ -162,7 +162,7 @@ pub struct Program<T> {
     /// This is a list of all constants used in the program. This is separate from the instructions
     /// so that the [`Instruction`] type is more compact, by referring to constants by their index
     /// instead.
-    constants: Vec<Constant>,
+    arena: constant::Arena,
     /// The instructions of the program.
     program: Vec<Instruction<T>>,
 }
@@ -222,7 +222,7 @@ impl<T: FromStr> FromStr for Program<T> {
             return Err(ParseError::Version);
         }
 
-        let mut constants = Vec::new();
+        let arena = constant::Arena::default();
         let mut program = Vec::new();
         let mut stack: Vec<(&str, Option<u32>)> = Vec::new();
         stack.push((term, None));
@@ -236,7 +236,7 @@ impl<T: FromStr> FromStr for Program<T> {
                     };
                     *i = TermIndex(next);
                 }
-                
+
                 stack.pop();
                 continue;
             }
@@ -262,9 +262,9 @@ impl<T: FromStr> FromStr for Program<T> {
                             stack.push((rest.trim_start(), None));
                         }
                         "con" => {
-                            constants.push(Constant::from_str(rest)?);
-                            let index = (constants.len() - 1) as u32;
-                            program.push(Instruction::Constant(ConstantIndex(index)));
+                            program.push(Instruction::Constant(arena.constant(|arena| {
+                                Constant::from_str(rest, arena).map_err(|e| ParseError::Constant(e))
+                            })?));
                         }
                         "force" => {
                             program.push(Instruction::Force);
@@ -284,15 +284,17 @@ impl<T: FromStr> FromStr for Program<T> {
                             let discriminant: u64 = index_str
                                 .parse()
                                 .map_err(|_| ParseError::ConstructDiscriminant)?;
-                            let (discriminant, large_discriminant) = if discriminant
-                                > u32::MAX as u64
-                            {
-                                let const_index = constants.len() as u32;
-                                constants.push(Constant::Integer(rug::Integer::from(discriminant)));
-                                (const_index, true)
-                            } else {
-                                (discriminant as u32, false)
-                            };
+                            let (discriminant, large_discriminant) =
+                                if discriminant > u32::MAX as u64 {
+                                    let Ok(discriminant_index) = arena.constant(|arena| {
+                                        Ok::<_, std::convert::Infallible>(Constant::Integer(
+                                            arena.integer(rug::Integer::from(discriminant)),
+                                        ))
+                                    });
+                                    (discriminant_index.0, true)
+                                } else {
+                                    (discriminant as u32, false)
+                                };
 
                             let mut count = 0u16;
                             while !rest.is_empty() {
@@ -332,7 +334,7 @@ impl<T: FromStr> FromStr for Program<T> {
                         .ok_or(ParseError::UnmatchedDelimiter)?;
                     top.0 = rest;
                     let mut rest = application;
-                    
+
                     let args_start = stack.len() + 1;
                     while !rest.is_empty() {
                         let (prefix, arg) =
@@ -361,7 +363,7 @@ impl<T: FromStr> FromStr for Program<T> {
         }
         Ok(Program {
             version,
-            constants,
+            arena,
             program,
         })
     }
@@ -507,7 +509,7 @@ impl<T: PartialEq> Program<T> {
             .collect::<Option<Vec<_>>>()
             .map(|program| Program {
                 version: self.version,
-                constants: self.constants,
+                arena: self.arena,
                 program,
             })
     }
@@ -526,7 +528,7 @@ where
                 (Instruction::Lambda(a), Instruction::Lambda(b)) => a == b,
                 (Instruction::Builtin(a), Instruction::Builtin(b)) => a == b,
                 (Instruction::Constant(a), Instruction::Constant(b)) => {
-                    self.constants[a.0 as usize] == other.constants[b.0 as usize]
+                    self.arena.get(*a) == other.arena.get(*b)
                 }
                 (Instruction::Delay, Instruction::Delay) => true,
                 (Instruction::Application(_), Instruction::Application(_)) => true,
@@ -547,7 +549,8 @@ where
                     a_len == b_len && {
                         a_large == b_large
                             && if *a_large {
-                                self.constants[*a_det as usize] == other.constants[*b_det as usize]
+                                self.arena.get(ConstantIndex(*a_det))
+                                    == other.arena.get(ConstantIndex(*b_det))
                             } else {
                                 a_det == b_det
                             }
@@ -628,6 +631,8 @@ enum Instruction<T> {
     Construct {
         discriminant: u32,
         length: u16,
+        // TODO: Check if having discriminant always as a constant has minimal performance impact,
+        // and is simpler.
         /// - `false`: the discriminant fits in 4 bytes, and is stored directly in the
         ///   `discriminant` field.
         /// - `true`: the discriminant is larger than 4 bytes, and the `discriminant` field

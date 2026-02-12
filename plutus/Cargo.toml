@@ -31,6 +31,7 @@ bwst = { git = "https://github.com/carloskiki/bwst.git", tag = "v0.1.7", feature
 ed25519-dalek = { workspace = true, features = ["alloc"] }
 
 # Utilities
+bumpalo = "3.19"
 log = "0.4"
 macro_rules_attribute = { workspace = true }
 strum = { version = "0.27.2", features = ["derive"] }

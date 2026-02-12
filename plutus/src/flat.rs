@@ -11,7 +11,9 @@ use rug::Integer;
 use tinycbor::CborLen;
 
 use crate::{
-    ConstantIndex, Data, DeBruijn, Instruction, Program, TermIndex, Version, builtin::Builtin, constant::{self, Array, Constant, List}
+    ConstantIndex, Data, DeBruijn, Instruction, Program, TermIndex, Version,
+    builtin::Builtin,
+    constant::{self, Constant, List},
 };
 
 /// Trait for encoding into a [`Buffer`].
@@ -100,7 +102,7 @@ impl Buffer {
         }
     }
 
-    fn encode_iter<'a, I: Encode + 'a, T: IntoIterator<Item = &'a I>>(&mut self, iter: T) {
+    fn encode_iter<'a, I: ?Sized + Encode + 'a, T: IntoIterator<Item = &'a I>>(&mut self, iter: T) {
         for item in iter {
             self.write_bits::<1>(1);
             item.encode(self);
@@ -250,8 +252,8 @@ impl Encode for Program<DeBruijn> {
                 }
                 Instruction::Constant(constant_index) => {
                     buffer.write_bits::<4>(0b100);
-                    let constant = &self.constants[constant_index.0 as usize];
-                    constant.type_of().encode(buffer)?;
+                    let constant = &self.arena.get(*constant_index);
+                    constant.type_of(&self.arena).encode(buffer)?;
                     constant.encode(buffer)?;
                     decrement(&mut list_stack, buffer, &mut var_count);
                 }
@@ -275,7 +277,7 @@ impl Encode for Program<DeBruijn> {
                     buffer.write_bits::<4>(0b1000);
                     if *large_discriminant {
                         let Constant::Integer(discriminant) =
-                            &self.constants[*discriminant as usize]
+                            &self.arena.get(ConstantIndex(*discriminant))
                         else {
                             panic!("large_discriminant should point to an Integer constant");
                         };
@@ -332,7 +334,27 @@ impl Encode for Program<DeBruijn> {
     }
 }
 
-impl Encode for Constant {
+impl Encode for bool {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
+        buffer.write_bits::<1>(u64::from(*self));
+        Some(())
+    }
+}
+
+impl Encode for () {
+    fn encode(&self, _buffer: &mut Buffer) -> Option<()> {
+        Some(())
+    }
+}
+
+impl Encode for (Data, Data) {
+    fn encode(&self, buffer: &mut Buffer) -> Option<()> {
+        self.0.encode(buffer)?;
+        self.1.encode(buffer)
+    }
+}
+
+impl Encode for Constant<'_> {
     fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         match self {
             Constant::Integer(integer) => {
@@ -344,19 +366,29 @@ impl Encode for Constant {
             Constant::String(str) => {
                 str.encode(buffer)?;
             }
-            Constant::Unit => {}
+            Constant::Unit => {
+                ().encode(buffer)?;
+            }
             Constant::Boolean(b) => {
-                buffer.write_bits::<1>(u64::from(*b));
+                b.encode(buffer)?;
             }
-            Constant::List(list) => {
-                buffer.encode_iter(list.iter());
-            }
-            Constant::Array(array) => {
-                buffer.encode_iter(array.iter());
-            }
-            Constant::Pair(pair) => {
-                pair.0.encode(buffer)?;
-                pair.1.encode(buffer)?;
+            Constant::List(list) | Constant::Array(list) => match list {
+                List::Integer(integers) => buffer.encode_iter(integers.iter()),
+                List::Bytes(bytes) => buffer.encode_iter(bytes.iter().copied()),
+                List::String(items) => buffer.encode_iter(items.iter().copied()),
+                List::Unit(items) => buffer.encode_iter(items.iter()),
+                List::Boolean(items) => buffer.encode_iter(items.iter()),
+                List::Data(datas) => buffer.encode_iter(datas.iter()),
+                List::PairData(items) => buffer.encode_iter(items.iter()),
+                List::Generic(constants) => match constants {
+                    Ok(constants) => buffer.encode_iter(constants.iter()),
+                    Err(_) => buffer.encode_iter::<(), _>(std::iter::empty()),
+                },
+                _ => return None,
+            },
+            Constant::Pair(first, second) => {
+                first.encode(buffer)?;
+                second.encode(buffer)?;
             }
             Constant::Data(data) => {
                 data.encode(buffer)?;
@@ -369,7 +401,7 @@ impl Encode for Constant {
     }
 }
 
-impl Encode for constant::Type {
+impl Encode for constant::Type<'_> {
     fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         let mut ty_stack = vec![self];
         while let Some(ty) = ty_stack.pop() {
@@ -621,7 +653,7 @@ impl Decode<'_> for Program<DeBruijn> {
             /// Frame for tracking an application instruction.
             Application {
                 /// The index of the `application` instruction in the program.
-                /// 
+                ///
                 /// Used to write back where the second argument starts.
                 index: u32,
             },
@@ -630,19 +662,12 @@ impl Decode<'_> for Program<DeBruijn> {
             Variable,
             /// Frame for tracking other instructions which do not need special handling.
             Other,
-            
         }
-        
-        // Ok(<frame>): element is part of a list of terms of unknown length. Used by `case` and
-        // `construct`.
-        //
-        // Err((remaining, variable_bound?)):
-        //  - `remaining`: number of terms remaining to be read in the current level.
-        //  - `variable_bound`: whether a variable was bound in this level.
+
         let mut stack: Vec<Frame> = vec![Frame::Other];
         let mut instructions = Vec::new();
-        let mut constants = Vec::new();
         let mut variable_count: u32 = 0;
+        let arena = constant::Arena::default();
 
         while !stack.is_empty() {
             match reader.read_bits::<4>()? {
@@ -664,15 +689,13 @@ impl Decode<'_> for Program<DeBruijn> {
                 3 => {
                     let index = instructions.len() as u32;
                     instructions.push(Instruction::Application(TermIndex(0)));
-                    stack.push(Frame::Application {
-                        index,
-                    });
+                    stack.push(Frame::Application { index });
                 }
                 4 => {
-                    let constant = Constant::decode(reader)?;
-                    let index = constants.len();
-                    constants.push(constant);
-                    instructions.push(Instruction::Constant(ConstantIndex(index as u32)));
+                    let index = arena
+                        .constant(|arena| decode_constant(reader, arena).ok_or(()))
+                        .ok()?;
+                    instructions.push(Instruction::Constant(index));
                     decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
                 }
                 5 => {
@@ -691,13 +714,16 @@ impl Decode<'_> for Program<DeBruijn> {
                     let discriminant = u64::decode(reader)?;
                     let index = instructions.len() as u32;
                     if discriminant > u32::MAX as u64 {
+                        let Ok(discriminant_index) = arena.constant(|arena| {
+                            Ok::<_, std::convert::Infallible>(Constant::Integer(
+                                arena.integer(Integer::from(discriminant)),
+                            ))
+                        });
                         instructions.push(Instruction::Construct {
-                            discriminant: constants.len() as u32,
+                            discriminant: discriminant_index.0,
                             large_discriminant: true,
                             length: 0,
                         });
-                        let discriminant_constant = Constant::Integer(Integer::from(discriminant));
-                        constants.push(discriminant_constant);
                     } else {
                         instructions.push(Instruction::Construct {
                             discriminant: discriminant as u32,
@@ -731,7 +757,7 @@ impl Decode<'_> for Program<DeBruijn> {
                 patch,
             },
             program: instructions,
-            constants,
+            arena,
         });
 
         fn decrement(
@@ -748,7 +774,7 @@ impl Decode<'_> for Program<DeBruijn> {
                             *length += 1;
                             break;
                         }
-                        
+
                         let (Instruction::Construct { length: count, .. }
                         | Instruction::Case { count }) = &mut program[*index as usize]
                         else {
@@ -756,7 +782,7 @@ impl Decode<'_> for Program<DeBruijn> {
                         };
                         *count = *length;
                         stack.pop();
-                    },
+                    }
                     Frame::Application { index } => {
                         let next = program.len() as u32;
                         let Instruction::Application(i) = &mut program[*index as usize] else {
@@ -765,14 +791,14 @@ impl Decode<'_> for Program<DeBruijn> {
                         i.0 = next;
                         *top = Frame::Other;
                         break;
-                    },
+                    }
                     Frame::Variable => {
                         *variable_count -= 1;
                         stack.pop();
-                    },
+                    }
                     Frame::Other => {
                         stack.pop();
-                    },
+                    }
                 }
             }
             Some(())
@@ -780,108 +806,169 @@ impl Decode<'_> for Program<DeBruijn> {
     }
 }
 
-impl Decode<'_> for Constant {
-    fn decode(reader: &mut Reader<'_>) -> Option<Self> {
-        fn decode_with_type(ty: &constant::Type, reader: &mut Reader<'_>) -> Option<Constant> {
-            Some(match ty {
-                constant::Type::Integer => {
-                    let integer = Integer::decode(reader)?;
-                    Constant::Integer(integer)
-                }
-                constant::Type::Bytes => {
-                    let bytes = Vec::<u8>::decode(reader)?;
-                    Constant::Bytes(bytes)
-                }
-                constant::Type::String => {
-                    let string = String::decode(reader)?;
-                    Constant::String(string)
-                }
-                constant::Type::Unit => Constant::Unit,
-                constant::Type::Boolean => {
-                    let b = reader.read_bits::<1>()? != 0;
-                    Constant::Boolean(b)
-                }
-                constant::Type::List(element_ty) => {
-                    let mut elements = Vec::new();
-                    while reader.read_bits::<1>()? == 1 {
-                        let element = decode_with_type(element_ty, reader)?;
-                        elements.push(element);
-                    }
-                    Constant::List(List::from_vec_ty(elements, *element_ty.clone()))
-                }
-                constant::Type::Pair(pair_tys) => {
-                    let first = decode_with_type(&pair_tys.0, reader)?;
-                    let second = decode_with_type(&pair_tys.1, reader)?;
-                    Constant::Pair(Box::new((first, second)))
-                }
-                constant::Type::Data => {
-                    let data = Data::decode(reader)?;
-                    Constant::Data(data)
-                }
-                constant::Type::BLSG1Element
-                | constant::Type::BLSG2Element
-                | constant::Type::MillerLoopResult => return None,
-                constant::Type::Array(element_ty) => {
-                    let mut elements = Vec::new();
-                    while reader.read_bits::<1>()? == 1 {
-                        let element = decode_with_type(element_ty, reader)?;
-                        elements.push(element);
-                    }
-                    Constant::Array(Array::from_boxed_ty(
-                        elements.into_boxed_slice(),
-                        *element_ty.clone(),
-                    ))
-                }
-            })
+fn decode_constant<'a>(
+    reader: &mut Reader<'_>,
+    arena: &'a constant::Arena,
+) -> Option<Constant<'a>> {
+    fn list_with_type<'a>(
+        ty: constant::Type<'a>,
+        reader: &mut Reader<'_>,
+        arena: &'a constant::Arena,
+    ) -> Option<List<'a>> {
+        fn from_fn<'a, T: 'a>(
+            reader: &mut Reader<'_>,
+            arena: &'a constant::Arena,
+            f: impl Fn(&mut Reader<'_>, &'a constant::Arena) -> Option<T>,
+        ) -> Option<Vec<T>> {
+            let mut elements = Vec::new();
+            while reader.read_bits::<1>()? == 1 {
+                elements.push(f(reader, arena)?);
+            }
+            Some(elements)
         }
 
-        let ty = constant::Type::decode(reader)?;
-        decode_with_type(&ty, reader)
+        match ty {
+            constant::Type::Integer => from_fn(reader, arena, |r, _| Integer::decode(r))
+                .map(|ints| List::Integer(arena.integers(ints))),
+            constant::Type::Bytes => from_fn(reader, arena, |r, a| {
+                Vec::<u8>::decode(r).map(|b| a.slice_fill(b))
+            })
+            .map(|bytes| List::Bytes(arena.slice_fill(bytes))),
+            constant::Type::String => from_fn(reader, arena, |r, a| {
+                String::decode(r).map(|s| a.string(&s))
+            })
+            .map(|strings| List::String(arena.slice_fill(strings))),
+            constant::Type::Unit => from_fn(reader, arena, |_, _| Some(()))
+                .map(|units| List::Unit(arena.slice_fill(units))),
+            constant::Type::Boolean => {
+                from_fn(reader, arena, |r, _| r.read_bits::<1>().map(|b| b != 0))
+                    .map(|bools| List::Boolean(arena.slice_fill(bools)))
+            }
+            constant::Type::Data => from_fn(reader, arena, |r, _| Data::decode(r))
+                .map(|datas| List::Data(arena.datas(datas))),
+            constant::Type::Pair(pair_tys)
+                if pair_tys.0 == constant::Type::Data && pair_tys.1 == constant::Type::Data =>
+            {
+                from_fn(reader, arena, |r, _| {
+                    let first = Data::decode(r)?;
+                    let second = Data::decode(r)?;
+                    Some((first, second))
+                })
+                .map(|pairs| List::PairData(arena.pair_data(pairs)))
+            }
+
+            inner_ty @ (constant::Type::List(_)
+            | constant::Type::Pair(_)
+            | constant::Type::Array(_)) => {
+                from_fn(reader, arena, |r, a| decode_with_type(ty, r, a)).map(|constants| {
+                    if constants.is_empty() {
+                        return List::Generic(Err(inner_ty));
+                    }
+                    // we know the content of `Constant` is not `Integer` or `Data`, so we are not
+                    // leaking memory by not tracking `Integer` or `Data`.
+                    List::Generic(Ok(arena.slice_fill(constants)))
+                })
+            }
+            _ => return None,
+        }
     }
+
+    fn decode_with_type<'a>(
+        ty: constant::Type<'a>,
+        reader: &mut Reader<'_>,
+        arena: &'a constant::Arena,
+    ) -> Option<Constant<'a>> {
+        Some(match ty {
+            constant::Type::Integer => {
+                let integer = Integer::decode(reader)?;
+                Constant::Integer(arena.integer(integer))
+            }
+            constant::Type::Bytes => {
+                let bytes = Vec::<u8>::decode(reader)?;
+                Constant::Bytes(arena.slice_fill(bytes))
+            }
+            constant::Type::String => {
+                let string = String::decode(reader)?;
+                Constant::String(arena.string(&string))
+            }
+            constant::Type::Unit => Constant::Unit,
+            constant::Type::Boolean => {
+                let b = reader.read_bits::<1>()? != 0;
+                Constant::Boolean(b)
+            }
+            constant::Type::List(element_ty) | constant::Type::Array(element_ty) => {
+                let list = list_with_type(*element_ty, reader, arena)?;
+                if matches!(ty, constant::Type::Array(_)) {
+                    Constant::Array(list)
+                } else {
+                    Constant::List(list)
+                }
+            }
+            constant::Type::Pair(pair_tys) => {
+                let first = arena.alloc(decode_with_type(pair_tys.0, reader, arena)?);
+                let second = arena.alloc(decode_with_type(pair_tys.1, reader, arena)?);
+                Constant::Pair(first, second)
+            }
+            constant::Type::Data => {
+                let data = Data::decode(reader)?;
+                Constant::Data(arena.data(data))
+            }
+            constant::Type::BLSG1Element
+            | constant::Type::BLSG2Element
+            | constant::Type::MillerLoopResult => return None,
+        })
+    }
+
+    let ty = decode_type(reader, arena)?;
+    decode_with_type(ty, reader, arena)
 }
 
-impl Decode<'_> for constant::Type {
-    fn decode(reader: &mut Reader<'_>) -> Option<Self> {
-        fn inner_decode(reader: &mut Reader<'_>) -> Option<constant::Type> {
-            let 1 = reader.read_bits::<1>()? else {
-                return None;
-            };
-            let ty = match reader.read_bits::<4>()? {
-                0 => constant::Type::Integer,
-                1 => constant::Type::Bytes,
-                2 => constant::Type::String,
-                3 => constant::Type::Unit,
-                4 => constant::Type::Boolean,
-                7 if reader.read_bits::<1>()? == 1 => match reader.read_bits::<4>()? {
-                    5 => {
-                        let elem_ty = Box::new(inner_decode(reader)?);
-                        constant::Type::List(elem_ty)
-                    }
-                    7 if reader.read_bits::<1>()? == 1 && reader.read_bits::<4>()? == 6 => {
-                        let first_ty = inner_decode(reader)?;
-                        let second_ty = inner_decode(reader)?;
-                        constant::Type::Pair(Box::new((first_ty, second_ty)))
-                    }
-                    12 => {
-                        let elem_ty = Box::new(inner_decode(reader)?);
-                        constant::Type::Array(elem_ty)
-                    }
-                    _ => return None,
-                },
-                8 => constant::Type::Data,
-                9 => constant::Type::BLSG1Element,
-                10 => constant::Type::BLSG2Element,
-                11 => constant::Type::MillerLoopResult,
-                _ => return None,
-            };
-            Some(ty)
-        }
-        let ty = inner_decode(reader)?;
-        let 0 = reader.read_bits::<1>()? else {
+fn decode_type<'a>(
+    reader: &mut Reader<'_>,
+    arena: &'a constant::Arena,
+) -> Option<constant::Type<'a>> {
+    fn inner_decode<'a>(
+        reader: &mut Reader<'_>,
+        arena: &'a constant::Arena,
+    ) -> Option<constant::Type<'a>> {
+        let 1 = reader.read_bits::<1>()? else {
             return None;
+        };
+        let ty = match reader.read_bits::<4>()? {
+            0 => constant::Type::Integer,
+            1 => constant::Type::Bytes,
+            2 => constant::Type::String,
+            3 => constant::Type::Unit,
+            4 => constant::Type::Boolean,
+            7 if reader.read_bits::<1>()? == 1 => match reader.read_bits::<4>()? {
+                5 => {
+                    let elem_ty = arena.alloc(inner_decode(reader, arena)?);
+                    constant::Type::List(elem_ty)
+                }
+                7 if reader.read_bits::<1>()? == 1 && reader.read_bits::<4>()? == 6 => {
+                    let first_ty = inner_decode(reader, arena)?;
+                    let second_ty = inner_decode(reader, arena)?;
+                    constant::Type::Pair(arena.alloc((first_ty, second_ty)))
+                }
+                12 => {
+                    let elem_ty = arena.alloc(inner_decode(reader, arena)?);
+                    constant::Type::Array(elem_ty)
+                }
+                _ => return None,
+            },
+            8 => constant::Type::Data,
+            9 => constant::Type::BLSG1Element,
+            10 => constant::Type::BLSG2Element,
+            11 => constant::Type::MillerLoopResult,
+            _ => return None,
         };
         Some(ty)
     }
+    let ty = inner_decode(reader, arena)?;
+    let 0 = reader.read_bits::<1>()? else {
+        return None;
+    };
+    Some(ty)
 }
 
 impl Decode<'_> for u64 {
