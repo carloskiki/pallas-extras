@@ -14,12 +14,15 @@ pub fn bench(c: &mut Criterion) {
         let mut group = c.benchmark_group(bench_name);
         group.bench_with_input("decode", &flat, |b, input| {
             b.iter(|| {
-                Program::from_flat(input).unwrap();
+                let arena = plutus::Arena::default();
+                let program = Program::from_flat(input, &arena).unwrap();
+                std::hint::black_box(program);
             });
         });
         group.bench_with_input("evaluate", &flat, |b, flat| {
             b.iter(|| {
-                let program = Program::from_flat(flat).unwrap();
+                let arena = plutus::Arena::default();
+                let program = Program::from_flat(flat, &arena).unwrap();
                 let mut context = Context {
                     model: COST_MODEL,
                     budget: Budget {
@@ -28,7 +31,7 @@ pub fn bench(c: &mut Criterion) {
                     },
                 };
                 let result = program.evaluate(&mut context).unwrap();
-                std::hint::black_box(result)
+                std::hint::black_box(result);
             });
         });
     }

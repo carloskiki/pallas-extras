@@ -29,7 +29,7 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    // if test_name != "uplc/evaluation/term/app/app-9" {
+                    // if test_name != "uplc/evaluation/builtin/semantics/headList/headList-02" {
                     //     continue;
                     // }
 
@@ -58,6 +58,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         ctx.ignore_for("Requires value built-in type or constant-case support")?;
     }
 
+    let arena = plutus::Arena::default();
     let program = std::fs::read_to_string(program_path).unwrap();
     let expected_path = program_path.to_string_lossy().to_string() + ".expected";
     let expected_output = std::fs::read_to_string(&expected_path)
@@ -65,7 +66,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         .trim()
         .to_string();
 
-    let program: Program<String> = match (program.parse(), expected_output.as_str()) {
+    let program: Program<String> = match (Program::from_str(&program, &arena), expected_output.as_str()) {
         (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
         (Err(_), "parse error") => return Ok(()),
         (Ok(program), _) => program,
@@ -84,7 +85,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
     let flat_path = program_path.with_extension("flat");
     match (std::fs::read(&flat_path), program_debruijn.to_flat()) {
         (Ok(flat), Some(flat_from_program)) => {
-            let Some(program_from_flat) = Program::from_flat(&flat) else {
+            let Some(program_from_flat) = Program::from_flat(&flat, &arena) else {
                 return Err(RunError::fail("Failed to parse flat program"));
             };
 
@@ -94,7 +95,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
                 ));
             }
 
-            let Some(round_trip_program) = Program::from_flat(&flat_from_program) else {
+            let Some(round_trip_program) = Program::from_flat(&flat_from_program, &arena) else {
                 return Err(RunError::fail(
                     "Failed to convert round-tripped flat program to de Bruijn",
                 ));
@@ -169,8 +170,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         }
         (None, _) => return Err(RunError::fail("Unexpected evaluation failure")),
     };
-    let expected_program: Program<ExpectedVariable> = expected_output
-        .parse()
+    let expected_program: Program<ExpectedVariable> = Program::from_str(&expected_output, &arena)
         .map_err(|_| RunError::fail("Failed to parse expected output"))?;
 
     if expected_program != output.into_de_bruijn().unwrap() {

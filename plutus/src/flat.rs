@@ -208,7 +208,7 @@ impl Encode for str {
     }
 }
 
-impl Encode for Program<DeBruijn> {
+impl Encode for Program<'_, DeBruijn> {
     fn encode(&self, buffer: &mut Buffer) -> Option<()> {
         self.version.major.encode(buffer)?;
         self.version.minor.encode(buffer)?;
@@ -252,7 +252,7 @@ impl Encode for Program<DeBruijn> {
                 }
                 Instruction::Constant(constant_index) => {
                     buffer.write_bits::<4>(0b100);
-                    let constant = &self.arena.get(*constant_index);
+                    let constant = &self.constants[constant_index.0 as usize];
                     constant.type_of(&self.arena).encode(buffer)?;
                     constant.encode(buffer)?;
                     decrement(&mut list_stack, buffer, &mut var_count);
@@ -277,7 +277,7 @@ impl Encode for Program<DeBruijn> {
                     buffer.write_bits::<4>(0b1000);
                     if *large_discriminant {
                         let Constant::Integer(discriminant) =
-                            &self.arena.get(ConstantIndex(*discriminant))
+                            &self.constants[*discriminant as usize]
                         else {
                             panic!("large_discriminant should point to an Integer constant");
                         };
@@ -635,174 +635,173 @@ impl Decode<'_> for String {
     }
 }
 
-impl Decode<'_> for Program<DeBruijn> {
-    fn decode(reader: &mut Reader<'_>) -> Option<Self> {
-        let major = u64::decode(reader)?;
-        let minor = u64::decode(reader)?;
-        let patch = u64::decode(reader)?;
+pub fn decode_program<'a>(
+    reader: &mut Reader<'_>,
+    arena: &'a constant::Arena,
+) -> Option<Program<'a, DeBruijn>> {
+    let major = u64::decode(reader)?;
+    let minor = u64::decode(reader)?;
+    let patch = u64::decode(reader)?;
 
-        enum Frame {
-            /// Frame for tracking `case` and `construct` instructions which have a size.
-            Sized {
-                /// The index of the `case` or `construct` instruction in the program.
-                index: u32,
-                /// The number of elements it contains so far. (branches for `case`, fields for
-                /// `construct`).
-                length: u16,
-            },
-            /// Frame for tracking an application instruction.
-            Application {
-                /// The index of the `application` instruction in the program.
-                ///
-                /// Used to write back where the second argument starts.
-                index: u32,
-            },
-            /// Frame for tracking a lambda. After the lambda is read, we need to pop a variable
-            /// off the stack.
-            Variable,
-            /// Frame for tracking other instructions which do not need special handling.
-            Other,
-        }
+    enum Frame {
+        /// Frame for tracking `case` and `construct` instructions which have a size.
+        Sized {
+            /// The index of the `case` or `construct` instruction in the program.
+            index: u32,
+            /// The number of elements it contains so far. (branches for `case`, fields for
+            /// `construct`).
+            length: u16,
+        },
+        /// Frame for tracking an application instruction.
+        Application {
+            /// The index of the `application` instruction in the program.
+            ///
+            /// Used to write back where the second argument starts.
+            index: u32,
+        },
+        /// Frame for tracking a lambda. After the lambda is read, we need to pop a variable
+        /// off the stack.
+        Variable,
+        /// Frame for tracking other instructions which do not need special handling.
+        Other,
+    }
 
-        let mut stack: Vec<Frame> = vec![Frame::Other];
-        let mut instructions = Vec::new();
-        let mut variable_count: u32 = 0;
-        let arena = constant::Arena::default();
+    let mut stack: Vec<Frame> = vec![Frame::Other];
+    let mut instructions = Vec::new();
+    let mut constants = Vec::new();
+    let mut variable_count: u32 = 0;
 
-        while !stack.is_empty() {
-            match reader.read_bits::<4>()? {
-                0 => {
-                    let var = u32::decode(reader)?;
-                    instructions.push(Instruction::Variable(DeBruijn(
-                        variable_count.checked_sub(var)?,
-                    )));
-                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
-                }
-                1 => {
-                    instructions.push(Instruction::Delay);
-                }
-                2 => {
-                    instructions.push(Instruction::Lambda(DeBruijn(variable_count)));
-                    variable_count += 1;
-                    stack.push(Frame::Variable);
-                }
-                3 => {
-                    let index = instructions.len() as u32;
-                    instructions.push(Instruction::Application(TermIndex(0)));
-                    stack.push(Frame::Application { index });
-                }
-                4 => {
-                    let index = arena
-                        .constant(|arena| decode_constant(reader, arena).ok_or(()))
-                        .ok()?;
-                    instructions.push(Instruction::Constant(index));
-                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
-                }
-                5 => {
-                    instructions.push(Instruction::Force);
-                }
-                6 => {
-                    instructions.push(Instruction::Error);
-                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
-                }
-                7 => {
-                    let builtin = reader.read_bits::<7>()?;
-                    instructions.push(Instruction::Builtin(Builtin::from_repr(builtin)?));
-                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
-                }
-                8 => {
-                    let discriminant = u64::decode(reader)?;
-                    let index = instructions.len() as u32;
-                    if discriminant > u32::MAX as u64 {
-                        let Ok(discriminant_index) = arena.constant(|arena| {
-                            Ok::<_, std::convert::Infallible>(Constant::Integer(
-                                arena.integer(Integer::from(discriminant)),
-                            ))
-                        });
-                        instructions.push(Instruction::Construct {
-                            discriminant: discriminant_index.0,
-                            large_discriminant: true,
-                            length: 0,
-                        });
-                    } else {
-                        instructions.push(Instruction::Construct {
-                            discriminant: discriminant as u32,
-                            large_discriminant: false,
-                            length: 0,
-                        });
-                    }
-
-                    stack.push(Frame::Sized { index, length: 0 });
-                    decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
-                }
-                9 => {
-                    let index = instructions.len() as u32;
-                    instructions.push(Instruction::Case { count: 0 });
-
-                    stack.push(Frame::Sized { index, length: 0 });
-                    stack.push(Frame::Other);
-                }
-                _ => return None,
+    while !stack.is_empty() {
+        match reader.read_bits::<4>()? {
+            0 => {
+                let var = u32::decode(reader)?;
+                instructions.push(Instruction::Variable(DeBruijn(
+                    variable_count.checked_sub(var)?,
+                )));
+                decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
             }
+            1 => {
+                instructions.push(Instruction::Delay);
+            }
+            2 => {
+                instructions.push(Instruction::Lambda(DeBruijn(variable_count)));
+                variable_count += 1;
+                stack.push(Frame::Variable);
+            }
+            3 => {
+                let index = instructions.len() as u32;
+                instructions.push(Instruction::Application(TermIndex(0)));
+                stack.push(Frame::Application { index });
+            }
+            4 => {
+                let index = ConstantIndex(constants.len() as u32);
+                let constant = decode_constant(reader, arena)?;
+                constants.push(constant);
+                instructions.push(Instruction::Constant(index));
+                decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
+            }
+            5 => {
+                instructions.push(Instruction::Force);
+            }
+            6 => {
+                instructions.push(Instruction::Error);
+                decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
+            }
+            7 => {
+                let builtin = reader.read_bits::<7>()?;
+                instructions.push(Instruction::Builtin(Builtin::from_repr(builtin)?));
+                decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
+            }
+            8 => {
+                let discriminant = u64::decode(reader)?;
+                let index = instructions.len() as u32;
+                if discriminant > u32::MAX as u64 {
+                    let index = constants.len() as u32;
+                    constants.push(Constant::Integer(arena.integer(Integer::from(discriminant))));
+                    instructions.push(Instruction::Construct {
+                        discriminant: index,
+                        large_discriminant: true,
+                        length: 0,
+                    });
+                } else {
+                    instructions.push(Instruction::Construct {
+                        discriminant: discriminant as u32,
+                        large_discriminant: false,
+                        length: 0,
+                    });
+                }
+
+                stack.push(Frame::Sized { index, length: 0 });
+                decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
+            }
+            9 => {
+                let index = instructions.len() as u32;
+                instructions.push(Instruction::Case { count: 0 });
+
+                stack.push(Frame::Sized { index, length: 0 });
+                stack.push(Frame::Other);
+            }
+            _ => return None,
         }
+    }
 
-        if reader.read_bytes_padded()?.next().is_some() {
-            return None;
-        }
+    if reader.read_bytes_padded()?.next().is_some() {
+        return None;
+    }
 
-        return Some(Program {
-            version: Version {
-                major,
-                minor,
-                patch,
-            },
-            program: instructions,
-            arena,
-        });
+    return Some(Program {
+        version: Version {
+            major,
+            minor,
+            patch,
+        },
+        program: instructions,
+        constants,
+        arena,
+    });
 
-        fn decrement(
-            stack: &mut Vec<Frame>,
-            reader: &mut Reader<'_>,
-            program: &mut [Instruction<DeBruijn>],
-            variable_count: &mut u32,
-        ) -> Option<()> {
-            while let Some(top) = stack.last_mut() {
-                match top {
-                    Frame::Sized { index, length } => {
-                        let bit = reader.read_bits::<1>()?;
-                        if bit == 1 {
-                            *length += 1;
-                            break;
-                        }
-
-                        let (Instruction::Construct { length: count, .. }
-                        | Instruction::Case { count }) = &mut program[*index as usize]
-                        else {
-                            panic!("Instruction at index should be Construct or Case")
-                        };
-                        *count = *length;
-                        stack.pop();
-                    }
-                    Frame::Application { index } => {
-                        let next = program.len() as u32;
-                        let Instruction::Application(i) = &mut program[*index as usize] else {
-                            panic!("Instruction at index should be Application");
-                        };
-                        i.0 = next;
-                        *top = Frame::Other;
+    fn decrement(
+        stack: &mut Vec<Frame>,
+        reader: &mut Reader<'_>,
+        program: &mut [Instruction<DeBruijn>],
+        variable_count: &mut u32,
+    ) -> Option<()> {
+        while let Some(top) = stack.last_mut() {
+            match top {
+                Frame::Sized { index, length } => {
+                    let bit = reader.read_bits::<1>()?;
+                    if bit == 1 {
+                        *length += 1;
                         break;
                     }
-                    Frame::Variable => {
-                        *variable_count -= 1;
-                        stack.pop();
-                    }
-                    Frame::Other => {
-                        stack.pop();
-                    }
+
+                    let (Instruction::Construct { length: count, .. }
+                    | Instruction::Case { count }) = &mut program[*index as usize]
+                    else {
+                        panic!("Instruction at index should be Construct or Case")
+                    };
+                    *count = *length;
+                    stack.pop();
+                }
+                Frame::Application { index } => {
+                    let next = program.len() as u32;
+                    let Instruction::Application(i) = &mut program[*index as usize] else {
+                        panic!("Instruction at index should be Application");
+                    };
+                    i.0 = next;
+                    *top = Frame::Other;
+                    break;
+                }
+                Frame::Variable => {
+                    *variable_count -= 1;
+                    stack.pop();
+                }
+                Frame::Other => {
+                    stack.pop();
                 }
             }
-            Some(())
         }
+        Some(())
     }
 }
 

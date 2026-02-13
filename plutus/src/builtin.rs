@@ -465,7 +465,7 @@ pub fn choose_unit(_: (), then: machine::Value) -> machine::Value {
     then
 }
 
-pub fn trace(message: String, value: machine::Value) -> machine::Value {
+pub fn trace<'a>(message: &str, value: machine::Value<'a>) -> machine::Value<'a> {
     log::info!("{message}");
     println!("{message}");
     value
@@ -510,6 +510,12 @@ impl<'a, C: Into<Constant<'a>>> Output<'a> for C {
     }
 }
 
+impl<'a, O: Output<'a>> Output<'a> for Option<O> {
+    fn into(value: Self, arena: &'a constant::Arena) -> Option<machine::Value<'a>> {
+        value.and_then(|v| O::into(v, arena))
+    }
+}
+
 impl<'a> Output<'a> for machine::Value<'a> {
     fn into(value: Self, _: &'a constant::Arena) -> Option<machine::Value<'a>> {
         Some(value)
@@ -533,13 +539,14 @@ impl_function!(A, B, C, D);
 impl_function!(A, B, C, D, E);
 impl_function!(A, B, C, D, E, F);
 
-/// Implement `Function` for builtin functions with varying number of arguments.
+/// Implement `Function` for builtin functions with varying number of arguments, and optionally
+/// access to the arena in last argument.
 macro_rules! impl_function {
     ($($ty:ident),*) => {
         #[allow(unused_parens, non_snake_case)]
-        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)*), CE, CM> for FN
+        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)* &'a constant::Arena), CE, CM> for FN
         where
-            FN: Fn($($ty),*) -> O,
+            FN: Fn($($ty),*, &'a constant::Arena) -> O,
             CE: cost::Function<($($ty),*)>,
             CM: cost::Function<($($ty),*)>,
         {
@@ -573,8 +580,29 @@ macro_rules! impl_function {
                     .checked_sub_signed(memory_cost)?;
 
                 let ($($ty),*) = tuple;
-                let output = (self)($($ty),*);
+                let output = (self)($($ty),*, arena);
                 O::into(output, arena)
+            }
+        }
+
+        #[allow(unused_parens, non_snake_case)]
+        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)*), CE, CM> for FN
+        where
+            FN: Fn($($ty),*) -> O,
+            CE: cost::Function<($($ty),*)>,
+            CM: cost::Function<($($ty),*)>,
+        {
+            fn apply(
+                self,
+                args: Vec<machine::Value<'a>>,
+                arena: &'a constant::Arena,
+                context: &mut cost::Context,
+            ) -> Option<machine::Value<'a>> {
+                <_ as Function<
+                    _,
+                    CE,
+                    CM,
+                >>::apply((|$($ty: $ty),*, _: &'a constant::Arena| self($($ty),*)), args, arena, context)
             }
         }
     };

@@ -53,8 +53,8 @@ pub struct Divide {
     pub minimum: i64,
 }
 
-impl Function<(rug::Integer, rug::Integer)> for Divide {
-    fn cost(&self, inputs: &(rug::Integer, rug::Integer)) -> i64 {
+impl Function<(rug::Integer, &rug::Integer)> for Divide {
+    fn cost(&self, inputs: &(rug::Integer, &rug::Integer)) -> i64 {
         let x = Saturating(First.cost(&inputs.0));
         let y = Saturating(First.cost(&inputs.1));
         let c00 = Saturating(self.c00);
@@ -83,8 +83,8 @@ pub struct ExpModIntegerExecution {
     pub c12: i64,
 }
 
-impl Function<(rug::Integer, rug::Integer, rug::Integer)> for ExpModIntegerExecution {
-    fn cost(&self, inputs: &(rug::Integer, rug::Integer, rug::Integer)) -> i64 {
+impl Function<(rug::Integer, &rug::Integer, &rug::Integer)> for ExpModIntegerExecution {
+    fn cost(&self, inputs: &(rug::Integer, &rug::Integer, &rug::Integer)) -> i64 {
         let base = Saturating(First.cost(&inputs.0));
         let exp = Saturating(First.cost(&inputs.1));
         let modulus = Saturating(First.cost(&inputs.2));
@@ -107,11 +107,11 @@ pub struct IntegerToByteStringMemory {
     pub affine: Affine<Third>,
 }
 
-impl<A, B> Function<(A, rug::Integer, B)> for IntegerToByteStringMemory
+impl<A, B> Function<(A, &rug::Integer, B)> for IntegerToByteStringMemory
 where
     First: Function<B>,
 {
-    fn cost(&self, inputs @ (_, int, _): &(A, rug::Integer, B)) -> i64 {
+    fn cost(&self, inputs @ (_, int, _): &(A, &rug::Integer, B)) -> i64 {
         if int.is_zero() {
             return self.affine.cost(inputs);
         }

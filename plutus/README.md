@@ -25,6 +25,8 @@ not support partial cost models for cek machine steps.
 ## Available Optimizations
 
 - Arena for Constants.
+- Inline stuff in `Builtin` computations.
+
 - Store `next` in the instruction for `case` and construct?
 - Packed instruction representation.
 - Reduce size of `Frame`, `Value`, and `DischargeValue`.

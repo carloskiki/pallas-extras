@@ -19,32 +19,45 @@ impl Function<rug::Integer> for First {
     }
 }
 
-impl Function<List> for First {
+impl Function<&rug::Integer> for First {
+    fn cost(&self, input: &&rug::Integer) -> i64 {
+        (std::mem::size_of_val(input.as_limbs()) / 8).max(1) as i64
+    }
+}
+
+impl Function<List<'_>> for First {
     fn cost(&self, input: &List) -> i64 {
-        match &input.elements {
-            Ok(elements) => elements.len() as i64,
-            Err(_) => 0,
-        }
+        (match input {
+            List::Integer(integers) => integers.len(),
+            List::Bytes(items) => items.len(),
+            List::String(items) => items.len(),
+            List::Unit(items) => items.len(),
+            List::Boolean(items) => items.len(),
+            List::Data(datas) => datas.len(),
+            List::PairData(items) => items.len(),
+            List::BLSG1Element(projectives) => projectives.len(),
+            List::BLSG2Element(projectives) => projectives.len(),
+            List::MillerLoopResult(items) => items.len(),
+            List::Generic(Ok(items)) => items.len(),
+            List::Generic(Err(_)) => 0,
+        }) as i64
     }
 }
 
-impl<T: Into<Constant>> Function<Vec<T>> for First {
-    fn cost(&self, input: &Vec<T>) -> i64 {
+impl Function<&[rug::Integer]> for First {
+    fn cost(&self, input: &&[rug::Integer]) -> i64 {
         input.len() as i64
-    }
-}
-
-impl Function<Array> for First {
-    fn cost(&self, input: &Array) -> i64 {
-        match &input.elements {
-            Ok(elements) => elements.len() as i64,
-            Err(_) => 0,
-        }
     }
 }
 
 impl Function<Vec<u8>> for First {
     fn cost(&self, input: &Vec<u8>) -> i64 {
+        (input.len() as i64 - 1) / 8 + 1
+    }
+}
+
+impl Function<&[u8]> for First {
+    fn cost(&self, input: &&[u8]) -> i64 {
         (input.len() as i64 - 1) / 8 + 1
     }
 }
@@ -55,17 +68,23 @@ impl Function<String> for First {
     }
 }
 
-impl Function<crate::Data> for First {
-    fn cost(&self, inputs: &crate::Data) -> i64 {
+impl Function<&str> for First {
+    fn cost(&self, input: &&str) -> i64 {
+        input.chars().count() as i64
+    }
+}
+
+impl Function<&crate::Data> for First {
+    fn cost(&self, inputs: &&crate::Data) -> i64 {
         (Saturating(4)
             + match inputs {
                 crate::Data::Map(items) => items.iter().fold(Saturating(0), |a, (k, v)| {
-                    Saturating(self.cost(k)) + Saturating(self.cost(v)) + a
+                    Saturating(self.cost(&k)) + Saturating(self.cost(&v)) + a
                 }),
                 crate::Data::List(datas)
                 | crate::Data::Construct(crate::Construct { value: datas, .. }) => datas
                     .iter()
-                    .fold(Saturating(0), |a, d| Saturating(self.cost(d)) + a),
+                    .fold(Saturating(0), |a, d| Saturating(self.cost(&d)) + a),
                 crate::Data::Bytes(items) => Saturating(self.cost(items)),
                 crate::Data::Integer(integer) => Saturating(self.cost(integer)),
             })
@@ -130,9 +149,9 @@ where
 #[derive(FromBytes, Immutable, KnownLayout)]
 pub struct FirstInteger;
 
-impl Function<rug::Integer> for FirstInteger {
-    fn cost(&self, input: &rug::Integer) -> i64 {
-        <_ as SaturatingCast<i64>>::saturating_cast(input).saturating_abs()
+impl Function<&rug::Integer> for FirstInteger {
+    fn cost(&self, input: &&rug::Integer) -> i64 {
+        <_ as SaturatingCast<i64>>::saturating_cast(*input).saturating_abs()
     }
 }
 
@@ -158,8 +177,8 @@ where
 #[derive(FromBytes, Immutable, KnownLayout)]
 pub struct FirstIntegerAsBytes;
 
-impl Function<rug::Integer> for FirstIntegerAsBytes {
-    fn cost(&self, input: &rug::Integer) -> i64 {
+impl Function<&rug::Integer> for FirstIntegerAsBytes {
+    fn cost(&self, input: &&rug::Integer) -> i64 {
         let value: i64 = input.saturating_cast();
         value.unsigned_abs().div_ceil(8) as i64
     }

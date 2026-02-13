@@ -92,11 +92,11 @@ pub fn mk_pair<'a>(first: &'a Data, second: &'a Data) -> (&'a Data, &'a Data) {
     (first, second)
 }
 
-pub fn mk_nil(_: ()) -> List<'static> {
+pub fn mk_nil<'a>(_: ()) -> List<'a> {
     List::Data(&[])
 }
 
-pub fn mk_nil_pair(_: ()) -> List<'static> {
+pub fn mk_nil_pair<'a>(_: ()) -> List<'a> {
     List::PairData(&[])
 }
 

@@ -4,14 +4,20 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use crate::{Construct, Data, lex};
+use crate::{Construct, Data, builtin::Output, lex};
 use bwst::{g1, g2, group::GroupEncoding};
-use std::str::FromStr;
+use std::{convert::Infallible, str::FromStr};
 
 mod arena;
 pub use arena::Arena;
 
 // TODO: This is quite messy, consider refactoring.
+// - Check if remove all unused list specializations make a big perf hit.
+// - To remove the `Type` type, use `Constant` as a representative without any useful value
+// (removes arena from some builtins).
+// - Specialize `PairData` as a constant variant (to remove arena from `list::head` builtin)
+// - Inline `List` type within `Constant`, and make `Array` generic only.
+// - Make a dedicated `GenericList` type.
 
 pub type Array<'a> = List<'a>;
 
@@ -65,7 +71,8 @@ impl<'a> List<'a> {
         }
     }
 
-    pub fn destructure(&self, arena: &'a Arena) -> Option<(Constant<'a>, List<'a>)> {
+    pub fn destructure(&self) -> Option<(Constant<'a>, List<'a>)>
+    {
         macro_rules! destructure {
             ($variable:ident, $variant:ident) => {
                 destructure!($variable, $variant | ($variable))
@@ -86,13 +93,7 @@ impl<'a> List<'a> {
             List::Boolean(items) => destructure!(items, Boolean | (*items)),
             List::Data(datas) => destructure!(datas, Data),
             List::PairData(items) => items.split_first().map(|((k, v), rest)| {
-                (
-                    Constant::Pair(
-                        arena.alloc(Constant::Data(k)),
-                        arena.alloc(Constant::Data(v)),
-                    ),
-                    List::PairData(rest),
-                )
+                todo!()
             }),
             List::BLSG1Element(projectives) => destructure!(projectives, BLSG1Element),
             List::BLSG2Element(projectives) => destructure!(projectives, BLSG2Element),
@@ -102,7 +103,7 @@ impl<'a> List<'a> {
                 Some((
                     *first,
                     List::Generic(if rest.is_empty() {
-                        Err(first.type_of(arena))
+                        todo!()
                     } else {
                         Ok(rest)
                     }),
@@ -582,6 +583,8 @@ pub enum ParseError {
     TrailingContent,
 }
 
+// `TryFrom` implementations.
+
 impl<'a> TryFrom<Constant<'a>> for &'a rug::Integer {
     type Error = ();
 
@@ -690,19 +693,79 @@ impl<'a> TryFrom<Constant<'a>> for List<'a> {
     }
 }
 
+impl<'a> TryFrom<Constant<'a>> for &'a [rug::Integer] {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::List(List::Integer(ints)) = value {
+            Ok(ints)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a [g1::Projective] {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::List(List::BLSG1Element(projectives)) = value {
+            Ok(projectives)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a [g2::Projective] {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::List(List::BLSG2Element(projectives)) = value {
+            Ok(projectives)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for Vec<Data> {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::List(List::Data(datas)) = value {
+            Ok(datas.to_vec())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for Vec<(Data, Data)> {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::List(List::PairData(pairs)) = value {
+            Ok(pairs.to_vec())
+        } else {
+            Err(())
+        }
+    }
+}
+
 // TODO: Impl for Array.
 
 impl<'a, A, B> TryFrom<Constant<'a>> for (A, B)
 where
-    A: TryFrom<Constant<'a>, Error = ()>,
-    B: TryFrom<Constant<'a>, Error = ()>,
+    A: TryFrom<Constant<'a>>,
+    B: TryFrom<Constant<'a>>,
 {
     type Error = ();
 
     fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
         if let Constant::Pair(k, v) = value {
-            let k = (*k).try_into()?;
-            let v = (*v).try_into()?;
+            let k = (*k).try_into().map_err(|_| ())?;
+            let v = (*v).try_into().map_err(|_| ())?;
             Ok((k, v))
         } else {
             Err(())
@@ -716,6 +779,18 @@ impl<'a> TryFrom<Constant<'a>> for &'a Data {
     fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
         if let Constant::Data(d) = value {
             Ok(d)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a g1::Projective {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::BLSG1Element(p) = value {
+            Ok(p)
         } else {
             Err(())
         }
@@ -746,6 +821,18 @@ impl TryFrom<Constant<'_>> for g2::Projective {
     }
 }
 
+impl<'a> TryFrom<Constant<'a>> for &'a g2::Projective {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::BLSG2Element(p) = value {
+            Ok(p)
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl TryFrom<Constant<'_>> for bwst::miller_loop::Result {
     type Error = ();
 
@@ -758,4 +845,160 @@ impl TryFrom<Constant<'_>> for bwst::miller_loop::Result {
     }
 }
 
+impl<'a> TryFrom<Constant<'a>> for &'a bwst::miller_loop::Result {
+    type Error = ();
 
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::MillerLoopResult(r) = value {
+            Ok(r)
+        } else {
+            Err(())
+        }
+    }
+}
+
+// `Into` implementations.
+
+impl<'a> Into<Constant<'a>> for &'a rug::Integer {
+    fn into(self) -> Constant<'a> {
+        Constant::Integer(self)
+    }
+}
+
+impl<'a> Into<Constant<'a>> for &'a [u8] {
+    fn into(self) -> Constant<'a> {
+        Constant::Bytes(self)
+    }
+}
+
+impl<'a> Into<Constant<'a>> for &'a str {
+    fn into(self) -> Constant<'a> {
+        Constant::String(self)
+    }
+}
+
+impl Into<Constant<'_>> for () {
+    fn into(self) -> Constant<'static> {
+        Constant::Unit
+    }
+}
+
+impl Into<Constant<'_>> for bool {
+    fn into(self) -> Constant<'static> {
+        Constant::Boolean(self)
+    }
+}
+
+impl<'a> Into<Constant<'a>> for List<'a> {
+    fn into(self) -> Constant<'a> {
+        Constant::List(self)
+    }
+}
+
+impl<'a> Into<Constant<'a>> for &'a Data {
+    fn into(self) -> Constant<'a> {
+        Constant::Data(self)
+    }
+}
+
+
+impl<'a> Into<Constant<'a>> for &'a [Data] {
+    fn into(self) -> Constant<'a> {
+        Constant::List(List::Data(self))
+    }
+}
+
+impl<'a> Into<Constant<'a>> for &'a [(Data, Data)] {
+    fn into(self) -> Constant<'a> {
+        Constant::List(List::PairData(self))
+    }
+}
+
+impl<'a> Into<Constant<'a>> for (&'a Constant<'a>, &'a Constant<'a>) {
+    fn into(self) -> Constant<'a> {
+        Constant::Pair(self.0, self.1)
+    }
+}
+
+// `Output` trait for owned types.
+
+// We should have something for all `T` where `&'a T: Into<Constant<'a>>` and `T: Copy`, but this
+// is a conflicting impl for now.
+
+impl<'a> Output<'a> for rug::Integer {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::Integer(
+            arena.integer(value),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for Vec<u8> {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::Bytes(
+            arena.slice_fill(value.into_iter()),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for String {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::String(
+            arena.string(&value),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for Data {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::Data(
+            arena.data(value),
+        )))
+    }
+}
+
+impl<'a, A, B> Output<'a> for (A, B)
+where
+    A: Into<Constant<'a>>,
+    B: Into<Constant<'a>>,
+{
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::Pair(
+            arena.alloc(value.0.into()),
+            arena.alloc(value.1.into()),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for (rug::Integer, &'a [Data]) {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::Pair(
+            arena.alloc(Constant::Integer(arena.integer(value.0))),
+            arena.alloc(Constant::List(List::Data(value.1))),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for g1::Projective {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::BLSG1Element(
+            arena.alloc(value),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for g2::Projective {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::BLSG2Element(
+            arena.alloc(value),
+        )))
+    }
+}
+
+impl<'a> Output<'a> for bwst::miller_loop::Result {
+    fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
+        Some(crate::machine::Value::Constant(Constant::MillerLoopResult(
+            arena.alloc(value),
+        )))
+    }
+}

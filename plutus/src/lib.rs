@@ -32,7 +32,8 @@
 //! const PROGRAM: &str = "(program 1.0.0 [ [ (builtin addInteger) (con integer 2)] (con integer 2) ])";
 //! const FOUR: &str = "(program 1.0.0 (con integer 4))";
 //!
-//! let program: Program<String> = PROGRAM.parse().unwrap();
+//! let arena = plutus::Arena::default();
+//! let program: Program<String> = Program::from_str(PROGRAM, &arena).unwrap();
 //! let program = program.into_de_bruijn().unwrap();
 //!
 //! let mut context = plutus::Context {
@@ -41,7 +42,7 @@
 //! };
 //! let evaluated = program.evaluate(&mut context).unwrap();
 //!
-//! let four: Program<String> = FOUR.parse().unwrap();
+//! let four: Program<String> = Program::from_str(FOUR, &arena).unwrap();
 //! let four = four.into_de_bruijn().unwrap();
 //! assert_eq!(evaluated, four);
 //! ```
@@ -52,6 +53,7 @@ use crate::{builtin::Builtin, constant::Constant};
 
 mod builtin;
 mod constant;
+pub use constant::Arena;
 mod cost;
 pub use cost::Context;
 /// Script execution budget.
@@ -137,6 +139,7 @@ pub struct Version {
 /// use plutus::Program;
 ///
 /// const PROGRAM: &str = "(program 1.0.0 (lam x x))";
+/// let arena = plutus::Arena::default();
 /// let program: plutus::Program<String> = PROGRAM.parse().unwrap();
 /// ```
 ///
@@ -154,23 +157,58 @@ pub struct Version {
 /// Evaluation is only supported for `Program<DeBruijn>`, by calling [`Program::evaluate`].
 /// This produces another `Program<DeBruijn>`, representing the evaluated program.
 #[derive(Debug)]
-pub struct Program<T> {
+pub struct Program<'a, T> {
     /// The version of the program.
     pub version: Version,
-    /// The constants pool of the program.
+    /// Arena for all allocations during the program.
     ///
     /// This is a list of all constants used in the program. This is separate from the instructions
     /// so that the [`Instruction`] type is more compact, by referring to constants by their index
     /// instead.
-    arena: constant::Arena,
+    arena: &'a constant::Arena,
+    /// Constant pool of the program.
+    constants: Vec<Constant<'a>>,
     /// The instructions of the program.
     program: Vec<Instruction<T>>,
 }
 
-impl<T: FromStr> FromStr for Program<T> {
-    type Err = ParseError<T::Err>;
+/// Errors that can occur when parsing a `Program<T>`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, thiserror::Error)]
+pub enum ParseError<E> {
+    /// There is trailing content after the program.
+    #[error("trailing content after program")]
+    TrailingContent,
+    /// The program does not start with the `program` keyword.
+    #[error("missing 'program' keyword")]
+    ProgramKeyword,
+    /// Version is invalid. Only 1.0.0 and 1.1.0 are supported.
+    #[error("invalid program version")]
+    Version,
+    /// `(` without a matching `)` or `[` without a matching `]`.
+    #[error("unmatched delimiter")]
+    UnmatchedDelimiter,
+    /// Variable parsing error.
+    #[error("variable parsing error")]
+    Variable(#[source] E),
+    /// Unknown keyword.
+    #[error("unknown keyword")]
+    UnknownKeyword,
+    /// Unknown builtin function.
+    #[error("unknown builtin function")]
+    UnknownBuiltin,
+    /// Constant parsing error.
+    #[error("constant parsing error")]
+    Constant(#[from] constant::ParseError),
+    /// A constructor with length zero.
+    #[error("constructor with length zero")]
+    ConstructDiscriminant,
+    /// An application with less than two arguments.
+    #[error("application with less than two arguments")]
+    Application,
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl<'a, T: FromStr> Program<'a, T> {
+    pub fn from_str(s: &str, arena: &'a constant::Arena) -> Result<Self, ParseError<T::Err>> {
         let (program, "") =
             lex::group::<b'(', b')'>(s.trim()).ok_or(ParseError::UnmatchedDelimiter)?
         else {
@@ -222,8 +260,8 @@ impl<T: FromStr> FromStr for Program<T> {
             return Err(ParseError::Version);
         }
 
-        let arena = constant::Arena::default();
         let mut program = Vec::new();
+        let mut constants = Vec::new();
         let mut stack: Vec<(&str, Option<u32>)> = Vec::new();
         stack.push((term, None));
 
@@ -262,9 +300,11 @@ impl<T: FromStr> FromStr for Program<T> {
                             stack.push((rest.trim_start(), None));
                         }
                         "con" => {
-                            program.push(Instruction::Constant(arena.constant(|arena| {
-                                Constant::from_str(rest, arena).map_err(|e| ParseError::Constant(e))
-                            })?));
+                            let constant =
+                                Constant::from_str(rest, arena).map_err(ParseError::Constant)?;
+                            let index = ConstantIndex(constants.len() as u32);
+                            constants.push(constant);
+                            program.push(Instruction::Constant(index));
                         }
                         "force" => {
                             program.push(Instruction::Force);
@@ -286,12 +326,11 @@ impl<T: FromStr> FromStr for Program<T> {
                                 .map_err(|_| ParseError::ConstructDiscriminant)?;
                             let (discriminant, large_discriminant) =
                                 if discriminant > u32::MAX as u64 {
-                                    let Ok(discriminant_index) = arena.constant(|arena| {
-                                        Ok::<_, std::convert::Infallible>(Constant::Integer(
-                                            arena.integer(rug::Integer::from(discriminant)),
-                                        ))
-                                    });
-                                    (discriminant_index.0, true)
+                                    let index = constants.len() as u32;
+                                    constants.push(Constant::Integer(
+                                        arena.integer(rug::Integer::from(discriminant)),
+                                    ));
+                                    (index, true)
                                 } else {
                                     (discriminant as u32, false)
                                 };
@@ -364,47 +403,13 @@ impl<T: FromStr> FromStr for Program<T> {
         Ok(Program {
             version,
             arena,
+            constants,
             program,
         })
     }
 }
 
-/// Errors that can occur when parsing a `Program<T>`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, thiserror::Error)]
-pub enum ParseError<E> {
-    /// There is trailing content after the program.
-    #[error("trailing content after program")]
-    TrailingContent,
-    /// The program does not start with the `program` keyword.
-    #[error("missing 'program' keyword")]
-    ProgramKeyword,
-    /// Version is invalid. Only 1.0.0 and 1.1.0 are supported.
-    #[error("invalid program version")]
-    Version,
-    /// `(` without a matching `)` or `[` without a matching `]`.
-    #[error("unmatched delimiter")]
-    UnmatchedDelimiter,
-    /// Variable parsing error.
-    #[error("variable parsing error")]
-    Variable(#[source] E),
-    /// Unknown keyword.
-    #[error("unknown keyword")]
-    UnknownKeyword,
-    /// Unknown builtin function.
-    #[error("unknown builtin function")]
-    UnknownBuiltin,
-    /// Constant parsing error.
-    #[error("constant parsing error")]
-    Constant(#[from] constant::ParseError),
-    /// A constructor with length zero.
-    #[error("constructor with length zero")]
-    ConstructDiscriminant,
-    /// An application with less than two arguments.
-    #[error("application with less than two arguments")]
-    Application,
-}
-
-impl<T: PartialEq> Program<T> {
+impl<'a, T: PartialEq> Program<'a, T> {
     /// Convert any `Program<T: PartialEq>` into a `Program<DeBruijn>`, using reversed De Bruijn
     /// indices.
     ///
@@ -425,7 +430,7 @@ impl<T: PartialEq> Program<T> {
     ///
     /// assert_eq!(de_bruijn_a, de_bruijn_b);
     /// ```
-    pub fn into_de_bruijn(self) -> Option<Program<DeBruijn>> {
+    pub fn into_de_bruijn(self) -> Option<Program<'a, DeBruijn>> {
         fn increment_stack(stack: &mut [u32], count: u32) {
             *stack.last_mut().expect("stack is not empty") += count;
         }
@@ -510,12 +515,13 @@ impl<T: PartialEq> Program<T> {
             .map(|program| Program {
                 version: self.version,
                 arena: self.arena,
+                constants: self.constants,
                 program,
             })
     }
 }
 
-impl<T, U> PartialEq<Program<T>> for Program<U>
+impl<T, U> PartialEq<Program<'_, T>> for Program<'_, U>
 where
     U: PartialEq<T>,
 {
@@ -528,7 +534,7 @@ where
                 (Instruction::Lambda(a), Instruction::Lambda(b)) => a == b,
                 (Instruction::Builtin(a), Instruction::Builtin(b)) => a == b,
                 (Instruction::Constant(a), Instruction::Constant(b)) => {
-                    self.arena.get(*a) == other.arena.get(*b)
+                    self.constants[a.0 as usize] == other.constants[b.0 as usize]
                 }
                 (Instruction::Delay, Instruction::Delay) => true,
                 (Instruction::Application(_), Instruction::Application(_)) => true,
@@ -549,8 +555,7 @@ where
                     a_len == b_len && {
                         a_large == b_large
                             && if *a_large {
-                                self.arena.get(ConstantIndex(*a_det))
-                                    == other.arena.get(ConstantIndex(*b_det))
+                                self.constants[*a_det as usize] == other.constants[*b_det as usize]
                             } else {
                                 a_det == b_det
                             }
@@ -564,7 +569,7 @@ where
     }
 }
 
-impl Program<DeBruijn> {
+impl<'a> Program<'a, DeBruijn> {
     /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
     /// failed.
     pub fn evaluate(self, context: &mut Context<'_>) -> Option<Self> {
@@ -572,9 +577,9 @@ impl Program<DeBruijn> {
     }
 
     /// Decode a `Program<DeBruijn>` from its flat binary representation.
-    pub fn from_flat(bytes: &[u8]) -> Option<Self> {
+    pub fn from_flat(bytes: &[u8], arena: &'a constant::Arena) -> Option<Self> {
         let mut reader = flat::Reader::new(bytes);
-        flat::Decode::decode(&mut reader)
+        flat::decode_program(&mut reader, arena)
     }
 
     /// Encode a `Program<DeBruijn>` into its flat binary representation.

@@ -5,8 +5,7 @@
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
 use crate::{
-    ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex,
-    builtin::Builtin,
+    ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
     constant::Constant,
 };
 use bvt::Vector;
@@ -46,7 +45,7 @@ impl<'a> Value<'a> {
     /// This is defined in the [specification][spec] section 2.4.1.
     ///
     /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-    fn discharge(self, program: &'a mut Program<DeBruijn>) {
+    fn discharge(self, mut program: Program<'a, DeBruijn>) -> Program<'a, DeBruijn> {
         enum DischargeValue<'a> {
             Constant(Constant<'a>),
             Term {
@@ -105,7 +104,11 @@ impl<'a> Value<'a> {
         while let Some(value) = value_stack.pop() {
             match value {
                 DischargeValue::Constant(constant) => {
-                    instructions.push(Instruction::Constant(todo!()));
+                    instructions.push(Instruction::Constant({
+                        let constant_index = ConstantIndex(program.constants.len() as u32);
+                        program.constants.push(constant);
+                        constant_index
+                    }));
                 }
                 DischargeValue::Term {
                     term,
@@ -183,6 +186,7 @@ impl<'a> Value<'a> {
         }
 
         program.program = instructions;
+        program
     }
 }
 
@@ -192,6 +196,7 @@ impl<'a> Value<'a> {
 /// Defined in the [specification][spec] figure 2.9.
 ///
 /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
+#[derive(Debug)]
 enum Frame<'a> {
     Force,
     ApplyLeftValue(Value<'a>),
@@ -216,7 +221,10 @@ enum Frame<'a> {
 }
 
 /// Run the given program according to the CEK machine.
-pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<Program<DeBruijn>> {
+pub fn run<'a>(
+    program: Program<'a, DeBruijn>,
+    context: &mut Context<'_>,
+) -> Option<Program<'a, DeBruijn>> {
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
 
@@ -258,7 +266,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
             }
             Instruction::Constant(constant_index) => {
                 context.apply_no_args(&base_costs.constant)?;
-                Value::Constant(program.arena.get(constant_index))
+                Value::Constant(program.constants[constant_index.0 as usize])
             }
             Instruction::Force => {
                 context.apply_no_args(&base_costs.force)?;
@@ -377,7 +385,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 ) => {
                     args.push(value);
                     if args.len() == builtin.arity() as usize {
-                        ret = builtin.apply(args, todo!(), context)?;
+                        ret = builtin.apply(args, program.arena, context)?;
                         continue;
                     } else {
                         ret = Value::Builtin {
@@ -434,7 +442,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 ) if discriminant < count as u32 || large_discriminant => {
                     let discriminant = if large_discriminant {
                         let Constant::Integer(discriminant) =
-                            &program.arena.get(ConstantIndex(discriminant))
+                            &program.constants[discriminant as usize]
                         else {
                             panic!("large discriminant did not point to an integer constant");
                         };
@@ -477,7 +485,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                             skip_terms(&program.program, next.0 as usize, discriminant as u64)
                         }
                         Constant::List(list) => {
-                            let discriminant = match list.destructure(&program.arena) {
+                            let discriminant = match list.destructure() {
                                 Some((head, tail)) => {
                                     stack.push(Frame::ApplyLeftValue(Value::Constant(
                                         Constant::List(tail),
@@ -505,12 +513,12 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                     environment
                 }
                 (None, value) => {
-                    value.discharge(&mut program);
+                    let program = value.discharge(program);
                     return Some(program);
                 }
                 _ => return None,
             };
-        }
+        };
     }
 }
 
