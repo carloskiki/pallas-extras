@@ -1,7 +1,7 @@
-use rug::{az::SaturatingAs, integer::IntegerExt64, Integer};
+use rug::{Integer, az::SaturatingAs, integer::IntegerExt64};
 
-pub fn append(mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
-    x.extend(y);
+pub fn append(mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
+    x.extend_from_slice(y);
     x
 }
 
@@ -13,45 +13,44 @@ pub fn append(mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
 //     y
 // }
 
-pub fn cons_v2(x: Integer, mut y: Vec<u8>) -> Option<Vec<u8>> {
+pub fn cons_v2(x: &Integer, mut y: Vec<u8>) -> Option<Vec<u8>> {
     let byte = x.to_u8()?;
     y.insert(0, byte);
     Some(y)
 }
 
-pub fn slice(start: Integer, len: Integer, bytes: Vec<u8>) -> Vec<u8> {
+pub fn slice<'a>(start: &Integer, len: &Integer, bytes: &'a [u8]) -> &'a [u8] {
     let start: usize = start.saturating_as();
     let len: usize = len.saturating_as();
 
     bytes
         .get(start..bytes.len().min(start + len))
         .unwrap_or(&[])
-        .to_vec()
 }
 
-pub fn length(bytes: Vec<u8>) -> Integer {
+pub fn length(bytes: &[u8]) -> Integer {
     Integer::from(bytes.len())
 }
 
-pub fn index(bytes: Vec<u8>, index: Integer) -> Option<Integer> {
+pub fn index(bytes: &[u8], index: &Integer) -> Option<Integer> {
     let index = index.to_usize()?;
     let byte = *bytes.get(index)?;
     Some(Integer::from(byte))
 }
 
-pub fn equals(x: Vec<u8>, y: Vec<u8>) -> bool {
+pub fn equals(x: &[u8], y: &[u8]) -> bool {
     x == y
 }
 
-pub fn less_than(x: Vec<u8>, y: Vec<u8>) -> bool {
+pub fn less_than(x: &[u8], y: &[u8]) -> bool {
     x < y
 }
 
-pub fn less_than_or_equal(x: Vec<u8>, y: Vec<u8>) -> bool {
+pub fn less_than_or_equal(x: &[u8], y: &[u8]) -> bool {
     x <= y
 }
 
-pub fn to_integer(big_endian: bool, bytes: Vec<u8>) -> Integer {
+pub fn to_integer(big_endian: bool, bytes: &[u8]) -> Integer {
     Integer::from_digits(
         &bytes,
         if big_endian {
@@ -62,7 +61,7 @@ pub fn to_integer(big_endian: bool, bytes: Vec<u8>) -> Integer {
     )
 }
 
-pub fn and(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
+pub fn and(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a &= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -72,7 +71,7 @@ pub fn and(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x
 }
 
-pub fn or(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
+pub fn or(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a |= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -82,7 +81,7 @@ pub fn or(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
     x
 }
 
-pub fn xor(extend: bool, mut x: Vec<u8>, y: Vec<u8>) -> Vec<u8> {
+pub fn xor(extend: bool, mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x.iter_mut().zip(y.iter()).for_each(|(a, b)| *a ^= b);
     if extend && y.len() > x.len() {
         x.extend_from_slice(&y[x.len()..]);
@@ -97,7 +96,7 @@ pub fn complement(mut x: Vec<u8>) -> Vec<u8> {
     x
 }
 
-pub fn shift(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
+pub fn shift(mut x: Vec<u8>, by: &Integer) -> Vec<u8> {
     let by = match by.to_isize() {
         Some(n) => n,
         None => {
@@ -128,12 +127,12 @@ pub fn shift(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
     x
 }
 
-pub fn rotate(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
+pub fn rotate(mut x: Vec<u8>, by: &Integer) -> Vec<u8> {
     if by.is_zero() || x.is_empty() {
         return x;
     }
     let by = by.mod_u64(x.len() as u64 * 8) as isize;
-    
+
     let byte_shift = by.unsigned_abs() / 8;
     let bit_shift = by.unsigned_abs() % 8;
     let len = x.len();
@@ -152,11 +151,7 @@ pub fn rotate(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
         if bit_shift != 0 {
             let last = x.last().copied().unwrap_or(0);
             for i in (0..len).rev() {
-                let prev = if i == 0 {
-                    last
-                } else {
-                    x[i - 1]
-                };
+                let prev = if i == 0 { last } else { x[i - 1] };
                 x[i] = (x[i] >> bit_shift) | (prev << (8 - bit_shift));
             }
         }
@@ -164,12 +159,12 @@ pub fn rotate(mut x: Vec<u8>, by: Integer) -> Vec<u8> {
     x
 }
 
-pub fn count_set_bits(x: Vec<u8>) -> Integer {
+pub fn count_set_bits(x: &[u8]) -> Integer {
     let count: usize = x.iter().map(|b| b.count_ones() as usize).sum();
     Integer::from(count)
 }
 
-pub fn first_set_bit(x: Vec<u8>) -> Integer {
+pub fn first_set_bit(x: &[u8]) -> Integer {
     let mut index = 0;
     for byte in x.iter().rev() {
         if byte.trailing_zeros() < 8 {
@@ -181,7 +176,7 @@ pub fn first_set_bit(x: Vec<u8>) -> Integer {
     Integer::from(-1)
 }
 
-pub fn read_bit(x: Vec<u8>, index: Integer) -> Option<bool> {
+pub fn read_bit(x: &[u8], index: &Integer) -> Option<bool> {
     let index = index.to_usize()?;
     let byte_index = index / 8;
     let bit_index = index % 8;
@@ -189,7 +184,7 @@ pub fn read_bit(x: Vec<u8>, index: Integer) -> Option<bool> {
     Some((byte & (1 << bit_index)) != 0)
 }
 
-pub fn write_bits(mut x: Vec<u8>, indices: Vec<Integer>, bit: bool) -> Option<Vec<u8>> {
+pub fn write_bits(mut x: Vec<u8>, indices: &[Integer], bit: bool) -> Option<Vec<u8>> {
     for index in indices {
         let index = index.to_usize()?;
         let byte_index = index / 8;
@@ -205,7 +200,7 @@ pub fn write_bits(mut x: Vec<u8>, indices: Vec<Integer>, bit: bool) -> Option<Ve
     Some(x)
 }
 
-pub fn replicate_byte(count: Integer, byte: Integer) -> Option<Vec<u8>> {
+pub fn replicate_byte(count: &Integer, byte: &Integer) -> Option<Vec<u8>> {
     let byte = byte.to_u8()?;
     let count = count.to_usize()?;
     if count > 8192 {

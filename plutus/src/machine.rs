@@ -1,5 +1,5 @@
 //! Evaluation of programs by a CEK machine.
-//! 
+//!
 //! Defined in the [specification][spec] section 2.4.
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
@@ -7,7 +7,7 @@
 use crate::{
     ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex,
     builtin::Builtin,
-    constant::{Constant, List},
+    constant::Constant,
 };
 use bvt::Vector;
 
@@ -15,29 +15,29 @@ pub mod bvt;
 
 /// Represents a processed value in the CEK machine.
 #[derive(Debug, Clone)]
-pub(crate) enum Value {
-    Constant(ConstantIndex),
+pub(crate) enum Value<'a> {
+    Constant(Constant<'a>),
     Delay {
         term: TermIndex,
-        environment: Vector<Value>,
+        environment: Vector<Value<'a>>,
     },
     Lambda {
         term: TermIndex,
-        environment: Vector<Value>,
+        environment: Vector<Value<'a>>,
     },
     Construct {
         discriminant: u32,
         large_discriminant: bool,
-        values: Vec<Value>,
+        values: Vec<Value<'a>>,
     },
     Builtin {
         builtin: Builtin,
         polymorphism: u8,
-        args: Vec<Value>,
+        args: Vec<Value<'a>>,
     },
 }
 
-impl Value {
+impl<'a> Value<'a> {
     /// Discharge the value back into a program.
     ///
     /// Once a program is evaluated to a value, this value may still contain references to
@@ -46,31 +46,31 @@ impl Value {
     /// This is defined in the [specification][spec] section 2.4.1.
     ///
     /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-    fn discharge(self, mut program: Program<DeBruijn>) -> Program<DeBruijn> {
-        enum DischargeValue {
-            Constant(ConstantIndex),
+    fn discharge(self, program: &'a mut Program<DeBruijn>) {
+        enum DischargeValue<'a> {
+            Constant(Constant<'a>),
             Term {
                 term: TermIndex,
                 // This is a number of terms, so u16 is sufficient.
                 remaining: u16,
-                environment: Vector<Value>,
+                environment: Vector<Value<'a>>,
             },
             Construct {
                 discriminant: u32,
                 large_discriminant: bool,
-                values: Vec<DischargeValue>,
+                values: Vec<DischargeValue<'a>>,
             },
             Builtin {
                 builtin: Builtin,
                 force_count: u8,
-                args: Vec<DischargeValue>,
+                args: Vec<DischargeValue<'a>>,
             },
         }
 
-        impl From<Value> for DischargeValue {
-            fn from(value: Value) -> Self {
+        impl<'a> From<Value<'a>> for DischargeValue<'a> {
+            fn from(value: Value<'a>) -> Self {
                 match value {
-                    Value::Constant(constant_index) => DischargeValue::Constant(constant_index),
+                    Value::Constant(constant) => DischargeValue::Constant(constant),
                     Value::Delay { term, environment } | Value::Lambda { term, environment } => {
                         DischargeValue::Term {
                             term,
@@ -104,8 +104,8 @@ impl Value {
         let mut instructions = Vec::new();
         while let Some(value) = value_stack.pop() {
             match value {
-                DischargeValue::Constant(constant_index) => {
-                    instructions.push(Instruction::Constant(constant_index));
+                DischargeValue::Constant(constant) => {
+                    instructions.push(Instruction::Constant(todo!()));
                 }
                 DischargeValue::Term {
                     term,
@@ -181,8 +181,8 @@ impl Value {
                 }
             }
         }
+
         program.program = instructions;
-        program
     }
 }
 
@@ -192,26 +192,26 @@ impl Value {
 /// Defined in the [specification][spec] figure 2.9.
 ///
 /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-enum Frame {
+enum Frame<'a> {
     Force,
-    ApplyLeftValue(Value),
-    ApplyRightValue(Value),
+    ApplyLeftValue(Value<'a>),
+    ApplyRightValue(Value<'a>),
     ApplyLeftTerm {
-        environment: Vector<Value>,
+        environment: Vector<Value<'a>>,
         next: TermIndex,
     },
     Construct {
         remaining: u16,
         discriminant: u32,
         large_discriminant: bool,
-        values: Vec<Value>, // TODO
-        environment: Vector<Value>,
+        values: Vec<Value<'a>>, // TODO
+        environment: Vector<Value<'a>>,
         next: TermIndex,
     },
     Case {
         count: u16,
         next: TermIndex,
-        environment: Vector<Value>,
+        environment: Vector<Value<'a>>,
     },
 }
 
@@ -258,7 +258,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
             }
             Instruction::Constant(constant_index) => {
                 context.apply_no_args(&base_costs.constant)?;
-                Value::Constant(constant_index)
+                Value::Constant(program.arena.get(constant_index))
             }
             Instruction::Force => {
                 context.apply_no_args(&base_costs.force)?;
@@ -377,7 +377,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 ) => {
                     args.push(value);
                     if args.len() == builtin.arity() as usize {
-                        ret = builtin.apply(args, &mut program.constants, context)?;
+                        ret = builtin.apply(args, todo!(), context)?;
                         continue;
                     } else {
                         ret = Value::Builtin {
@@ -434,7 +434,7 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                 ) if discriminant < count as u32 || large_discriminant => {
                     let discriminant = if large_discriminant {
                         let Constant::Integer(discriminant) =
-                            &program.constants[discriminant as usize]
+                            &program.arena.get(ConstantIndex(discriminant))
                         else {
                             panic!("large discriminant did not point to an integer constant");
                         };
@@ -447,18 +447,15 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                     index = skip_terms(&program.program, next.0 as usize, discriminant);
                     environment
                 }
-                (None, value) => {
-                    return Some(value.discharge(program));
-                }
                 (
                     Some(Frame::Case {
                         count,
                         next,
                         environment,
                     }),
-                    Value::Constant(constant_index),
+                    Value::Constant(constant),
                 ) => {
-                    index = match &program.constants[constant_index.0 as usize] {
+                    index = match constant {
                         Constant::Integer(integer) => {
                             let discriminant = integer.to_u16()?;
                             if discriminant >= count {
@@ -473,62 +470,43 @@ pub fn run(mut program: Program<DeBruijn>, context: &mut Context<'_>) -> Option<
                             next.0 as usize
                         }
                         Constant::Boolean(bool) => {
-                            let discriminant = if *bool { 1 } else { 0 };
+                            let discriminant = if bool { 1 } else { 0 };
                             if !(1..=2).contains(&count) || discriminant >= count {
                                 return None;
                             }
                             skip_terms(&program.program, next.0 as usize, discriminant as u64)
                         }
                         Constant::List(list) => {
-                            let discriminant = match &list.elements {
-                                Ok(l) => {
-                                    let mut list = l.clone();
-                                    let head = list.pop().expect("list is not empty");
-                                    let tail = if list.is_empty() {
-                                        List {
-                                            elements: Err(head.type_of()),
-                                        }
-                                    } else {
-                                        List { elements: Ok(list) }
-                                    };
-                                    let tail_index = program.constants.len() as u32;
-                                    program.constants.push(Constant::List(tail));
-                                    program.constants.push(head);
+                            let discriminant = match list.destructure(&program.arena) {
+                                Some((head, tail)) => {
                                     stack.push(Frame::ApplyLeftValue(Value::Constant(
-                                        ConstantIndex(tail_index),
+                                        Constant::List(tail),
                                     )));
-                                    stack.push(Frame::ApplyLeftValue(Value::Constant(
-                                        ConstantIndex(tail_index + 1),
-                                    )));
+                                    stack.push(Frame::ApplyLeftValue(Value::Constant(head)));
                                     0
                                 }
-                                Err(_) => 1,
+                                None => 1,
                             };
                             if !(1..=2).contains(&count) || discriminant >= count {
                                 return None;
                             }
                             skip_terms(&program.program, next.0 as usize, discriminant as u64)
                         }
-                        Constant::Pair(p) => {
+                        Constant::Pair(first, second) => {
                             if count != 1 {
                                 return None;
                             }
-                            let p0_index = program.constants.len() as u32;
-                            let p0 = p.0.clone();
-                            let p1 = p.1.clone();
-                            program.constants.push(p0);
-                            program.constants.push(p1);
-                            stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
-                                p0_index + 1,
-                            ))));
-                            stack.push(Frame::ApplyLeftValue(Value::Constant(ConstantIndex(
-                                p0_index,
-                            ))));
+                            stack.push(Frame::ApplyLeftValue(Value::Constant(*second)));
+                            stack.push(Frame::ApplyLeftValue(Value::Constant(*first)));
                             next.0 as usize
                         }
                         _ => return None,
                     };
                     environment
+                }
+                (None, value) => {
+                    value.discharge(&mut program);
+                    return Some(program);
                 }
                 _ => return None,
             };

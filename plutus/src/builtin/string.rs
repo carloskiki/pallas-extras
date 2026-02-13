@@ -1,16 +1,16 @@
-pub fn append(mut x: String, y: String) -> String {
-    x.push_str(&y);
+pub fn append(mut x: String, y: &str) -> String {
+    x.push_str(y);
     x
 }
 
-pub fn equals(x: String, y: String) -> bool {
+pub fn equals(x: &str, y: &str) -> bool {
     x == y
 }
 
-pub fn encode_utf8(x: String) -> Vec<u8> {
-    x.into_bytes()
+pub fn encode_utf8(x: &str) -> &[u8] {
+    x.as_bytes()
 }
 
-pub fn decode_utf8(x: Vec<u8>) -> Option<String> {
-    String::from_utf8(x).ok()
+pub fn decode_utf8(x: &[u8]) -> Option<&str> {
+    std::str::from_utf8(x).ok()
 }

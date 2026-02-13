@@ -3,8 +3,8 @@ use crate::{
     machine::Value,
 };
 
-pub fn choose(list: List, empty: Value, then: Value) -> Value {
-    if list.elements.is_err() { empty } else { then }
+pub fn choose<'a>(list: List<'_>, empty: Value<'a>, then: Value<'a>) -> Value<'a> {
+    if list.is_empty() { empty } else { then }
 }
 
 // We deviate from the builtin spec here. This should not fail once type checking is done, but we
@@ -31,15 +31,8 @@ pub fn mk_cons(head: Constant, mut tail: List) -> Option<List> {
     })
 }
 
-pub fn head(mut list: List) -> Option<Constant> {
-    match &mut list.elements {
-        Ok(contains) => Some(
-            contains
-                .pop()
-                .expect("non-empty list invariant should hold"),
-        ),
-        Err(_) => None,
-    }
+pub fn head<'a>(list: List<'a>) -> Option<Constant<'a>> {
+    todo!()
 }
 
 pub fn tail(list: List) -> Option<List> {
@@ -60,7 +53,7 @@ pub fn tail(list: List) -> Option<List> {
 }
 
 pub fn null(list: List) -> bool {
-    list.elements.is_err()
+    list.is_empty()
 }
 
 pub fn drop(count: rug::Integer, list: List) -> List {
@@ -82,14 +75,6 @@ pub fn drop(count: rug::Integer, list: List) -> List {
     list
 }
 
-pub fn to_array(list: List) -> Array {
-    Array {
-        elements: match list.elements {
-            Ok(mut elements) => {
-                elements.reverse();
-                Ok(elements.into_boxed_slice())
-            }
-            Err(e) => Err(e),
-        },
-    }
+pub fn to_array(list: List<'_>) -> Array<'_> {
+    list
 }

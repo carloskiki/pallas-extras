@@ -1,18 +1,18 @@
 use rug::ops::{DivRounding, RemRounding};
 
-pub fn add(x: rug::Integer, y: rug::Integer) -> rug::Integer {
+pub fn add(x: rug::Integer, y: &rug::Integer) -> rug::Integer {
     x + y
 }
 
-pub fn subtract(x: rug::Integer, y: rug::Integer) -> rug::Integer {
+pub fn subtract(x: rug::Integer, y: &rug::Integer) -> rug::Integer {
     x - y
 }
 
-pub fn multiply(x: rug::Integer, y: rug::Integer) -> rug::Integer {
+pub fn multiply(x: rug::Integer, y: &rug::Integer) -> rug::Integer {
     x * y
 }
 
-pub fn divide(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
+pub fn divide(x: rug::Integer, y: &rug::Integer) -> Option<rug::Integer> {
     if y.is_zero() {
         None
     } else {
@@ -20,7 +20,7 @@ pub fn divide(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
     }
 }
 
-pub fn modulo(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
+pub fn modulo(x: rug::Integer, y: &rug::Integer) -> Option<rug::Integer> {
     if y.is_zero() {
         None
     } else {
@@ -28,27 +28,27 @@ pub fn modulo(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
     }
 }
 
-pub fn quotient(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
+pub fn quotient(x: rug::Integer, y: &rug::Integer) -> Option<rug::Integer> {
     if y.is_zero() { None } else { Some(x / y) }
 }
 
-pub fn remainder(x: rug::Integer, y: rug::Integer) -> Option<rug::Integer> {
+pub fn remainder(x: rug::Integer, y: &rug::Integer) -> Option<rug::Integer> {
     if y.is_zero() { None } else { Some(x % y) }
 }
 
-pub fn equals(x: rug::Integer, y: rug::Integer) -> bool {
+pub fn equals(x: &rug::Integer, y: &rug::Integer) -> bool {
     x == y
 }
 
-pub fn less_than(x: rug::Integer, y: rug::Integer) -> bool {
+pub fn less_than(x: &rug::Integer, y: &rug::Integer) -> bool {
     x < y
 }
 
-pub fn less_than_or_equal(x: rug::Integer, y: rug::Integer) -> bool {
+pub fn less_than_or_equal(x: &rug::Integer, y: &rug::Integer) -> bool {
     x <= y
 }
 
-pub fn to_bytes(big_endian: bool, width: rug::Integer, num: rug::Integer) -> Option<Vec<u8>> {
+pub fn to_bytes(big_endian: bool, width: &rug::Integer, num: &rug::Integer) -> Option<Vec<u8>> {
     let width = width.to_usize()?;
     if width > 8192 || num.cmp0() == std::cmp::Ordering::Less {
         return None;
@@ -76,12 +76,12 @@ pub fn to_bytes(big_endian: bool, width: rug::Integer, num: rug::Integer) -> Opt
 
 pub fn exp_mod(
     base: rug::Integer,
-    exponent: rug::Integer,
-    modulus: rug::Integer,
+    exponent: &rug::Integer,
+    modulus: &rug::Integer,
 ) -> Option<rug::Integer> {
     if modulus.cmp0() != std::cmp::Ordering::Greater {
         return None;
     }
 
-    base.pow_mod(&exponent, &modulus).ok()
+    base.pow_mod(exponent, modulus).ok()
 }

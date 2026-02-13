@@ -11,6 +11,8 @@ use std::str::FromStr;
 mod arena;
 pub use arena::Arena;
 
+// TODO: This is quite messy, consider refactoring.
+
 pub type Array<'a> = List<'a>;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -18,13 +20,13 @@ pub enum List<'a> {
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Integer(&'a [rug::Integer]),
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Bytes(&'a [&'a [u8]]),
+    Bytes(&'a [&'a [u8]]), // X
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    String(&'a [&'a str]),
+    String(&'a [&'a str]), // X
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Unit(&'a [()]),
+    Unit(&'a [()]), // X
     /// Introduced in batch 1 (specification section 4.3.1.1).
-    Boolean(&'a [bool]),
+    Boolean(&'a [bool]), // X
     /// Introduced in batch 1 (specification section 4.3.1.1).
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Data(&'a [Data]),
@@ -35,7 +37,7 @@ pub enum List<'a> {
     /// Introduced in batch 4 (specification section 4.3.4.2).
     BLSG2Element(&'a [g2::Projective]),
     /// Introduced in batch 4 (specification section 4.3.4.2).
-    MillerLoopResult(&'a [bwst::miller_loop::Result]),
+    MillerLoopResult(&'a [bwst::miller_loop::Result]), // X
     /// Generic list for when the type is nested.
     ///
     /// This includes:
@@ -43,6 +45,72 @@ pub enum List<'a> {
     /// - list (list _)
     /// - list (array _)
     Generic(Result<&'a [Constant<'a>], Type<'a>>),
+}
+
+impl<'a> List<'a> {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            List::Integer(items) => items.is_empty(),
+            List::Bytes(items) => items.is_empty(),
+            List::String(items) => items.is_empty(),
+            List::Unit(items) => items.is_empty(),
+            List::Boolean(items) => items.is_empty(),
+            List::Data(items) => items.is_empty(),
+            List::PairData(items) => items.is_empty(),
+            List::BLSG1Element(items) => items.is_empty(),
+            List::BLSG2Element(items) => items.is_empty(),
+            List::MillerLoopResult(items) => items.is_empty(),
+            List::Generic(Ok(items)) => items.is_empty(),
+            List::Generic(Err(_)) => true,
+        }
+    }
+
+    pub fn destructure(&self, arena: &'a Arena) -> Option<(Constant<'a>, List<'a>)> {
+        macro_rules! destructure {
+            ($variable:ident, $variant:ident) => {
+                destructure!($variable, $variant | ($variable))
+            };
+            ($variable:ident, $variant:ident | $op:tt) => {
+                $variable
+                    .split_first()
+                    .map(|($variable, rest)| (Constant::$variant $op, List::$variant(rest)))
+            };
+        }
+
+        match self {
+            List::Integer(items) => destructure!(items, Integer),
+            List::Bytes(items) => destructure!(items, Bytes),
+            List::String(items) => destructure!(items, String),
+            #[allow(unused_variables)]
+            List::Unit(items) => destructure!(items, Unit | {}),
+            List::Boolean(items) => destructure!(items, Boolean | (*items)),
+            List::Data(datas) => destructure!(datas, Data),
+            List::PairData(items) => items.split_first().map(|((k, v), rest)| {
+                (
+                    Constant::Pair(
+                        arena.alloc(Constant::Data(k)),
+                        arena.alloc(Constant::Data(v)),
+                    ),
+                    List::PairData(rest),
+                )
+            }),
+            List::BLSG1Element(projectives) => destructure!(projectives, BLSG1Element),
+            List::BLSG2Element(projectives) => destructure!(projectives, BLSG2Element),
+            List::MillerLoopResult(items) => destructure!(items, MillerLoopResult),
+            List::Generic(Ok(items)) => {
+                let (first, rest) = items.split_first().expect("non-empty list");
+                Some((
+                    *first,
+                    List::Generic(if rest.is_empty() {
+                        Err(first.type_of(arena))
+                    } else {
+                        Ok(rest)
+                    }),
+                ))
+            }
+            List::Generic(Err(_)) => None,
+        }
+    }
 }
 
 /// A plutus constant.
@@ -80,8 +148,8 @@ pub enum Constant<'a> {
     MillerLoopResult(&'a bwst::miller_loop::Result),
 }
 
-impl Constant<'_> {
-    pub fn type_of<'a>(&'a self, arena: &'a Arena) -> Type<'a> {
+impl<'a> Constant<'a> {
+    pub fn type_of(&self, arena: &'a Arena) -> Type<'a> {
         fn list_type_of<'a>(list: &List<'a>, arena: &'a Arena) -> Type<'a> {
             match list {
                 List::Integer(_) => Type::Integer,
@@ -119,7 +187,7 @@ impl Constant<'_> {
         }
     }
 
-    pub fn from_str(s: &str, arena: &Arena) -> Result<Self, ParseError> {
+    pub fn from_str(s: &str, arena: &'a Arena) -> Result<Self, ParseError> {
         let (ty_str, rest) = lex::constant_type(s).ok_or(ParseError::UnknownType)?;
         let (constant, rest) = from_split(ty_str, rest.trim_start(), arena)?;
         if !rest.is_empty() {
@@ -513,3 +581,181 @@ pub enum ParseError {
     #[error("trailing content after constant")]
     TrailingContent,
 }
+
+impl<'a> TryFrom<Constant<'a>> for &'a rug::Integer {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::Integer(i) = value {
+            Ok(i)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for rug::Integer {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::Integer(i) = value {
+            Ok(i.clone())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a [u8] {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::Bytes(b) = value {
+            Ok(b)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for Vec<u8> {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::Bytes(b) = value {
+            Ok(b.to_vec())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a str {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::String(s) = value {
+            Ok(s)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for String {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::String(s) = value {
+            Ok(s.to_string())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for () {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::Unit = value {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for bool {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::Boolean(b) = value {
+            Ok(b)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for List<'a> {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::List(l) = value {
+            Ok(l)
+        } else {
+            Err(())
+        }
+    }
+}
+
+// TODO: Impl for Array.
+
+impl<'a, A, B> TryFrom<Constant<'a>> for (A, B)
+where
+    A: TryFrom<Constant<'a>, Error = ()>,
+    B: TryFrom<Constant<'a>, Error = ()>,
+{
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::Pair(k, v) = value {
+            let k = (*k).try_into()?;
+            let v = (*v).try_into()?;
+            Ok((k, v))
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'a> TryFrom<Constant<'a>> for &'a Data {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::Data(d) = value {
+            Ok(d)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for g1::Projective {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::BLSG1Element(p) = value {
+            Ok(*p)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for g2::Projective {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::BLSG2Element(p) = value {
+            Ok(*p)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for bwst::miller_loop::Result {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::MillerLoopResult(r) = value {
+            Ok(*r)
+        } else {
+            Err(())
+        }
+    }
+}
+
+

@@ -7,7 +7,7 @@
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
 use crate::{
-    constant::Constant,
+    constant::{self, Constant},
     cost::{self, function as cf},
     machine,
 };
@@ -325,12 +325,12 @@ impl Builtin {
     ///
     /// Panics if the number of arguments does not match the arity of the builtin function. This
     /// is theoretically unreachable with a properly constructed CEK machine.
-    pub fn apply(
+    pub fn apply<'a>(
         self,
-        args: Vec<machine::Value>,
-        constants: &mut Vec<Constant>,
+        args: Vec<machine::Value<'a>>,
+        arena: &'a constant::Arena,
         context: &mut cost::Context,
-    ) -> Option<machine::Value> {
+    ) -> Option<machine::Value<'a>> {
         const fn offset(builtin: Builtin) -> usize {
             let mut offset = 0;
             let mut i = 0;
@@ -354,12 +354,12 @@ impl Builtin {
         // IMPORTANT: order matters here! The builtins are listed in order of cost model
         // appearance, so that the correct cost model parameters are extracted.
         builtins! {
-            [self, args, constants, context]
+            [self, args, arena, context]
             AddInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Affine<cf::Max<cf::First, cf::Second>>> => integer::add,
             AppendByteString<cf::Affine<cf::Add<cf::First, cf::Second>>, cf::Affine<cf::Add<cf::First, cf::Second>>> => bytestring::append,
             AppendString<cf::Affine<cf::Add<cf::First, cf::Second>>, cf::Affine<cf::Add<cf::First, cf::Second>>> => string::append,
             BData<cf::Constant, cf::Constant> => data::bytes,
-            Blake2b256<cf::Affine<cf::First>, cf::Constant> => digest::blake2b256,
+            Blake2b256<cf::Affine<cf::First>, cf::Constant> => digest::digest::<blake2::Blake2b256>,
             ChooseData<cf::Constant, cf::Constant> => data::choose,
             ChooseList<cf::Constant, cf::Constant> => list::choose,
             ChooseUnit<cf::Constant, cf::Constant> => choose_unit,
@@ -394,8 +394,8 @@ impl Builtin {
             QuotientInteger<cf::Divide, cf::Add<cf::Constant, cf::Mul<cf::Max<cf::Sub<cf::First, cf::Second>, cf::Constant>, cf::Constant>>> => integer::quotient,
             RemainderInteger<cf::Divide, cf::Affine<cf::Second>> => integer::remainder,
             SerialiseData<cf::Affine<cf::First>, cf::Affine<cf::First>> => data::serialize,
-            Sha2_256<cf::Affine<cf::First>, cf::Constant> => digest::sha2_256,
-            Sha3_256<cf::Affine<cf::First>, cf::Constant> => digest::sha3_256,
+            Sha2_256<cf::Affine<cf::First>, cf::Constant> => digest::digest::<sha2::Sha256>,
+            Sha3_256<cf::Affine<cf::First>, cf::Constant> => digest::digest::<sha3::Sha3_256>,
             SliceByteString<cf::Affine<cf::Third>, cf::Affine<cf::Third>> => bytestring::slice,
             SndPair<cf::Constant, cf::Constant> => second_pair,
             SubtractInteger<cf::Affine<cf::Max<cf::First, cf::Second>>, cf::Affine<cf::Max<cf::First, cf::Second>>> => integer::subtract,
@@ -426,8 +426,8 @@ impl Builtin {
             BlsFinalVerify<cf::Constant, cf::Constant> => bls12_381::final_verify,
             BlsMillerLoop<cf::Constant, cf::Constant> => bls12_381::miller_loop,
             BlsMulMlResult<cf::Constant, cf::Constant> => bls12_381::mul_ml_result,
-            Keccak256<cf::Affine<cf::First>, cf::Constant> => digest::keccak256,
-            Blake2b224<cf::Affine<cf::First>, cf::Constant> => digest::blake2b224,
+            Keccak256<cf::Affine<cf::First>, cf::Constant> => digest::digest::<sha3::Keccak256>,
+            Blake2b224<cf::Affine<cf::First>, cf::Constant> => digest::digest::<blake2::Blake2b<blake2::digest::consts::U28>>,
             IntegerToByteString<cf::Quadratic<cf::Third>, cf::IntegerToByteStringMemory> => integer::to_bytes,
             ByteStringToInteger<cf::Quadratic<cf::Second>, cf::Affine<cf::Second>> => bytestring::to_integer,
             AndByteString<cf::Affine2<cf::Second, cf::Third>, cf::Affine<cf::Max<cf::Second, cf::Third>>> => bytestring::and,
@@ -441,8 +441,7 @@ impl Builtin {
             RotateByteString<cf::Affine<cf::First>, cf::Affine<cf::First>> => bytestring::rotate,
             CountSetBits<cf::Affine<cf::First>, cf::Constant> => bytestring::count_set_bits,
             FindFirstSetBit<cf::Affine<cf::First>, cf::Constant> => bytestring::first_set_bit,
-            Ripemd160<cf::Affine<cf::First>, cf::Constant> => digest::ripemd160,
-
+            Ripemd160<cf::Affine<cf::First>, cf::Constant> => digest::digest::<ripemd::Ripemd160>,
             ExpModInteger<cf::ExpModIntegerExecution, cf::Affine<cf::Third>> => integer::exp_mod,
             DropList<cf::Affine<cf::FirstInteger>, cf::Constant> => list::drop,
             LengthOfArray<cf::Constant, cf::Constant> => array::length,
@@ -454,7 +453,11 @@ impl Builtin {
     }
 }
 
-pub fn if_then_else(cond: bool, then: machine::Value, else_: machine::Value) -> machine::Value {
+pub fn if_then_else<'a>(
+    cond: bool,
+    then: machine::Value<'a>,
+    else_: machine::Value<'a>,
+) -> machine::Value<'a> {
     if cond { then } else { else_ }
 }
 
@@ -468,77 +471,59 @@ pub fn trace(message: String, value: machine::Value) -> machine::Value {
     value
 }
 
-pub fn first_pair(pair: (Constant, Constant)) -> Constant {
+pub fn first_pair<'a>(pair: (Constant<'a>, Constant<'_>)) -> Constant<'a> {
     pair.0
 }
 
-pub fn second_pair(pair: (Constant, Constant)) -> Constant {
+pub fn second_pair<'a>(pair: (Constant<'_>, Constant<'a>)) -> Constant<'a> {
     pair.1
 }
 
 /// Convert a machine value into a builtin argument.
-pub trait Input: Sized {
-    fn from(value: machine::Value, constants: &[Constant]) -> Option<Self>;
+pub trait Input<'a>: Sized {
+    fn from(value: machine::Value<'a>) -> Option<Self>;
 }
 
-/// Convert a builtin return value into a machine value.
-pub trait Output {
-    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value>;
-}
-
-/// Any constant can be used as a value.
-impl<C: TryFrom<Constant>> Input for C {
-    fn from(value: machine::Value, constants: &[Constant]) -> Option<Self> {
-        let machine::Value::Constant(constant_index) = value else {
-            return None;
-        };
-        (constants[constant_index.0 as usize])
-            .clone()
-            .try_into()
-            .ok()
-    }
-}
-
-impl<C: Into<Constant>> Output for C {
-    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value> {
-        let constant = value.into();
-        let index = constants.len();
-        constants.push(constant);
-        Some(machine::Value::Constant(crate::ConstantIndex(index as u32)))
-    }
-}
-
-impl<C: Into<Constant>> Output for Option<C> {
-    fn into(value: Self, constants: &mut Vec<Constant>) -> Option<machine::Value> {
+impl<'a, C: TryFrom<Constant<'a>>> Input<'a> for C {
+    fn from(value: machine::Value<'a>) -> Option<Self> {
         match value {
-            Some(v) => Output::into(v, constants),
-            None => None,
+            machine::Value::Constant(constant) => C::try_from(constant.into()).ok(),
+            _ => None,
         }
     }
 }
 
 /// Any machine value can be used as a builtin input.
-impl Input for machine::Value {
-    fn from(value: machine::Value, _constants: &[Constant]) -> Option<Self> {
+impl<'a> Input<'a> for machine::Value<'a> {
+    fn from(value: machine::Value<'a>) -> Option<Self> {
         Some(value)
     }
 }
 
-/// Any machine value can be used as a builtin return value.
-impl Output for machine::Value {
-    fn into(value: Self, _constants: &mut Vec<Constant>) -> Option<machine::Value> {
+pub trait Output<'a> {
+    fn into(value: Self, arena: &'a constant::Arena) -> Option<machine::Value<'a>>;
+}
+
+impl<'a, C: Into<Constant<'a>>> Output<'a> for C {
+    fn into(value: Self, _: &'a constant::Arena) -> Option<machine::Value<'a>> {
+        Some(machine::Value::Constant(value.into()))
+    }
+}
+
+impl<'a> Output<'a> for machine::Value<'a> {
+    fn into(value: Self, _: &'a constant::Arena) -> Option<machine::Value<'a>> {
         Some(value)
     }
 }
 
 /// A builtin function that can be applied to arguments.
-pub trait Function<I, CE, CM> {
+pub trait Function<'a, I, CE, CM> {
     fn apply(
         self,
-        args: Vec<machine::Value>,
-        constants: &mut Vec<Constant>,
+        args: Vec<machine::Value<'a>>,
+        arena: &'a constant::Arena,
         context: &mut cost::Context,
-    ) -> Option<machine::Value>;
+    ) -> Option<machine::Value<'a>>;
 }
 
 impl_function!(A);
@@ -552,7 +537,7 @@ impl_function!(A, B, C, D, E, F);
 macro_rules! impl_function {
     ($($ty:ident),*) => {
         #[allow(unused_parens, non_snake_case)]
-        impl<O: Output, FN, CE, CM, $($ty: Input),*> Function<($($ty,)*), CE, CM> for FN
+        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)*), CE, CM> for FN
         where
             FN: Fn($($ty),*) -> O,
             CE: cost::Function<($($ty),*)>,
@@ -560,16 +545,15 @@ macro_rules! impl_function {
         {
             fn apply(
                 self,
-                args: Vec<machine::Value>,
-                constants: &mut Vec<Constant>,
+                args: Vec<machine::Value<'a>>,
+                arena: &'a constant::Arena,
                 context: &mut cost::Context,
-            ) -> Option<machine::Value> {
+            ) -> Option<machine::Value<'a>> {
                 let mut args = args.into_iter();
                 let tuple = (
                     $(
                         $ty::from(
                             args.next().expect("correct number of arguments passed"),
-                            constants
                         )?
                     ),*
                 );
@@ -590,7 +574,7 @@ macro_rules! impl_function {
 
                 let ($($ty),*) = tuple;
                 let output = (self)($($ty),*);
-                O::into(output, constants)
+                O::into(output, arena)
             }
         }
     };
