@@ -2,17 +2,8 @@
 
 use std::{cell::UnsafeCell, mem::MaybeUninit, rc::Rc};
 
-pub const BITS: usize = 3;
+pub const BITS: usize = 2;
 pub const SIZE: usize = 1 << BITS;
-
-/// Get the bucket index (`0..SIZE`) for a given index, and update the index accordingly.
-pub fn index(index: &mut usize) -> usize {
-    let shift =
-        (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / BITS * BITS;
-    let ret = (*index >> shift) & ((1 << BITS) - 1);
-    *index &= (1 << shift) - 1;
-    ret
-}
 
 /// A [`Bucket`] that can hold up to [`SIZE`] elements.
 ///
@@ -138,6 +129,10 @@ impl<T> Chunk<T> {
         self.data[self.len as usize].write(value);
         self.len += 1;
     }
+
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
 }
 
 impl<T: Clone> Clone for Chunk<T> {
@@ -168,19 +163,5 @@ impl<T> Drop for Chunk<T> {
     fn drop(&mut self) {
         // Safety: We only drop the initialized and valid elements.
         unsafe { self.data[..self.len as usize].assume_init_drop() };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn index() {
-        let mut index = 0b_010_011_100_101_110;
-        assert_eq!(super::index(&mut index), 0b010);
-        assert_eq!(super::index(&mut index), 0b011);
-        assert_eq!(super::index(&mut index), 0b100);
-        assert_eq!(super::index(&mut index), 0b101);
-        assert_eq!(super::index(&mut index), 0b110);
-        assert_eq!(index, 0);
     }
 }

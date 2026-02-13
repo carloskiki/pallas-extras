@@ -7,6 +7,15 @@ use std::{hint::unreachable_unchecked, rc::Rc};
 mod bucket;
 use bucket::{Bucket, Chunk};
 
+const MASK: usize = (1 << bucket::BITS) - 1;
+
+/// Get the shift required to get the index of the root's child that contains the element at the
+/// given index.
+fn shift(index: usize) -> usize {
+    (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / bucket::BITS
+        * bucket::BITS
+}
+
 /// A node in the tree.
 #[derive(Debug)]
 enum Node<T> {
@@ -58,8 +67,6 @@ pub struct Vector<T> {
 
 impl<T> Vector<T> {
     pub fn get(&self, index: usize) -> Option<&T> {
-        const MASK: usize = (1 << bucket::BITS) - 1;
-
         let tree_size = self.size * bucket::SIZE;
         if index >= tree_size + self.tail.len() {
             return None;
@@ -67,16 +74,20 @@ impl<T> Vector<T> {
             // Safety: The tail contains the element.
             return Some(unsafe { self.tail.get(index - tree_size) });
         }
-
+        
+        let mut max_index = tree_size - 1;
         let mut node = &self.root;
-        let mut shift = (usize::BITS - (tree_size - 1).leading_zeros()).saturating_sub(1) as usize
-            / bucket::BITS
-            * bucket::BITS;
         loop {
             match node {
                 Node::Branch(chunk) => {
+                    let shift = shift(max_index);
                     let b = (index >> shift) & MASK;
-                    shift -= bucket::BITS;
+                    if b != chunk.len() - 1 {
+                        // We are not in the last child, so the subtree is full.
+                        max_index = max_index.next_power_of_two() - 1;
+                    }
+                    max_index &= !(MASK << shift);
+
                     // Safety: The index is valid since the tree is well formed.
                     node = unsafe { chunk.get(b) };
                 }
@@ -101,13 +112,16 @@ impl<T: Clone> Vector<T> {
             let tail = std::mem::take(&mut self.tail);
 
             loop {
-                let b = bucket::index(&mut index);
+                let shift = shift(index);
+                let b = index >> shift;
+                index &= !(MASK << shift);
+
                 match node {
                     Node::Leaf(bucket) if bucket.len() != bucket::SIZE => {
                         bucket.push(tail);
                     }
                     // The rest of the index being zero means we need to push a new child.
-                    // `b == 1` means we are at a power of 8. The node is full, we need to grow.
+                    // `b == 1` means we are at a power of SIZE. The node is full, we need to grow.
                     Node::Leaf(_) | Node::Branch(_) if index == 0 && b == 1 => {
                         let chunk = node.grow();
                         let mut bucket = Bucket::default();
