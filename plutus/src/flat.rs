@@ -390,7 +390,7 @@ impl Encode for Constant<'_> {
                 a.encode(buffer)?;
                 b.encode(buffer)?;
             }
-            
+
             Constant::Data(data) => {
                 data.encode(buffer)?;
             }
