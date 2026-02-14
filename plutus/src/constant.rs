@@ -48,7 +48,7 @@ impl<'a> List<'a> {
     pub const INTEGER_TYPE: List<'static> = List::Integer(&[]);
     pub const DATA_TYPE: List<'static> = List::Data(&[]);
     pub const PAIRDATA_TYPE: List<'static> = List::PairData(&[]);
-    
+
     pub fn type_of(&self) -> &Constant<'a> {
         match self {
             List::Integer(_) => &Constant::INTEGER_TYPE,
@@ -581,7 +581,6 @@ impl<'a> TryFrom<Constant<'a>> for Array<'a> {
         }
     }
 }
-
 
 impl<'a> TryFrom<Constant<'a>> for &'a [rug::Integer] {
     type Error = ();

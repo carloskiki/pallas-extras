@@ -54,7 +54,7 @@ impl<'a> Context<'a> {
 }
 
 /// A cost function for a [`builtin`](crate::builtin).
-/// 
+///
 /// A simple example is [`function::Constant`], which ignores its inputs and returns the cost given
 /// by the cost model. Other functions are combinators, such as [`function::ops::Add`], which sums
 /// the cost of its two sub-functions. Concretely, an affine function of the first input (i.e., `a

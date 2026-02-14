@@ -4,7 +4,6 @@ use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use crate::cost::Function;
 
-
 /// Returns the addition of the costs of two functions.
 #[derive(FromBytes, Immutable, KnownLayout)]
 #[repr(C)]
@@ -19,7 +18,6 @@ where
         self.0.cost(input).saturating_add(self.1.cost(input))
     }
 }
-
 
 /// Returns the maximum of the costs of two functions.
 #[derive(FromBytes, Immutable, KnownLayout)]

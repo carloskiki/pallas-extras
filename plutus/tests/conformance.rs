@@ -66,7 +66,10 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         .trim()
         .to_string();
 
-    let program: Program<String> = match (Program::from_str(&program, &arena), expected_output.as_str()) {
+    let program: Program<String> = match (
+        Program::from_str(&program, &arena),
+        expected_output.as_str(),
+    ) {
         (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
         (Err(_), "parse error") => return Ok(()),
         (Ok(program), _) => program,
@@ -170,8 +173,9 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         }
         (None, _) => return Err(RunError::fail("Unexpected evaluation failure")),
     };
-    let expected_program: Program<ExpectedVariable> = Program::from_str(&expected_output, &arena)
-        .map_err(|_| RunError::fail("Failed to parse expected output"))?;
+    let expected_program: Program<ExpectedVariable> =
+        Program::from_str(&expected_output, &arena)
+            .map_err(|_| RunError::fail("Failed to parse expected output"))?;
 
     if expected_program != output.into_de_bruijn().unwrap() {
         return Err(RunError::fail(
@@ -179,9 +183,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         ));
     }
     if context.budget.execution != 0 || context.budget.memory != 0 {
-        return Err(RunError::fail(
-            "Budget not fully consumed after evaluation",
-        ));
+        return Err(RunError::fail("Budget not fully consumed after evaluation"));
     }
 
     Ok(())

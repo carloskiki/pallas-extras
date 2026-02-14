@@ -2,10 +2,7 @@
 
 use std::num::Saturating;
 
-use crate::{
-    constant::List,
-    cost::Function,
-};
+use crate::{constant::List, cost::Function};
 use rug::az::SaturatingCast;
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 

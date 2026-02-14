@@ -16,7 +16,7 @@ fn main() {
             let flat = std::fs::read(&path).unwrap();
             let file_name = path.file_name().unwrap();
             let test_name = path.file_stem().unwrap().to_str().unwrap().to_string();
-            
+
             let expected_file = <_ as AsRef<Path>>::as_ref(EXPECTED_DIR)
                 .join(file_name)
                 .with_extension("expected");

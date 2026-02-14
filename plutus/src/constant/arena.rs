@@ -1,7 +1,7 @@
 //! Arena.
 
-use std::cell::UnsafeCell;
 use crate::Data;
+use std::cell::UnsafeCell;
 
 /// Arena for script execution.
 ///

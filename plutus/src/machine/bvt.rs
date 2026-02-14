@@ -14,8 +14,7 @@ const MASK: usize = (1 << BITS) - 1;
 /// Get the shift required to get the index of the root's child that contains the element at the
 /// given index.
 fn shift(index: usize) -> usize {
-    (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / BITS
-        * BITS
+    (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / BITS * BITS
 }
 
 /// A node in the tree.
@@ -76,7 +75,7 @@ impl<T> Vector<T> {
             // Safety: The tail contains the element.
             return Some(unsafe { self.tail.get_unchecked(index - tree_size) });
         }
-        
+
         let mut max_index = tree_size - 1;
         let mut node = &self.root;
         loop {
