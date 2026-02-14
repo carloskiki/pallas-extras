@@ -15,7 +15,7 @@ pub use arena::Arena;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Array<'a>(pub List<'a>);
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub enum List<'a> {
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Integer(&'a [rug::Integer]),
@@ -36,6 +36,21 @@ pub enum List<'a> {
     Generic(Result<&'a Slice1<Constant<'a>>, &'a Constant<'a>>),
 }
 
+impl PartialEq for List<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (List::Integer(a), List::Integer(b)) => a == b,
+            (List::Data(a), List::Data(b)) => a == b,
+            (List::PairData(a), List::PairData(b)) => a == b,
+            (List::BLSG1Element(a), List::BLSG1Element(b)) => a == b,
+            (List::BLSG2Element(a), List::BLSG2Element(b)) => a == b,
+            (List::Generic(Ok(a)), List::Generic(Ok(b))) => a == b,
+            (List::Generic(Err(a)), List::Generic(Err(b))) => a.type_eq(b),
+            _ => false,
+        }
+    }
+}
+
 impl<'a> List<'a> {
     pub const INTEGER_TYPE: List<'static> = List::Integer(&[]);
     pub const DATA_TYPE: List<'static> = List::Data(&[]);
@@ -49,7 +64,7 @@ impl<'a> List<'a> {
             List::BLSG1Element(_) => &Constant::BLSG1Element(&g1::Projective::IDENTITY),
             List::BLSG2Element(_) => &Constant::BLSG2Element(&g2::Projective::IDENTITY),
             List::Generic(Ok(slice)) => slice.first(),
-            List::Generic(Err(ty)) => *ty,
+            List::Generic(Err(ty)) => ty,
         }
     }
 }
@@ -114,6 +129,39 @@ impl<'a> Constant<'a> {
             Ok(constant)
         }
     }
+
+    pub fn type_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Constant::Integer(_), Constant::Integer(_))
+            | (Constant::Bytes(_), Constant::Bytes(_))
+            | (Constant::String(_), Constant::String(_))
+            | (Constant::Unit, Constant::Unit)
+            | (Constant::PairData(_), Constant::PairData(_))
+            | (Constant::Data(_), Constant::Data(_))
+            | (Constant::BLSG1Element(_), Constant::BLSG1Element(_))
+            | (Constant::BLSG2Element(_), Constant::BLSG2Element(_))
+            | (Constant::MillerLoopResult(_), Constant::MillerLoopResult(_))
+            | (Constant::Boolean(_), Constant::Boolean(_)) => true,
+            (Constant::List(l0), Constant::List(l1))
+            | (Constant::Array(Array(l0)), Constant::Array(Array(l1))) => match (l0, l1) {
+                (List::Integer(_), List::Integer(_))
+                | (List::Data(_), List::Data(_))
+                | (List::PairData(_), List::PairData(_))
+                | (List::BLSG1Element(_), List::BLSG1Element(_))
+                | (List::BLSG2Element(_), List::BLSG2Element(_)) => true,
+                (List::Generic(t0), List::Generic(t1)) => t0
+                    .map_or_else(|e0| e0, |s0| s0.first())
+                    .type_eq(t1.map_or_else(|e1| e1, |s1| s1.first())),
+                _ => false,
+            },
+            (Constant::Pair(a0, a1), Constant::Pair(b0, b1)) => a0.type_eq(b0) && a1.type_eq(b1),
+            (Constant::PairData((d0, d1)), Constant::Pair(c0, c1))
+            | (Constant::Pair(c0, c1), Constant::PairData((d0, d1))) => {
+                c0.type_eq(&Constant::Data(d0)) && c1.type_eq(&Constant::Data(d1))
+            }
+            _ => false,
+        }
+    }
 }
 
 fn type_from_str<'a>(s: &str, arena: &'a Arena) -> Option<Constant<'a>> {
@@ -176,7 +224,7 @@ fn from_split<'a, 'b>(
             Constant::Bytes(arena.slice_fill(value))
         }
         "string" => {
-            let (string, rest) = lex::string(konst_word).ok_or(ParseError::String)?;
+            let (string, rest) = lex::string(konst).ok_or(ParseError::String)?;
             konst_rest = rest;
             let string = arena.string(&string);
 
@@ -267,7 +315,11 @@ fn list_from_split<'a>(
     arena: &'a Arena,
 ) -> Result<List<'a>, ParseError> {
     let (ty_start, ty_rest) = lex::word(ty);
-    let words = items_str.split(',').map(str::trim);
+    let mut words = items_str.split(',').map(str::trim);
+    if items_str.trim().is_empty() {
+        // If `""`, there will still ben an empty string in the iterator.
+        words.next();
+    }
 
     match ty_start {
         "integer" => words
@@ -282,13 +334,19 @@ fn list_from_split<'a>(
             .map(g1)
             .collect::<Option<Vec<g1::Projective>>>()
             .ok_or(ParseError::BLSG1Element)
-            .map(|g1s| List::BLSG1Element(arena.slice_fill(g1s.into_iter()))),
+            .map(|g1s| List::BLSG1Element(arena.slice_fill(g1s))),
         "bls12_381_G2_element" => words
             .map(g2)
             .collect::<Option<Vec<g2::Projective>>>()
             .ok_or(ParseError::BLSG2Element)
-            .map(|g2s| List::BLSG2Element(arena.slice_fill(g2s.into_iter()))),
-        "list" if lex::constant_type(ty_rest) == Some(("pair data data", "")) => {
+            .map(|g2s| List::BLSG2Element(arena.slice_fill(g2s))),
+        "pair"
+            if {
+                let (first, rest) = lex::constant_type(ty_rest).ok_or(ParseError::Pair)?;
+                let (second, rest) = lex::constant_type(rest).ok_or(ParseError::Pair)?;
+                rest.is_empty() && first == "data" && second == "data"
+            } =>
+        {
             list_from_fn(items_str, |s| {
                 let (pair_str, rest) = lex::group::<b'(', b')'>(s)?;
                 let (key, r) = data(pair_str)?;
@@ -298,34 +356,24 @@ fn list_from_split<'a>(
                 Some(((key, value), rest))
             })
             .ok_or(ParseError::List)
-            .map(|pairs| List::PairData(arena.pair_data(pairs)))
+            .map(|pairs| List::PairData(arena.pair_datas(pairs)))
         }
 
-        "list" | "array" | "pair" => {
-            let mut items = Vec::new();
-            let mut items_str = items_str;
-            while !items_str.is_empty() {
-                let (item, mut list_rest) = from_split(ty, items_str, arena)?;
-                if let Some(rest) = list_rest.strip_prefix(',') {
-                    list_rest = rest.trim_start();
-                } else if !list_rest.is_empty() {
-                    return Err(ParseError::List);
-                }
-                items_str = list_rest;
-                items.push(item);
-            }
-            if items.is_empty() {
+        "list" | "array" | "pair" | "bool" | "unit" | "string" | "bytestring" => {
+            let list = list_from_fn(items_str, |s| from_split(ty, s, arena).ok())
+                .ok_or(ParseError::List)?;
+            if list.is_empty() {
                 Ok(List::Generic(Err(arena.alloc(
                     type_from_str(ty, arena).ok_or(ParseError::UnknownType)?,
                 ))))
             } else {
                 Ok(List::Generic(Ok(Slice1::try_from_slice(
-                    arena.slice_fill(items.into_iter()),
+                    arena.slice_fill(list),
                 )
                 .expect("items is checked to be non-empty"))))
             }
         }
-        _ => return Err(ParseError::UnknownType),
+        _ => Err(ParseError::UnknownType),
     }
 }
 
@@ -411,8 +459,9 @@ fn list_from_fn<T>(
     let mut rest = items_str;
     while !rest.is_empty() {
         let (item, new_rest) = f(rest)?;
+        rest = new_rest;
         items.push(item);
-        if let Some(r) = new_rest.strip_prefix(',') {
+        if let Some(r) = rest.strip_prefix(',') {
             rest = r.trim_start();
         } else if !rest.is_empty() {
             return None;
@@ -647,6 +696,10 @@ where
         if let Constant::Pair(k, v) = value {
             let k = (*k).try_into().map_err(|_| ())?;
             let v = (*v).try_into().map_err(|_| ())?;
+            Ok((k, v))
+        } else if let Constant::PairData((a, b)) = value {
+            let k = A::try_from(Constant::Data(a)).map_err(|_| ())?;
+            let v = B::try_from(Constant::Data(b)).map_err(|_| ())?;
             Ok((k, v))
         } else {
             Err(())

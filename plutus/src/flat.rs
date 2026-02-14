@@ -386,6 +386,11 @@ impl Encode for Constant<'_> {
                 first.encode(buffer)?;
                 second.encode(buffer)?;
             }
+            Constant::PairData((a, b)) => {
+                a.encode(buffer)?;
+                b.encode(buffer)?;
+            }
+            
             Constant::Data(data) => {
                 data.encode(buffer)?;
             }
@@ -421,7 +426,7 @@ fn encode_type(ty: &Constant<'_>, buffer: &mut Buffer) -> Option<()> {
                 buffer.write_bits::<4>(7);
                 buffer.write_bits::<1>(1);
                 buffer.write_bits::<4>(5);
-                ty_stack.push(&list_ty.type_of());
+                ty_stack.push(list_ty.type_of());
             }
             Constant::Pair(first_ty, second_ty) => {
                 buffer.write_bits::<4>(7);
@@ -429,8 +434,19 @@ fn encode_type(ty: &Constant<'_>, buffer: &mut Buffer) -> Option<()> {
                 buffer.write_bits::<4>(7);
                 buffer.write_bits::<1>(1);
                 buffer.write_bits::<4>(6);
-                ty_stack.push(first_ty);
                 ty_stack.push(second_ty);
+                ty_stack.push(first_ty);
+            }
+            Constant::PairData(_) => {
+                buffer.write_bits::<4>(7);
+                buffer.write_bits::<1>(1);
+                buffer.write_bits::<4>(7);
+                buffer.write_bits::<1>(1);
+                buffer.write_bits::<4>(6);
+                buffer.write_bits::<1>(1);
+                buffer.write_bits::<4>(8);
+                buffer.write_bits::<1>(1);
+                buffer.write_bits::<4>(8);
             }
             Constant::Data(_) => {
                 buffer.write_bits::<4>(8);
@@ -439,7 +455,7 @@ fn encode_type(ty: &Constant<'_>, buffer: &mut Buffer) -> Option<()> {
                 buffer.write_bits::<4>(7);
                 buffer.write_bits::<1>(1);
                 buffer.write_bits::<4>(12);
-                ty_stack.push(&array_ty.type_of());
+                ty_stack.push(array_ty.type_of());
             }
             _ => {
                 return None;
@@ -833,7 +849,7 @@ fn decode_constant<'a>(
                     let second = Data::decode(r)?;
                     Some((first, second))
                 })
-                .map(|pairs| arena.pair_data(pairs))?;
+                .map(|pairs| arena.pair_datas(pairs))?;
             }
             List::Data(d) => {
                 *d = from_fn(reader, arena, |r, _| Data::decode(r))
@@ -888,6 +904,9 @@ fn decode_constant<'a>(
             Constant::Data(d) => {
                 *d = arena.data(Data::decode(reader)?);
             }
+            Constant::PairData(pair) => {
+                *pair = arena.pair_data((Data::decode(reader)?, Data::decode(reader)?));
+            }
             _ => return None,
         }
         Some(ty)
@@ -902,6 +921,9 @@ fn decode_type<'a>(reader: &mut Reader<'_>, arena: &'a constant::Arena) -> Optio
         let save = Reader {
             buf: reader.buf,
             position: reader.position,
+        };
+        let 1 = reader.read_bits::<1>()? else {
+            return None;
         };
 
         Some(match reader.read_bits::<4>()? {

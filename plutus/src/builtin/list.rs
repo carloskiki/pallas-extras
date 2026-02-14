@@ -25,38 +25,6 @@ impl<'a> super::Output<'a> for MkCons<'a> {
         MkCons { head, tail }: Self,
         arena: &'a constant::Arena,
     ) -> Option<crate::machine::Value<'a>> {
-        fn type_eq(a: &Constant, b: &Constant) -> bool {
-            match (a, b) {
-                (Constant::Integer(_), Constant::Integer(_))
-                | (Constant::Bytes(_), Constant::Bytes(_))
-                | (Constant::String(_), Constant::String(_))
-                | (Constant::Unit, Constant::Unit)
-                | (Constant::PairData(_), Constant::PairData(_))
-                | (Constant::Data(_), Constant::Data(_))
-                | (Constant::BLSG1Element(_), Constant::BLSG1Element(_))
-                | (Constant::BLSG2Element(_), Constant::BLSG2Element(_))
-                | (Constant::MillerLoopResult(_), Constant::MillerLoopResult(_))
-                | (Constant::Boolean(_), Constant::Boolean(_)) => true,
-                (Constant::List(l0), Constant::List(l1))
-                | (Constant::Array(Array(l0)), Constant::Array(Array(l1))) => match (l0, l1) {
-                    (List::Integer(_), List::Integer(_))
-                    | (List::Data(_), List::Data(_))
-                    | (List::PairData(_), List::PairData(_))
-                    | (List::BLSG1Element(_), List::BLSG1Element(_))
-                    | (List::BLSG2Element(_), List::BLSG2Element(_)) => true,
-                    (List::Generic(t0), List::Generic(t1)) => type_eq(
-                        t0.map_or_else(|e0| e0, |s0| s0.first()),
-                        t1.map_or_else(|e1| e1, |s1| s1.first()),
-                    ),
-                    _ => false,
-                },
-                (Constant::Pair(a0, a1), Constant::Pair(b0, b1)) => {
-                    type_eq(a0, b0) && type_eq(a1, b1)
-                }
-                _ => false,
-            }
-        }
-
         macro_rules! cons {
             ($head:ident, $tail:ident, $variant:ident, $method:ident) => {{
                 let list: Vec<_> = std::iter::once($head.clone())
@@ -69,7 +37,7 @@ impl<'a> super::Output<'a> for MkCons<'a> {
         let list = match (head, tail) {
             (Constant::Integer(head), List::Integer(tail)) => cons!(head, tail, Integer, integers),
             (Constant::PairData(head), List::PairData(tail)) => {
-                cons!(head, tail, PairData, pair_data)
+                cons!(head, tail, PairData, pair_datas)
             }
             (Constant::Data(head), List::Data(tail)) => cons!(head, tail, Data, datas),
             (Constant::BLSG1Element(head), List::BLSG1Element(tail)) => {
@@ -78,10 +46,10 @@ impl<'a> super::Output<'a> for MkCons<'a> {
             (Constant::BLSG2Element(head), List::BLSG2Element(tail)) => {
                 cons!(head, tail, BLSG2Element, slice_fill)
             }
-            (head, List::Generic(Err(ty))) if type_eq(&head, ty) => {
+            (head, List::Generic(Err(ty))) if head.type_eq(ty) => {
                 List::Generic(Ok(mitsein::slice1::from_ref(ty)))
             }
-            (head, List::Generic(Ok(tail))) if type_eq(&head, tail.first()) => {
+            (head, List::Generic(Ok(tail))) if head.type_eq(tail.first()) => {
                 let list: Vec<_> = std::iter::once(head).chain(tail.iter().copied()).collect();
                 List::Generic(Ok(Slice1::try_from_slice(arena.slice_fill(list))
                     .expect("can't be non-empty, we just added an element")))
@@ -134,7 +102,7 @@ pub fn null(list: List<'_>) -> bool {
         List::PairData(items) => items.is_empty(),
         List::BLSG1Element(projectives) => projectives.is_empty(),
         List::BLSG2Element(projectives) => projectives.is_empty(),
-        List::Generic(non_empty) => matches!(non_empty, Err(_)),
+        List::Generic(non_empty) => non_empty.is_err(),
     }
 }
 

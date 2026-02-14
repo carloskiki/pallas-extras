@@ -54,7 +54,17 @@ impl Arena {
         data
     }
 
-    pub fn pair_data<'a>(&'a self, pairs: Vec<(Data, Data)>) -> &'a [(Data, Data)] {
+    pub fn pair_data<'a>(&'a self, pair: (Data, Data)) -> &'a (Data, Data) {
+        let pair = self.bump.alloc(pair);
+        // Safety: There are no other references to `self.data` in this function.
+        // Valid pointers are pushed to the drop list and unused until `Drop`.
+        unsafe {
+            (*self.data.get()).extend([&mut pair.0 as *mut _, &mut pair.1 as *mut _]);
+        }
+        pair
+    }
+
+    pub fn pair_datas<'a>(&'a self, pairs: Vec<(Data, Data)>) -> &'a [(Data, Data)] {
         let pairs = self.bump.alloc_slice_fill_iter(pairs.into_iter());
         // Safety: As above.
         unsafe {

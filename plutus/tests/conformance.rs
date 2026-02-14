@@ -29,7 +29,7 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
-                    // if test_name != "uplc/evaluation/builtin/semantics/headList/headList-02" {
+                    // if test_name != "uplc/evaluation/builtin/semantics/dropList/dropList-06" {
                     //     continue;
                     // }
 
