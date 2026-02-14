@@ -37,7 +37,7 @@ pub fn g1_hash_to_group(msg: &[u8], domain: &[u8]) -> Option<g1::Projective> {
     if domain.len() > 255 {
         return None;
     }
-    Some(g1::Projective::hash_to_curve(&msg, &domain, &[]))
+    Some(g1::Projective::hash_to_curve(msg, domain, &[]))
 }
 
 pub fn g1_compress(p: &g1::Projective) -> Vec<u8> {
@@ -58,7 +58,7 @@ pub fn g2_neg(p: g2::Projective) -> g2::Projective {
 }
 
 pub fn g2_scalar_mul(scalar: &rug::Integer, p: g2::Projective) -> g2::Projective {
-    let scalar = scalar_from_integer(&scalar);
+    let scalar = scalar_from_integer(scalar);
     p * scalar
 }
 
@@ -70,7 +70,7 @@ pub fn g2_hash_to_group(msg: &[u8], domain: &[u8]) -> Option<g2::Projective> {
     if domain.len() > 255 {
         return None;
     }
-    Some(g2::Projective::hash_to_curve(&msg, &domain, &[]))
+    Some(g2::Projective::hash_to_curve(msg, domain, &[]))
 }
 
 pub fn g2_compress(p: &g2::Projective) -> Vec<u8> {
@@ -96,10 +96,10 @@ pub fn final_verify(ml_result: &miller_loop::Result, target: &miller_loop::Resul
 
 pub fn g1_multi_scalar_mul(scalars: &[rug::Integer], points: &[g1::Projective]) -> g1::Projective {
     let scalars: Vec<_> = scalars.iter().map(scalar_from_integer).collect();
-    bwst::g1::Projective::linear_combination(&points, &scalars)
+    bwst::g1::Projective::linear_combination(points, &scalars)
 }
 
 pub fn g2_multi_scalar_mul(scalars: &[rug::Integer], points: &[g2::Projective]) -> g2::Projective {
     let scalars: Vec<_> = scalars.iter().map(scalar_from_integer).collect();
-    bwst::g2::Projective::linear_combination(&points, &scalars)
+    bwst::g2::Projective::linear_combination(points, &scalars)
 }

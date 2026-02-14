@@ -5,6 +5,6 @@ pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Option<boo
     let Ok(public_key) = VerifyingKey::from_bytes(&array_bytes) else {
         return Some(false);
     };
-    let signature = Signature::from_slice(&signature).ok()?;
-    Some(public_key.verify(&message, &signature).is_ok())
+    let signature = Signature::from_slice(signature).ok()?;
+    Some(public_key.verify(message, &signature).is_ok())
 }

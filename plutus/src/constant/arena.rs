@@ -20,7 +20,7 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub fn integer<'a>(&'a self, int: rug::Integer) -> &'a rug::Integer {
+    pub fn integer(&self, int: rug::Integer) -> &rug::Integer {
         let int = self.bump.alloc(int);
         // Safety: There are no other references to `self.integers` in this function.
         // Valid pointers are pushed to the drop list and unused until `Drop`.
@@ -28,8 +28,8 @@ impl Arena {
         int
     }
 
-    pub fn integers<'a>(&'a self, integers: Vec<rug::Integer>) -> &'a [rug::Integer] {
-        let integers = self.bump.alloc_slice_fill_iter(integers.into_iter());
+    pub fn integers(&self, integers: Vec<rug::Integer>) -> &[rug::Integer] {
+        let integers = self.bump.alloc_slice_fill_iter(integers);
         // Safety: As above.
         unsafe {
             (*self.integers.get()).extend(integers.iter_mut().map(|i| i as *mut _));
@@ -37,7 +37,7 @@ impl Arena {
         integers
     }
 
-    pub fn data<'a>(&'a self, data: Data) -> &'a Data {
+    pub fn data(&self, data: Data) -> &Data {
         let data = self.bump.alloc(data);
         // Safety: There are no other references to `self.data` in this function.
         // Valid pointers are pushed to the drop list and unused until `Drop`.
@@ -45,8 +45,8 @@ impl Arena {
         data
     }
 
-    pub fn datas<'a>(&'a self, data: Vec<Data>) -> &'a [Data] {
-        let data = self.bump.alloc_slice_fill_iter(data.into_iter());
+    pub fn datas(&self, data: Vec<Data>) -> &[Data] {
+        let data = self.bump.alloc_slice_fill_iter(data);
         // Safety: As above.
         unsafe {
             (*self.data.get()).extend(data.iter_mut().map(|d| d as *mut _));
@@ -54,7 +54,7 @@ impl Arena {
         data
     }
 
-    pub fn pair_data<'a>(&'a self, pair: (Data, Data)) -> &'a (Data, Data) {
+    pub fn pair_data(&self, pair: (Data, Data)) -> &(Data, Data) {
         let pair = self.bump.alloc(pair);
         // Safety: There are no other references to `self.data` in this function.
         // Valid pointers are pushed to the drop list and unused until `Drop`.
@@ -64,8 +64,8 @@ impl Arena {
         pair
     }
 
-    pub fn pair_datas<'a>(&'a self, pairs: Vec<(Data, Data)>) -> &'a [(Data, Data)] {
-        let pairs = self.bump.alloc_slice_fill_iter(pairs.into_iter());
+    pub fn pair_datas(&self, pairs: Vec<(Data, Data)>) -> &[(Data, Data)] {
+        let pairs = self.bump.alloc_slice_fill_iter(pairs);
         // Safety: As above.
         unsafe {
             (*self.data.get()).extend(
@@ -79,15 +79,15 @@ impl Arena {
 
     /// Allocate to the arena, only for types that implement `Copy` (thus don't need drop
     /// tracking).
-    pub fn alloc<'a, T: Copy>(&'a self, value: T) -> &'a T {
+    pub fn alloc<T: Copy>(&self, value: T) -> &T {
         self.bump.alloc(value)
     }
 
     /// Allocate a slice of `Copy` values to the arena.
-    pub fn slice_fill<'a, T: Copy>(
-        &'a self,
+    pub fn slice_fill<T: Copy>(
+        &self,
         iter: impl IntoIterator<Item = T, IntoIter: ExactSizeIterator>,
-    ) -> &'a [T] {
+    ) -> &[T] {
         self.bump.alloc_slice_fill_iter(iter)
     }
 

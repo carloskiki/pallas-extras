@@ -52,7 +52,7 @@ pub fn less_than_or_equal(x: &[u8], y: &[u8]) -> bool {
 
 pub fn to_integer(big_endian: bool, bytes: &[u8]) -> Integer {
     Integer::from_digits(
-        &bytes,
+        bytes,
         if big_endian {
             rug::integer::Order::Msf
         } else {

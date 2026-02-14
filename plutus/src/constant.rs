@@ -501,7 +501,7 @@ pub enum ParseError {
     TrailingContent,
 }
 
-// `TryFrom` implementations.
+// `TryFrom` (`Constant` -> `T`) implementations.
 
 impl<'a> TryFrom<Constant<'a>> for &'a rug::Integer {
     type Error = ();
@@ -791,71 +791,71 @@ impl<'a> TryFrom<Constant<'a>> for &'a bwst::miller_loop::Result {
     }
 }
 
-// `Into` implementations.
+// `From` (`T` -> `Constant`) implementations.
 
-impl<'a> Into<Constant<'a>> for &'a rug::Integer {
-    fn into(self) -> Constant<'a> {
-        Constant::Integer(self)
+impl<'a> From<&'a rug::Integer> for Constant<'a> {
+    fn from(val: &'a rug::Integer) -> Self {
+        Constant::Integer(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for &'a [u8] {
-    fn into(self) -> Constant<'a> {
-        Constant::Bytes(self)
+impl<'a> From<&'a [u8]> for Constant<'a> {
+    fn from(val: &'a [u8]) -> Self {
+        Constant::Bytes(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for &'a str {
-    fn into(self) -> Constant<'a> {
-        Constant::String(self)
+impl<'a> From<&'a str> for Constant<'a> {
+    fn from(val: &'a str) -> Self {
+        Constant::String(val)
     }
 }
 
-impl Into<Constant<'_>> for () {
-    fn into(self) -> Constant<'static> {
+impl From<()> for Constant<'_> {
+    fn from(_: ()) -> Self {
         Constant::Unit
     }
 }
 
-impl Into<Constant<'_>> for bool {
-    fn into(self) -> Constant<'static> {
-        Constant::Boolean(self)
+impl From<bool> for Constant<'_> {
+    fn from(val: bool) -> Self {
+        Constant::Boolean(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for List<'a> {
-    fn into(self) -> Constant<'a> {
-        Constant::List(self)
+impl<'a> From<List<'a>> for Constant<'a> {
+    fn from(val: List<'a>) -> Self {
+        Constant::List(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for Array<'a> {
-    fn into(self) -> Constant<'a> {
-        Constant::Array(self)
+impl<'a> From<Array<'a>> for Constant<'a> {
+    fn from(val: Array<'a>) -> Self {
+        Constant::Array(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for &'a Data {
-    fn into(self) -> Constant<'a> {
-        Constant::Data(self)
+impl<'a> From<&'a Data> for Constant<'a> {
+    fn from(val: &'a Data) -> Self {
+        Constant::Data(val)
     }
 }
 
-impl<'a> Into<Constant<'a>> for &'a [Data] {
-    fn into(self) -> Constant<'a> {
-        Constant::List(List::Data(self))
+impl<'a> From<&'a [Data]> for Constant<'a> {
+    fn from(val: &'a [Data]) -> Self {
+        Constant::List(List::Data(val))
     }
 }
 
-impl<'a> Into<Constant<'a>> for &'a [(Data, Data)] {
-    fn into(self) -> Constant<'a> {
-        Constant::List(List::PairData(self))
+impl<'a> From<&'a [(Data, Data)]> for Constant<'a> {
+    fn from(val: &'a [(Data, Data)]) -> Self {
+        Constant::List(List::PairData(val))
     }
 }
 
-impl<'a> Into<Constant<'a>> for (&'a Constant<'a>, &'a Constant<'a>) {
-    fn into(self) -> Constant<'a> {
-        Constant::Pair(self.0, self.1)
+impl<'a> From<(&'a Constant<'a>, &'a Constant<'a>)> for Constant<'a> {
+    fn from(val: (&'a Constant<'a>, &'a Constant<'a>)) -> Self {
+        Constant::Pair(val.0, val.1)
     }
 }
 
@@ -875,7 +875,7 @@ impl<'a> Output<'a> for rug::Integer {
 impl<'a> Output<'a> for Vec<u8> {
     fn into(value: Self, arena: &'a self::Arena) -> Option<crate::machine::Value<'a>> {
         Some(crate::machine::Value::Constant(Constant::Bytes(
-            arena.slice_fill(value.into_iter()),
+            arena.slice_fill(value),
         )))
     }
 }
