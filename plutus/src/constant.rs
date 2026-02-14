@@ -12,14 +12,6 @@ use std::str::FromStr;
 mod arena;
 pub use arena::Arena;
 
-// TODO: This is quite messy, consider refactoring.
-// - Check if remove all unused list specializations make a big perf hit.
-// - To remove the `Type` type, use `Constant` as a representative without any useful value
-// (removes arena from some builtins).
-// - Specialize `PairData` as a constant variant (to remove arena from `list::head` builtin)
-// - Inline `List` type within `Constant`, and make `Array` generic only.
-// - Make a dedicated `GenericList` type.
-
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Array<'a>(pub List<'a>);
 

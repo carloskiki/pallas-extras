@@ -54,3 +54,6 @@ name = "validation"
 [[bench]]
 harness = false
 name = "validation"
+
+[profile.bench]
+lto = true

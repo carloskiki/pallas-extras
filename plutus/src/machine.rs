@@ -192,7 +192,6 @@ impl<'a> Value<'a> {
     }
 }
 
-// TODO: Check how performance improves if this fits in 64 bytes.
 /// Represents a frame of the CEK machine's stack.
 ///
 /// Defined in the [specification][spec] figure 2.9.
@@ -211,7 +210,7 @@ enum Frame<'a> {
         remaining: u16,
         discriminant: u32,
         large_discriminant: bool,
-        values: Vec<Value<'a>>, // TODO
+        values: Vec<Value<'a>>,
         environment: Vector<Value<'a>>,
         next: TermIndex,
     },
