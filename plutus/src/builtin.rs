@@ -487,7 +487,7 @@ pub trait Input<'a>: Sized {
 impl<'a, C: TryFrom<Constant<'a>>> Input<'a> for C {
     fn from(value: machine::Value<'a>) -> Option<Self> {
         match value {
-            machine::Value::Constant(constant) => C::try_from(constant.into()).ok(),
+            machine::Value::Constant(constant) => C::try_from(constant).ok(),
             _ => None,
         }
     }
@@ -606,12 +606,12 @@ macro_rules! builtins {
         let full_model = $context.model;
         let ret = match $var {
             $(
-                b @ Builtin::$builtin => <_ as Function<
+                Builtin::$builtin => <_ as Function<
                     _,
                     $execution,
                     $memory,
                 >>::apply($fn, $args, $constants, {
-                    $context.model = &$context.model[offset(b)..];
+                    $context.model = &$context.model[const { offset(Builtin::$builtin) }..];
                     $context
                 }),
             )*

@@ -2,31 +2,28 @@
 
 use std::{cell::UnsafeCell, mem::MaybeUninit, rc::Rc};
 
-pub const BITS: usize = 2;
-pub const SIZE: usize = 1 << BITS;
-
 /// A [`Bucket`] that can hold up to [`SIZE`] elements.
 ///
 ///
-/// Acts as a clone-on-write container for a chunk of elements.
+/// Acts as a clone-on-write container for a bucket of elements.
 #[derive(Debug)]
-pub struct Bucket<T> {
-    data: Rc<UnsafeCell<Chunk<T>>>,
+pub struct Bucket<T, const SIZE: usize> {
+    data: Rc<UnsafeCell<Chunk<T, SIZE>>>,
     perceived: u8,
 }
 
-impl<T> Bucket<T> {
+impl<T, const SIZE: usize> Bucket<T, SIZE> {
     // Gets a reference to the element at the given index.
     //
     // # Safety
     //
-    // The index must be less than the length of the chunk.
-    pub unsafe fn get(&self, index: usize) -> &T {
+    // The index must be in bounds.
+    pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         debug_assert!(index < self.perceived as usize);
         // Safety: There are no concurrent mutable references to `data` in this function, so we can safely get a
         // reference to it.
         let data = unsafe { &*self.data.get() };
-        // Safety: The index is within the chunk, so it must be within the bucket.
+        // Safety: The index is within the bucket, so it must be within the bucket.
         unsafe { data.get(index) }
     }
 
@@ -35,8 +32,8 @@ impl<T> Bucket<T> {
     }
 }
 
-impl<T: Clone> Bucket<T> {
-    /// Pushes a value to the chunk, panicking if the chunk is full.
+impl<T: Clone, const SIZE: usize> Bucket<T, SIZE> {
+    /// Pushes a value to the bucket, panicking if the bucket is full.
     pub fn push(&mut self, value: T) {
         let slot = self.perceived as usize;
         self.perceived += 1;
@@ -76,7 +73,7 @@ impl<T: Clone> Bucket<T> {
     }
 }
 
-impl<T> Default for Bucket<T> {
+impl<T, const SIZE: usize> Default for Bucket<T, SIZE> {
     fn default() -> Self {
         Bucket {
             data: Rc::new(UnsafeCell::new(Chunk::default())),
@@ -85,7 +82,7 @@ impl<T> Default for Bucket<T> {
     }
 }
 
-impl<T> Clone for Bucket<T> {
+impl<T, const SIZE: usize> Clone for Bucket<T, SIZE> {
     fn clone(&self) -> Self {
         Bucket {
             data: Rc::clone(&self.data),
@@ -96,20 +93,20 @@ impl<T> Clone for Bucket<T> {
 
 // An inline vector of up to [`SIZE`] elements.
 #[derive(Debug)]
-pub struct Chunk<T> {
+pub struct Chunk<T, const SIZE: usize> {
     data: [MaybeUninit<T>; SIZE],
     len: u8,
 }
 
-impl<T> Chunk<T> {
+impl<T, const SIZE: usize> Chunk<T, SIZE> {
     /// Gets a reference to the element at the given index.
     ///
     /// # Safety
     ///
-    /// The index must be less than the length of the bucket.
+    /// The index must be less than the length of the chunk.
     pub unsafe fn get(&self, index: usize) -> &T {
         debug_assert!(index < self.len as usize);
-        // Safety: The index is within the bucket.
+        // Safety: The index is within the chunk.
         unsafe { self.data[index].assume_init_ref() }
     }
 
@@ -117,14 +114,14 @@ impl<T> Chunk<T> {
     ///
     /// # Safety
     ///
-    /// The index must be less than the length of the bucket.
+    /// The index must be less than the length of the chunk.
     pub unsafe fn get_mut(&mut self, index: usize) -> &mut T {
         debug_assert!(index < self.len as usize);
-        // Safety: The index is within the bucket.
+        // Safety: The index is within the chunk.
         unsafe { self.data[index].assume_init_mut() }
     }
 
-    /// Pushes a value to the bucket. Panics if the bucket is full.
+    /// Pushes a value to the chunk. Panics if the chunk is full.
     pub fn push(&mut self, value: T) {
         self.data[self.len as usize].write(value);
         self.len += 1;
@@ -135,7 +132,7 @@ impl<T> Chunk<T> {
     }
 }
 
-impl<T: Clone> Clone for Chunk<T> {
+impl<T: Clone, const SIZE: usize> Clone for Chunk<T, SIZE> {
     fn clone(&self) -> Self {
         // Safety: Standard procedure to create an array of `uninit`.
         let mut new_data: [MaybeUninit<T>; SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
@@ -151,7 +148,7 @@ impl<T: Clone> Clone for Chunk<T> {
     }
 }
 
-impl<T> Default for Chunk<T> {
+impl<T, const SIZE: usize> Default for Chunk<T, SIZE> {
     fn default() -> Self {
         // Safety: Standard procedure to create an array of `uninit`.
         let data: [MaybeUninit<T>; SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
@@ -159,7 +156,7 @@ impl<T> Default for Chunk<T> {
     }
 }
 
-impl<T> Drop for Chunk<T> {
+impl<T, const SIZE: usize> Drop for Chunk<T, SIZE> {
     fn drop(&mut self) {
         // Safety: We only drop the initialized and valid elements.
         unsafe { self.data[..self.len as usize].assume_init_drop() };

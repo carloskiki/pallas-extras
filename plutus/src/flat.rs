@@ -908,7 +908,13 @@ fn decode_type<'a>(reader: &mut Reader<'_>, arena: &'a constant::Arena) -> Optio
             0 => List::INTEGER_TYPE,
             8 => List::DATA_TYPE,
             // Pair Data
-            7 if reader.read_bits::<20>()? == 0b10111_10110_11000_11000 => List::PAIRDATA_TYPE,
+            7 if reader.read_bits::<5>()? == 0b10111
+                && reader.read_bits::<5>()? == 0b10110
+                && reader.read_bits::<5>()? == 0b11000
+                && reader.read_bits::<5>()? == 0b11000 =>
+            {
+                List::PAIRDATA_TYPE
+            }
             _ => {
                 *reader = save;
                 List::Generic(Err(arena.alloc(inner_decode(reader, arena)?)))

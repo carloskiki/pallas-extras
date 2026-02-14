@@ -5,34 +5,36 @@
 use std::{hint::unreachable_unchecked, rc::Rc};
 
 mod bucket;
-use bucket::{Bucket, Chunk};
+pub use bucket::{Bucket, Chunk};
 
-const MASK: usize = (1 << bucket::BITS) - 1;
+const BITS: usize = 2;
+const SIZE: usize = 1 << BITS;
+const MASK: usize = (1 << BITS) - 1;
 
 /// Get the shift required to get the index of the root's child that contains the element at the
 /// given index.
 fn shift(index: usize) -> usize {
-    (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / bucket::BITS
-        * bucket::BITS
+    (usize::BITS as usize - index.leading_zeros() as usize).saturating_sub(1) / BITS
+        * BITS
 }
 
 /// A node in the tree.
 #[derive(Debug)]
 enum Node<T> {
     /// A branch node.
-    Branch(Rc<Chunk<Node<T>>>),
+    Branch(Rc<Chunk<Node<T>, SIZE>>),
     /// A leaf node.
     ///
     /// Instead of cotaining a chunk of elements. It contains a chunk of "tails".
     /// Every time the tail is full, it is pushed into the tree as a child to a leaf node.
-    Leaf(Bucket<Bucket<T>>),
+    Leaf(Bucket<Bucket<T, SIZE>, SIZE>),
 }
 
 impl<T> Node<T> {
     /// Grow the node into a branch.
     ///
     /// `N -> Branch([N])`
-    fn grow(&mut self) -> &mut Chunk<Node<T>> {
+    fn grow(&mut self) -> &mut Chunk<Node<T>, SIZE> {
         let old_self = std::mem::replace(self, Node::Branch(Rc::new(Chunk::default())));
         let Node::Branch(new_chunk) = self else {
             // Safety: We created a Branch node just above.
@@ -62,17 +64,17 @@ pub struct Vector<T> {
     /// The number of full chunks in the root.
     size: usize,
     /// The tail chunk.
-    tail: Bucket<T>,
+    tail: Bucket<T, SIZE>,
 }
 
 impl<T> Vector<T> {
     pub fn get(&self, index: usize) -> Option<&T> {
-        let tree_size = self.size * bucket::SIZE;
+        let tree_size = self.size * SIZE;
         if index >= tree_size + self.tail.len() {
             return None;
         } else if index >= tree_size {
             // Safety: The tail contains the element.
-            return Some(unsafe { self.tail.get(index - tree_size) });
+            return Some(unsafe { self.tail.get_unchecked(index - tree_size) });
         }
         
         let mut max_index = tree_size - 1;
@@ -94,9 +96,9 @@ impl<T> Vector<T> {
                 Node::Leaf(bucket) => {
                     // Safety: The index is less than the length of the vec. This index is
                     // therefore valid since the tree structure is correct.
-                    let bucket = unsafe { bucket.get((index >> bucket::BITS) & MASK) };
+                    let bucket = unsafe { bucket.get_unchecked((index >> BITS) & MASK) };
                     // Safety: Same as above.
-                    return Some(unsafe { bucket.get(index & MASK) });
+                    return Some(unsafe { bucket.get_unchecked(index & MASK) });
                 }
             }
         }
@@ -106,7 +108,7 @@ impl<T> Vector<T> {
 impl<T: Clone> Vector<T> {
     pub fn push(&mut self, v: T) {
         // Need to push the tail into the tree.
-        if self.tail.len() == bucket::SIZE {
+        if self.tail.len() == SIZE {
             let mut index = self.size;
             let mut node = &mut self.root;
             let tail = std::mem::take(&mut self.tail);
@@ -117,7 +119,7 @@ impl<T: Clone> Vector<T> {
                 index &= !(MASK << shift);
 
                 match node {
-                    Node::Leaf(bucket) if bucket.len() != bucket::SIZE => {
+                    Node::Leaf(bucket) if bucket.len() != SIZE => {
                         bucket.push(tail);
                     }
                     // The rest of the index being zero means we need to push a new child.
@@ -177,7 +179,7 @@ mod test {
 
     impl<T> Vector<T> {
         fn len(&self) -> usize {
-            self.size * bucket::SIZE + self.tail.len()
+            self.size * SIZE + self.tail.len()
         }
     }
 
