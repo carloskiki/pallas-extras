@@ -4,6 +4,8 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
+use std::rc::Rc;
+
 use crate::{
     ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
     constant::Constant,
@@ -27,7 +29,7 @@ pub(crate) enum Value<'a> {
     Construct {
         discriminant: u32,
         large_discriminant: bool,
-        values: Vec<Value<'a>>,
+        values: Rc<[Value<'a>]>,
     },
     Builtin {
         builtin: Builtin,
@@ -83,7 +85,7 @@ impl<'a> Value<'a> {
                         large_discriminant,
                     } => DischargeValue::Construct {
                         discriminant,
-                        values: values.into_iter().map(DischargeValue::from).collect(),
+                        values: values.iter().cloned().map(DischargeValue::from).collect(),
                         large_discriminant,
                     },
                     Value::Builtin {
@@ -307,7 +309,7 @@ pub fn run<'a>(
                 Value::Construct {
                     discriminant,
                     large_discriminant,
-                    values: Vec::new(),
+                    values: Rc::new([]),
                 }
             }
             Instruction::Case { count } => {
@@ -412,7 +414,7 @@ pub fn run<'a>(
                         ret = Value::Construct {
                             discriminant,
                             large_discriminant,
-                            values,
+                            values: values.into(),
                         };
                         continue;
                     }
@@ -451,7 +453,7 @@ pub fn run<'a>(
                         discriminant as u64
                     };
 
-                    stack.extend(values.into_iter().map(Frame::ApplyLeftValue).rev());
+                    stack.extend(values.iter().cloned().map(Frame::ApplyLeftValue).rev());
                     index = skip_terms(&program.program, next.0 as usize, discriminant);
                     environment
                 }
