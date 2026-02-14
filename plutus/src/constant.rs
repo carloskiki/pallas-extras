@@ -6,7 +6,8 @@
 
 use crate::{Construct, Data, builtin::Output, lex};
 use bwst::{g1, g2, group::GroupEncoding};
-use std::{convert::Infallible, str::FromStr};
+use mitsein::slice1::Slice1;
+use std::str::FromStr;
 
 mod arena;
 pub use arena::Arena;
@@ -19,21 +20,13 @@ pub use arena::Arena;
 // - Inline `List` type within `Constant`, and make `Array` generic only.
 // - Make a dedicated `GenericList` type.
 
-pub type Array<'a> = List<'a>;
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Array<'a>(pub List<'a>);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum List<'a> {
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Integer(&'a [rug::Integer]),
-    /// Introduced in batch 1 (specification section 4.3.1.1).
-    Bytes(&'a [&'a [u8]]), // X
-    /// Introduced in batch 1 (specification section 4.3.1.1).
-    String(&'a [&'a str]), // X
-    /// Introduced in batch 1 (specification section 4.3.1.1).
-    Unit(&'a [()]), // X
-    /// Introduced in batch 1 (specification section 4.3.1.1).
-    Boolean(&'a [bool]), // X
-    /// Introduced in batch 1 (specification section 4.3.1.1).
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Data(&'a [Data]),
     /// Specialized for faster processing of `UnMapData`.
@@ -42,74 +35,29 @@ pub enum List<'a> {
     BLSG1Element(&'a [g1::Projective]),
     /// Introduced in batch 4 (specification section 4.3.4.2).
     BLSG2Element(&'a [g2::Projective]),
-    /// Introduced in batch 4 (specification section 4.3.4.2).
-    MillerLoopResult(&'a [bwst::miller_loop::Result]), // X
     /// Generic list for when the type is nested.
     ///
     /// This includes:
     /// - list (pair _ _)
     /// - list (list _)
     /// - list (array _)
-    Generic(Result<&'a [Constant<'a>], Type<'a>>),
+    Generic(Result<&'a Slice1<Constant<'a>>, &'a Constant<'a>>),
 }
 
 impl<'a> List<'a> {
-    pub fn is_empty(&self) -> bool {
+    pub const INTEGER_TYPE: List<'static> = List::Integer(&[]);
+    pub const DATA_TYPE: List<'static> = List::Data(&[]);
+    pub const PAIRDATA_TYPE: List<'static> = List::PairData(&[]);
+    
+    pub fn type_of(&self) -> &Constant<'a> {
         match self {
-            List::Integer(items) => items.is_empty(),
-            List::Bytes(items) => items.is_empty(),
-            List::String(items) => items.is_empty(),
-            List::Unit(items) => items.is_empty(),
-            List::Boolean(items) => items.is_empty(),
-            List::Data(items) => items.is_empty(),
-            List::PairData(items) => items.is_empty(),
-            List::BLSG1Element(items) => items.is_empty(),
-            List::BLSG2Element(items) => items.is_empty(),
-            List::MillerLoopResult(items) => items.is_empty(),
-            List::Generic(Ok(items)) => items.is_empty(),
-            List::Generic(Err(_)) => true,
-        }
-    }
-
-    pub fn destructure(&self) -> Option<(Constant<'a>, List<'a>)>
-    {
-        macro_rules! destructure {
-            ($variable:ident, $variant:ident) => {
-                destructure!($variable, $variant | ($variable))
-            };
-            ($variable:ident, $variant:ident | $op:tt) => {
-                $variable
-                    .split_first()
-                    .map(|($variable, rest)| (Constant::$variant $op, List::$variant(rest)))
-            };
-        }
-
-        match self {
-            List::Integer(items) => destructure!(items, Integer),
-            List::Bytes(items) => destructure!(items, Bytes),
-            List::String(items) => destructure!(items, String),
-            #[allow(unused_variables)]
-            List::Unit(items) => destructure!(items, Unit | {}),
-            List::Boolean(items) => destructure!(items, Boolean | (*items)),
-            List::Data(datas) => destructure!(datas, Data),
-            List::PairData(items) => items.split_first().map(|((k, v), rest)| {
-                todo!()
-            }),
-            List::BLSG1Element(projectives) => destructure!(projectives, BLSG1Element),
-            List::BLSG2Element(projectives) => destructure!(projectives, BLSG2Element),
-            List::MillerLoopResult(items) => destructure!(items, MillerLoopResult),
-            List::Generic(Ok(items)) => {
-                let (first, rest) = items.split_first().expect("non-empty list");
-                Some((
-                    *first,
-                    List::Generic(if rest.is_empty() {
-                        todo!()
-                    } else {
-                        Ok(rest)
-                    }),
-                ))
-            }
-            List::Generic(Err(_)) => None,
+            List::Integer(_) => &Constant::INTEGER_TYPE,
+            List::Data(_) => &Constant::DATA_TYPE,
+            List::PairData(_) => &Constant::PAIRDATA_TYPE,
+            List::BLSG1Element(_) => &Constant::BLSG1Element(&g1::Projective::IDENTITY),
+            List::BLSG2Element(_) => &Constant::BLSG2Element(&g2::Projective::IDENTITY),
+            List::Generic(Ok(slice)) => slice.first(),
+            List::Generic(Err(ty)) => *ty,
         }
     }
 }
@@ -139,6 +87,8 @@ pub enum Constant<'a> {
     Array(Array<'a>),
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Pair(&'a Constant<'a>, &'a Constant<'a>),
+    // TODO: handle pairData in decode, encode, etc.
+    PairData(&'a (Data, Data)),
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Data(&'a Data),
     /// Introduced in batch 4 (specification section 4.3.4.2).
@@ -150,43 +100,18 @@ pub enum Constant<'a> {
 }
 
 impl<'a> Constant<'a> {
-    pub fn type_of(&self, arena: &'a Arena) -> Type<'a> {
-        fn list_type_of<'a>(list: &List<'a>, arena: &'a Arena) -> Type<'a> {
-            match list {
-                List::Integer(_) => Type::Integer,
-                List::Bytes(_) => Type::Bytes,
-                List::String(_) => Type::String,
-                List::Unit(_) => Type::Unit,
-                List::Boolean(_) => Type::Boolean,
-                List::Data(_) => Type::Data,
-                List::PairData(_) => Type::Pair(arena.alloc((Type::Data, Type::Data))),
-                List::BLSG1Element(_) => Type::BLSG1Element,
-                List::BLSG2Element(_) => Type::BLSG2Element,
-                List::MillerLoopResult(_) => Type::MillerLoopResult,
-                List::Generic(Err(ty)) => *ty,
-                List::Generic(Ok(elements)) => {
-                    elements.first().expect("non-empty list").type_of(arena)
-                }
-            }
-        }
-
-        match self {
-            Constant::Integer(_) => Type::Integer,
-            Constant::Bytes(_) => Type::Bytes,
-            Constant::String(_) => Type::String,
-            Constant::Unit => Type::Unit,
-            Constant::Boolean(_) => Type::Boolean,
-            Constant::List(list) => Type::List(arena.alloc(list_type_of(list, arena))),
-            Constant::Array(array) => Type::Array(arena.alloc(list_type_of(array, arena))),
-            Constant::Pair(first, second) => {
-                Type::Pair(arena.alloc((first.type_of(arena), second.type_of(arena))))
-            }
-            Constant::Data(_) => Type::Data,
-            Constant::BLSG1Element(_) => Type::BLSG1Element,
-            Constant::BLSG2Element(_) => Type::BLSG2Element,
-            Constant::MillerLoopResult(_) => Type::MillerLoopResult,
-        }
-    }
+    pub const INTEGER_TYPE: Constant<'static> = Constant::Integer(&rug::Integer::new());
+    pub const BYTES_TYPE: Constant<'static> = Constant::Bytes(&[]);
+    pub const STRING_TYPE: Constant<'static> = Constant::String("");
+    pub const BOOLEAN_TYPE: Constant<'static> = Constant::Boolean(false);
+    pub const UNIT_TYPE: Constant<'static> = Constant::Unit;
+    pub const DATA_TYPE: Constant<'static> = Constant::Data(&Data::Integer(rug::Integer::new()));
+    pub const PAIRDATA_TYPE: Constant<'static> = Constant::PairData(&(
+        Data::Integer(rug::Integer::new()),
+        Data::Integer(rug::Integer::new()),
+    ));
+    pub const BLSG1_TYPE: Constant<'static> = Constant::BLSG1Element(&g1::Projective::IDENTITY);
+    pub const BLSG2_TYPE: Constant<'static> = Constant::BLSG2Element(&g2::Projective::IDENTITY);
 
     pub fn from_str(s: &str, arena: &'a Arena) -> Result<Self, ParseError> {
         let (ty_str, rest) = lex::constant_type(s).ok_or(ParseError::UnknownType)?;
@@ -199,62 +124,43 @@ impl<'a> Constant<'a> {
     }
 }
 
-/// The type of a plutus constant, without its value.
-///
-/// This is used for type annotations on lists and arrays, and helps when parsing constants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Type<'a> {
-    Integer,
-    Bytes,
-    String,
-    Unit,
-    Boolean,
-    List(&'a Type<'a>),
-    Pair(&'a (Type<'a>, Type<'a>)),
-    Data,
-    BLSG1Element,
-    BLSG2Element,
-    MillerLoopResult,
-    Array(&'a Type<'a>),
-}
-
-fn type_from_str<'a>(s: &str, arena: &'a Arena) -> Result<Type<'a>, ()> {
+fn type_from_str<'a>(s: &str, arena: &'a Arena) -> Option<Constant<'a>> {
     let (main_ty, mut rest) = lex::word(s);
 
     let ret = match main_ty {
-        "integer" => Type::Integer,
-        "bytestring" => Type::Bytes,
-        "string" => Type::String,
-        "bool" => Type::Boolean,
-        "unit" => Type::Unit,
-        "data" => Type::Data,
-        "bls12_381_G1_element" => Type::BLSG1Element,
-        "bls12_381_G2_element" => Type::BLSG2Element,
+        "integer" => Constant::INTEGER_TYPE,
+        "bytestring" => Constant::BYTES_TYPE,
+        "string" => Constant::STRING_TYPE,
+        "bool" => Constant::BOOLEAN_TYPE,
+        "unit" => Constant::UNIT_TYPE,
+        "data" => Constant::DATA_TYPE,
+        "bls12_381_G1_element" => Constant::BLSG1_TYPE,
+        "bls12_381_G2_element" => Constant::BLSG2_TYPE,
         "list" | "array" => {
-            let (element_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
+            let (element_ty, new_rest) = lex::constant_type(rest)?;
             rest = new_rest;
 
-            let element_const = type_from_str(element_ty, arena)?;
+            let list_ty = list_from_split(element_ty, "", arena).ok()?;
             if main_ty == "array" {
-                Type::Array(arena.alloc(element_const))
+                Constant::Array(Array(list_ty))
             } else {
-                Type::List(arena.alloc(element_const))
+                Constant::List(list_ty)
             }
         }
         "pair" => {
-            let (first_ty, new_rest) = lex::constant_type(rest).ok_or(())?;
-            let (second_ty, new_rest) = lex::constant_type(new_rest).ok_or(())?;
+            let (first_ty, new_rest) = lex::constant_type(rest)?;
+            let (second_ty, new_rest) = lex::constant_type(new_rest)?;
             rest = new_rest;
 
             let first_const = type_from_str(first_ty, arena)?;
             let second_const = type_from_str(second_ty, arena)?;
-            Type::Pair(arena.alloc((first_const, second_const)))
+            Constant::Pair(arena.alloc(first_const), arena.alloc(second_const))
         }
 
-        _ => return Err(()),
+        _ => return None,
     };
 
-    if !rest.is_empty() { Err(()) } else { Ok(ret) }
+    if !rest.is_empty() { None } else { Some(ret) }
 }
 
 fn from_split<'a, 'b>(
@@ -272,9 +178,11 @@ fn from_split<'a, 'b>(
         "integer" => integer(konst_word)
             .ok_or(ParseError::Integer)
             .map(|i| Constant::Integer(arena.integer(i)))?,
-        "bytestring" => bytestring(konst_word, arena)
-            .ok_or(ParseError::Bytestring)
-            .map(Constant::Bytes)?,
+        "bytestring" => {
+            let hex = konst_word.strip_prefix("#").ok_or(ParseError::Bytestring)?;
+            let value = const_hex::decode(hex).map_err(|_| ParseError::Bytestring)?;
+            Constant::Bytes(arena.slice_fill(value))
+        }
         "string" => {
             let (string, rest) = lex::string(konst_word).ok_or(ParseError::String)?;
             konst_rest = rest;
@@ -283,12 +191,18 @@ fn from_split<'a, 'b>(
             Constant::String(string)
         }
 
-        "bool" => bool(konst_word)
-            .ok_or(ParseError::Boolean)
-            .map(Constant::Boolean)?,
-        "unit" => unit(konst_word)
-            .ok_or(ParseError::Unit)
-            .map(|_| Constant::Unit)?,
+        "bool" => Constant::Boolean(match konst_word {
+            "True" => true,
+            "False" => false,
+            _ => return Err(ParseError::Boolean),
+        }),
+        "unit" => {
+            if konst_word == "()" {
+                Constant::Unit
+            } else {
+                return Err(ParseError::Unit);
+            }
+        }
         "data" => {
             // FIXME: https://github.com/IntersectMBO/plutus/issues/7383
             // let (data_str, rest) = lex::group::<b'(', b')'>(konst).ok_or(())?;
@@ -323,9 +237,9 @@ fn from_split<'a, 'b>(
             konst_rest = rest;
             let list = list_from_split(element_ty, konst_str, arena)?;
             if ty_start == "list" {
-                Constant::List(list.into())
+                Constant::List(list)
             } else {
-                Constant::Array(list.into())
+                Constant::Array(Array(list))
             }
         }
         "pair" => {
@@ -369,28 +283,6 @@ fn list_from_split<'a>(
             .collect::<Option<Vec<rug::Integer>>>()
             .ok_or(ParseError::Integer)
             .map(|ints| List::Integer(arena.integers(ints))),
-        "bytestring" => words
-            .map(|w| bytestring(w, arena))
-            .collect::<Option<Vec<&'a [u8]>>>()
-            .ok_or(ParseError::Bytestring)
-            .map(|bytes| List::Bytes(arena.slice_fill(bytes.into_iter()))),
-        "string" => list_from_fn(items_str, lex::string)
-            .ok_or(ParseError::String)
-            .map(|strings| {
-                List::String(
-                    arena.slice_fill(strings.into_iter().map(|s| arena.string(&s) as &str)),
-                )
-            }),
-        "bool" => words
-            .map(bool)
-            .collect::<Option<Vec<bool>>>()
-            .ok_or(ParseError::Boolean)
-            .map(|bools| List::Boolean(arena.slice_fill(bools.into_iter()))),
-        "unit" => words
-            .map(unit)
-            .collect::<Option<Vec<()>>>()
-            .ok_or(ParseError::Unit)
-            .map(|units| List::Unit(arena.slice_fill(units.into_iter()))),
         "data" => list_from_fn(items_str, data)
             .ok_or(ParseError::Data)
             .map(|data| List::Data(arena.datas(data))),
@@ -431,11 +323,14 @@ fn list_from_split<'a>(
                 items.push(item);
             }
             if items.is_empty() {
-                Ok(List::Generic(Err(
-                    type_from_str(ty, arena).map_err(|_| ParseError::UnknownType)?
-                )))
+                Ok(List::Generic(Err(arena.alloc(
+                    type_from_str(ty, arena).ok_or(ParseError::UnknownType)?,
+                ))))
             } else {
-                Ok(List::Generic(Ok(arena.slice_fill(items.into_iter()))))
+                Ok(List::Generic(Ok(Slice1::try_from_slice(
+                    arena.slice_fill(items.into_iter()),
+                )
+                .expect("items is checked to be non-empty"))))
             }
         }
         _ => return Err(ParseError::UnknownType),
@@ -444,24 +339,6 @@ fn list_from_split<'a>(
 
 fn integer(s: &str) -> Option<rug::Integer> {
     rug::Integer::from_str_radix(s, 10).ok()
-}
-
-fn bytestring<'a>(s: &str, arena: &'a Arena) -> Option<&'a [u8]> {
-    let hex = s.strip_prefix("#")?;
-    let value = const_hex::decode(hex).ok()?;
-    Some(arena.slice_fill(value))
-}
-
-fn bool(s: &str) -> Option<bool> {
-    match s {
-        "True" => Some(true),
-        "False" => Some(false),
-        _ => None,
-    }
-}
-
-fn unit(s: &str) -> Option<()> {
-    (s == "()").then_some(())
 }
 
 fn g1(s: &str) -> Option<g1::Projective> {
@@ -693,6 +570,19 @@ impl<'a> TryFrom<Constant<'a>> for List<'a> {
     }
 }
 
+impl<'a> TryFrom<Constant<'a>> for Array<'a> {
+    type Error = ();
+
+    fn try_from(value: Constant<'a>) -> Result<Self, Self::Error> {
+        if let Constant::Array(a) = value {
+            Ok(a)
+        } else {
+            Err(())
+        }
+    }
+}
+
+
 impl<'a> TryFrom<Constant<'a>> for &'a [rug::Integer] {
     type Error = ();
 
@@ -895,12 +785,17 @@ impl<'a> Into<Constant<'a>> for List<'a> {
     }
 }
 
+impl<'a> Into<Constant<'a>> for Array<'a> {
+    fn into(self) -> Constant<'a> {
+        Constant::Array(self)
+    }
+}
+
 impl<'a> Into<Constant<'a>> for &'a Data {
     fn into(self) -> Constant<'a> {
         Constant::Data(self)
     }
 }
-
 
 impl<'a> Into<Constant<'a>> for &'a [Data] {
     fn into(self) -> Constant<'a> {

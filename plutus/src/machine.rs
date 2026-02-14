@@ -485,16 +485,20 @@ pub fn run<'a>(
                             skip_terms(&program.program, next.0 as usize, discriminant as u64)
                         }
                         Constant::List(list) => {
-                            let discriminant = match list.destructure() {
-                                Some((head, tail)) => {
-                                    stack.push(Frame::ApplyLeftValue(Value::Constant(
-                                        Constant::List(tail),
-                                    )));
-                                    stack.push(Frame::ApplyLeftValue(Value::Constant(head)));
-                                    0
-                                }
-                                None => 1,
+                            if let Some(tail) = crate::builtin::list::tail(list) {
+                                stack.push(Frame::ApplyLeftValue(Value::Constant(Constant::List(
+                                    tail,
+                                ))));
                             };
+                            if let Some(head) = crate::builtin::list::head(list) {
+                                stack.push(Frame::ApplyLeftValue(Value::Constant(head)));
+                            };
+                            let discriminant = if crate::builtin::list::null(list) {
+                                1
+                            } else {
+                                0
+                            };
+
                             if !(1..=2).contains(&count) || discriminant >= count {
                                 return None;
                             }

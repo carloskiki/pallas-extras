@@ -1,158 +1,126 @@
+use mitsein::slice1::Slice1;
+
 use crate::{
     constant::{self, Array, Constant, List},
     machine::Value,
 };
 
 pub fn choose<'a>(list: List<'_>, empty: Value<'a>, then: Value<'a>) -> Value<'a> {
-    if list.is_empty() { empty } else { then }
+    if null(list) { empty } else { then }
 }
 
-// We deviate from the builtin spec here. This should not fail once type checking is done, but we
-// don't do type checking before calling builtin functions. This is a rare case where we actually
-// have to ensure that the types are correct. So this is "failing" in our implementation, whereas
-// the spec does not define this as failing.
-pub fn mk_cons<'a>(
+// To have access to the arena, we return a struct that impls `Output`, and actually implements the
+// builtin.
+pub fn mk_cons<'a>(head: Constant<'a>, tail: List<'a>) -> MkCons<'a> {
+    MkCons { head, tail }
+}
+
+pub struct MkCons<'a> {
     head: Constant<'a>,
     tail: List<'a>,
-    arena: &'a constant::Arena,
-) -> Option<List<'a>> {
-    match (head, tail) {
-        (Constant::Integer(integer), List::Integer(integers)) => Some(List::Integer(
-            arena.integers(
-                std::iter::once(integer)
-                    .chain(integers.iter())
-                    .cloned()
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::Bytes(items), List::Bytes(i)) => Some(List::Bytes(
-            arena.slice_fill(
-                std::iter::once(items)
-                    .chain(i.iter().copied())
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::String(s), List::String(items)) => Some(List::String(
-            arena.slice_fill(
-                std::iter::once(s)
-                    .chain(items.iter().copied())
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::Unit, List::Unit(items)) => Some(List::Unit(
-            arena.slice_fill(
-                std::iter::once(())
-                    .chain(items.iter().copied())
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::Boolean(b), List::Boolean(items)) => Some(List::Boolean(
-            arena.slice_fill(
-                std::iter::once(b)
-                    .chain(items.iter().copied())
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::Data(data), List::Data(datas)) => Some(List::Data(
-            arena.datas(
-                std::iter::once(data.clone())
-                    .chain(datas.iter().cloned())
-                    .collect::<Vec<_>>(),
-            ),
-        )),
-        (Constant::BLSG1Element(projective), List::BLSG1Element(projectives)) => {
-            Some(List::BLSG1Element(
-                arena.slice_fill(
-                    std::iter::once(*projective)
-                        .chain(projectives.iter().copied())
-                        .collect::<Vec<_>>(),
-                ),
-            ))
-        }
-        (Constant::BLSG2Element(projective), List::BLSG2Element(projectives)) => {
-            Some(List::BLSG2Element(
-                arena.slice_fill(
-                    std::iter::once(*projective)
-                        .chain(projectives.iter().copied())
-                        .collect::<Vec<_>>(),
-                ),
-            ))
-        }
-        (Constant::MillerLoopResult(head), List::MillerLoopResult(items)) => {
-            Some(List::MillerLoopResult(
-                arena.slice_fill(
-                    std::iter::once(*head)
-                        .chain(items.iter().copied())
-                        .collect::<Vec<_>>(),
-                ),
-            ))
-        }
-        (Constant::Pair(Constant::Data(data0), Constant::Data(data1)), List::PairData(items)) => {
-            Some(List::PairData(
-                arena.pair_data(
-                    std::iter::once(((*data0).clone(), (*data1).clone()))
-                        .chain(items.iter().cloned())
-                        .collect::<Vec<_>>(),
-                ),
-            ))
-        }
-        (c, List::Generic(Err(ty))) if c.type_of(arena) == ty => {
-            Some(List::Generic(Ok(std::slice::from_ref(arena.alloc(c)))))
-        }
-        (c, List::Generic(Ok(items)))
-            if c.type_of(arena) == items.first().expect("non-empty list").type_of(arena) =>
-        {
-            Some(List::Generic(Ok(arena.slice_fill(
-                std::iter::once(c)
-                    .chain(items.iter().cloned())
-                    .collect::<Vec<_>>(),
-            ))))
+}
+
+impl<'a> super::Output<'a> for MkCons<'a> {
+    fn into(
+        MkCons { head, tail }: Self,
+        arena: &'a constant::Arena,
+    ) -> Option<crate::machine::Value<'a>> {
+        fn type_eq(a: &Constant, b: &Constant) -> bool {
+            match (a, b) {
+                (Constant::Integer(_), Constant::Integer(_))
+                | (Constant::Bytes(_), Constant::Bytes(_))
+                | (Constant::String(_), Constant::String(_))
+                | (Constant::Unit, Constant::Unit)
+                | (Constant::PairData(_), Constant::PairData(_))
+                | (Constant::Data(_), Constant::Data(_))
+                | (Constant::BLSG1Element(_), Constant::BLSG1Element(_))
+                | (Constant::BLSG2Element(_), Constant::BLSG2Element(_))
+                | (Constant::MillerLoopResult(_), Constant::MillerLoopResult(_))
+                | (Constant::Boolean(_), Constant::Boolean(_)) => true,
+                (Constant::List(l0), Constant::List(l1))
+                | (Constant::Array(Array(l0)), Constant::Array(Array(l1))) => match (l0, l1) {
+                    (List::Integer(_), List::Integer(_))
+                    | (List::Data(_), List::Data(_))
+                    | (List::PairData(_), List::PairData(_))
+                    | (List::BLSG1Element(_), List::BLSG1Element(_))
+                    | (List::BLSG2Element(_), List::BLSG2Element(_)) => true,
+                    (List::Generic(t0), List::Generic(t1)) => type_eq(
+                        t0.map_or_else(|e0| e0, |s0| s0.first()),
+                        t1.map_or_else(|e1| e1, |s1| s1.first()),
+                    ),
+                    _ => false,
+                },
+                (Constant::Pair(a0, a1), Constant::Pair(b0, b1)) => {
+                    type_eq(a0, b0) && type_eq(a1, b1)
+                }
+                _ => false,
+            }
         }
 
-        _ => return None,
+        macro_rules! cons {
+            ($head:ident, $tail:ident, $variant:ident, $method:ident) => {{
+                let list: Vec<_> = std::iter::once($head.clone())
+                    .chain($tail.iter().cloned())
+                    .collect();
+                List::$variant(arena.$method(list))
+            }};
+        }
+
+        let list = match (head, tail) {
+            (Constant::Integer(head), List::Integer(tail)) => cons!(head, tail, Integer, integers),
+            (Constant::PairData(head), List::PairData(tail)) => {
+                cons!(head, tail, PairData, pair_data)
+            }
+            (Constant::Data(head), List::Data(tail)) => cons!(head, tail, Data, datas),
+            (Constant::BLSG1Element(head), List::BLSG1Element(tail)) => {
+                cons!(head, tail, BLSG1Element, slice_fill)
+            }
+            (Constant::BLSG2Element(head), List::BLSG2Element(tail)) => {
+                cons!(head, tail, BLSG2Element, slice_fill)
+            }
+            (head, List::Generic(Err(ty))) if type_eq(&head, ty) => {
+                List::Generic(Ok(mitsein::slice1::from_ref(ty)))
+            }
+            (head, List::Generic(Ok(tail))) if type_eq(&head, tail.first()) => {
+                let list: Vec<_> = std::iter::once(head).chain(tail.iter().copied()).collect();
+                List::Generic(Ok(Slice1::try_from_slice(arena.slice_fill(list))
+                    .expect("can't be non-empty, we just added an element")))
+            }
+
+            // Mismatched types.
+            _ => return None,
+        };
+        Some(Value::Constant(Constant::List(list)))
     }
 }
 
-pub fn head<'a>(list: List<'a>, arena: &'a constant::Arena) -> Option<Constant<'a>> {
+pub fn head<'a>(list: List<'a>) -> Option<Constant<'a>> {
     match list {
         List::Integer(x) => x.first().map(Constant::Integer),
-        List::Bytes(x) => x.first().copied().map(Constant::Bytes),
-        List::String(x) => x.first().copied().map(Constant::String),
-        List::Unit(x) => x.first().map(|_| Constant::Unit),
-        List::Boolean(x) => x.first().copied().map(Constant::Boolean),
         List::Data(x) => x.first().map(Constant::Data),
-        List::PairData(x) => x.first().map(|(a, b)| {
-            Constant::Pair(
-                arena.alloc(Constant::Data(a)),
-                arena.alloc(Constant::Data(b)),
-            )
-        }),
+        List::PairData(x) => x.first().map(Constant::PairData),
         List::BLSG1Element(x) => x.first().map(Constant::BLSG1Element),
         List::BLSG2Element(x) => x.first().map(Constant::BLSG2Element),
-        List::MillerLoopResult(x) => x.first().map(Constant::MillerLoopResult),
-        List::Generic(Ok(x)) => Some(*x.first().expect("non-empty list")),
+        List::Generic(Ok(x)) => Some(*x.first()),
         List::Generic(Err(_)) => None,
     }
 }
 
-pub fn tail<'a>(list: List<'a>, arena: &'a constant::Arena) -> Option<List<'a>> {
+pub fn tail<'a>(list: List<'a>) -> Option<List<'a>> {
     match list {
         List::Integer(integers) => integers.get(1..).map(List::Integer),
-        List::Bytes(items) => items.get(1..).map(List::Bytes),
-        List::String(items) => items.get(1..).map(List::String),
-        List::Unit(items) => items.get(1..).map(List::Unit),
-        List::Boolean(items) => items.get(1..).map(List::Boolean),
         List::Data(datas) => datas.get(1..).map(List::Data),
         List::PairData(items) => items.get(1..).map(List::PairData),
         List::BLSG1Element(projectives) => projectives.get(1..).map(List::BLSG1Element),
         List::BLSG2Element(projectives) => projectives.get(1..).map(List::BLSG2Element),
-        List::MillerLoopResult(items) => items.get(1..).map(List::MillerLoopResult),
         List::Generic(Ok(list)) => {
-            let tail = list.get(1..)?;
+            let (head, tail) = list.split_first();
             Some(if tail.is_empty() {
-                List::Generic(Err(list.first().expect("non-empty list").type_of(arena)))
+                List::Generic(Err(head))
             } else {
-                List::Generic(Ok(tail))
+                List::Generic(Ok(
+                    Slice1::try_from_slice(tail).expect("tail check non-empty")
+                ))
             })
         }
         List::Generic(Err(_)) => None,
@@ -160,10 +128,17 @@ pub fn tail<'a>(list: List<'a>, arena: &'a constant::Arena) -> Option<List<'a>> 
 }
 
 pub fn null(list: List<'_>) -> bool {
-    list.is_empty()
+    match list {
+        List::Integer(integers) => integers.is_empty(),
+        List::Data(datas) => datas.is_empty(),
+        List::PairData(items) => items.is_empty(),
+        List::BLSG1Element(projectives) => projectives.is_empty(),
+        List::BLSG2Element(projectives) => projectives.is_empty(),
+        List::Generic(non_empty) => matches!(non_empty, Err(_)),
+    }
 }
 
-pub fn drop<'a>(count: &rug::Integer, list: List<'a>, arena: &'a constant::Arena) -> List<'a> {
+pub fn drop<'a>(count: &rug::Integer, list: List<'a>) -> List<'a> {
     if !count.is_positive() {
         return list;
     };
@@ -179,24 +154,18 @@ pub fn drop<'a>(count: &rug::Integer, list: List<'a>, arena: &'a constant::Arena
 
     match list {
         List::Integer(integers) => drop!(integers, Integer),
-        List::Bytes(items) => drop!(items, Bytes),
-        List::String(items) => drop!(items, String),
-        List::Unit(items) => drop!(items, Unit),
-        List::Boolean(items) => drop!(items, Boolean),
         List::Data(datas) => drop!(datas, Data),
         List::PairData(items) => drop!(items, PairData),
         List::BLSG1Element(projectives) => drop!(projectives, BLSG1Element),
         List::BLSG2Element(projectives) => drop!(projectives, BLSG2Element),
-        List::MillerLoopResult(items) => drop!(items, MillerLoopResult),
         List::Generic(Ok(list)) => {
             let remainder = list.get(count..).unwrap_or(&[]);
             if remainder.is_empty() {
-                List::Generic(Err(list
-                    .first()
-                    .expect("non-empty list invariant should hold")
-                    .type_of(arena)))
+                List::Generic(Err(list.first()))
             } else {
-                List::Generic(Ok(remainder))
+                List::Generic(Ok(
+                    Slice1::try_from_slice(remainder).expect("remainder check non-empty")
+                ))
             }
         }
         List::Generic(Err(_)) => list,
@@ -204,5 +173,5 @@ pub fn drop<'a>(count: &rug::Integer, list: List<'a>, arena: &'a constant::Arena
 }
 
 pub fn to_array(list: List<'_>) -> Array<'_> {
-    list
+    Array(list)
 }

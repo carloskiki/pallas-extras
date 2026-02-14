@@ -3,7 +3,7 @@
 use std::num::Saturating;
 
 use crate::{
-    constant::{Array, Constant, List},
+    constant::List,
     cost::Function,
 };
 use rug::az::SaturatingCast;
@@ -29,16 +29,11 @@ impl Function<List<'_>> for First {
     fn cost(&self, input: &List) -> i64 {
         (match input {
             List::Integer(integers) => integers.len(),
-            List::Bytes(items) => items.len(),
-            List::String(items) => items.len(),
-            List::Unit(items) => items.len(),
-            List::Boolean(items) => items.len(),
             List::Data(datas) => datas.len(),
             List::PairData(items) => items.len(),
             List::BLSG1Element(projectives) => projectives.len(),
             List::BLSG2Element(projectives) => projectives.len(),
-            List::MillerLoopResult(items) => items.len(),
-            List::Generic(Ok(items)) => items.len(),
+            List::Generic(Ok(items)) => items.len().get(),
             List::Generic(Err(_)) => 0,
         }) as i64
     }

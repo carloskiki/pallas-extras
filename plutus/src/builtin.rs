@@ -22,7 +22,7 @@ mod digest;
 mod ed25519;
 mod integer;
 mod k256;
-mod list;
+pub mod list;
 mod string;
 
 /// Builtin functions supported by the evaluator.
@@ -544,9 +544,9 @@ impl_function!(A, B, C, D, E, F);
 macro_rules! impl_function {
     ($($ty:ident),*) => {
         #[allow(unused_parens, non_snake_case)]
-        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)* &'a constant::Arena), CE, CM> for FN
+        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)*), CE, CM> for FN
         where
-            FN: Fn($($ty),*, &'a constant::Arena) -> O,
+            FN: Fn($($ty),*) -> O,
             CE: cost::Function<($($ty),*)>,
             CM: cost::Function<($($ty),*)>,
         {
@@ -580,29 +580,8 @@ macro_rules! impl_function {
                     .checked_sub_signed(memory_cost)?;
 
                 let ($($ty),*) = tuple;
-                let output = (self)($($ty),*, arena);
+                let output = (self)($($ty),*);
                 O::into(output, arena)
-            }
-        }
-
-        #[allow(unused_parens, non_snake_case)]
-        impl<'a, O: Output<'a>, FN, CE, CM, $($ty: Input<'a>),*> Function<'a, ($($ty,)*), CE, CM> for FN
-        where
-            FN: Fn($($ty),*) -> O,
-            CE: cost::Function<($($ty),*)>,
-            CM: cost::Function<($($ty),*)>,
-        {
-            fn apply(
-                self,
-                args: Vec<machine::Value<'a>>,
-                arena: &'a constant::Arena,
-                context: &mut cost::Context,
-            ) -> Option<machine::Value<'a>> {
-                <_ as Function<
-                    _,
-                    CE,
-                    CM,
-                >>::apply((|$($ty: $ty),*, _: &'a constant::Arena| self($($ty),*)), args, arena, context)
             }
         }
     };

@@ -198,7 +198,7 @@ checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
 [[package]]
 name = "bwst"
 version = "0.1.0"
-source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.7#7f885dc00c2bc39408d82228250120b66d09ba61"
+source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.8#46933e09d729db6c46ac67ebc057f58504713838"
 dependencies = [
  "bindgen",
  "cc",
@@ -1171,6 +1171,7 @@ dependencies = [
  "libtest2-mimic",
  "log",
  "macro_rules_attribute",
+ "mitsein",
  "ripemd",
  "rug",
  "sha2",
