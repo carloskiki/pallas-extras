@@ -28,7 +28,6 @@ enum Node<'a, T: Copy> {
 }
 
 impl<'a, T: Copy> Node<'a, T> {
-    // TODO: Check #[inline] here
     fn push(&mut self, tail: Bucket<'a, T, SIZE>, mut index: usize, arena: &'a crate::Arena) {
         let shift = shift(index);
         let b = index >> shift;
