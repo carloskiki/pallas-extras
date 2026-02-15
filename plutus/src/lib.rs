@@ -649,7 +649,7 @@ enum Instruction<T> {
 
 /// Index of a term in the program.
 ///
-/// This is used by `Value` to point to terms in the program.
+/// This is used to point to terms in the program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct TermIndex(u32);
 

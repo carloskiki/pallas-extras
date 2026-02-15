@@ -1,10 +1,5 @@
 - [github pages doc](https://www.reddit.com/r/rust/comments/195ao81/publishing_documentation_as_github_page/)
 
-## TODOs for failing tests
-
-DropList: If the expected budget is i64::MAX, then we should accept failing evaluation if it fails with exceeded budget.
-ReplicateByte: Incorrect cost model, it needs to be `NumBytesCostedAsNumWords` like for `IntegerToByteStringMemory`.
-
 ## Version support
 
 - All plutus versions are supported. This currently means `1.0.0` and `1.1.0`.
@@ -24,10 +19,9 @@ not support partial cost models for cek machine steps.
 
 ## Available Optimizations
 
-- Arena for Constants.
-- Inline stuff in `Builtin` computations.
-
+- Check where inline could help `builtins`, `cost::Function`.
 - Store `next` in the instruction for `case` and construct?
+
 - Packed instruction representation.
 - Reduce size of `Frame`, `Value`, and `DischargeValue`.
-  This implies reducing the size of `bvt::Vector`, using `ThinVec`, etc.
+  This implies reducing the size of `bvt::Vector`.

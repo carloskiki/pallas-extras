@@ -12,6 +12,7 @@ use std::str::FromStr;
 mod arena;
 pub use arena::Arena;
 
+/// The `Array` constant.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Array<'a>(pub List<'a>);
 
@@ -683,8 +684,6 @@ impl TryFrom<Constant<'_>> for Vec<(Data, Data)> {
         }
     }
 }
-
-// TODO: Impl for Array.
 
 impl<'a, A, B> TryFrom<Constant<'a>> for (A, B)
 where
