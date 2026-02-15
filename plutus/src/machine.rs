@@ -47,7 +47,7 @@ impl<'a> Value<'a> {
     /// This is defined in the [specification][spec] section 2.4.1.
     ///
     /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-    fn discharge(self, mut program: Program<'a, DeBruijn>) -> Program<'a, DeBruijn> {
+    fn discharge(self, mut program: Program<'a, DeBruijn>) -> Program<'a, u32> {
         enum DischargeValue<'a> {
             Constant(Constant<'a>),
             Term {
@@ -149,7 +149,7 @@ impl<'a> Value<'a> {
                                 remaining += count;
                             }
                         }
-                        instructions.push(program.program[index]);
+                        instructions.push(un_debruijn(program.program[index]));
                         index += 1;
                     }
                 }
@@ -170,9 +170,14 @@ impl<'a> Value<'a> {
                     args,
                     force_count,
                 } => {
-                    // TODO: Currently an evaluated program cannot be re-evaluated (even though
-                    // re-evaluation would do nothing), becuase discharging the value of a builtin
-                    // does not properly set the term index of the builtin's applications.
+                    // FIXME: An evaluated program being re-evaluated (even though re-evaluation
+                    // should do nothing) has an undefined output since we don't correctly set the
+                    // term indices for the `Application`s here and in `DischargeValue::Term`.
+                    //
+                    // This could be solved by:
+                    // - Keeping track of stuff (don't see the utility)
+                    // - Making the program not evaluatable once it's evaluated (change something
+                    // in the variable type?)
                     instructions.extend(std::iter::repeat_n(
                         Instruction::Application(TermIndex(0)),
                         args.len(),
@@ -187,8 +192,12 @@ impl<'a> Value<'a> {
             }
         }
 
-        program.program = instructions;
-        program
+        Program {
+            version: program.version,
+            arena: program.arena,
+            constants: program.constants,
+            program: instructions,
+        }
     }
 }
 
@@ -225,7 +234,7 @@ enum Frame<'a> {
 pub fn run<'a>(
     program: Program<'a, DeBruijn>,
     context: &mut Context<'_>,
-) -> Option<Program<'a, DeBruijn>> {
+) -> Option<Program<'a, u32>> {
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
 
@@ -555,6 +564,29 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u64) -> usiz
         index += 1;
     }
     index
+}
+
+fn un_debruijn(instruction: Instruction<DeBruijn>) -> Instruction<u32> {
+    match instruction {
+        Instruction::Variable(DeBruijn(var)) => Instruction::Variable(var),
+        Instruction::Delay => Instruction::Delay,
+        Instruction::Lambda(DeBruijn(var)) => Instruction::Lambda(var),
+        Instruction::Application(term) => Instruction::Application(term),
+        Instruction::Constant(constant_index) => Instruction::Constant(constant_index),
+        Instruction::Force => Instruction::Force,
+        Instruction::Error => Instruction::Error,
+        Instruction::Builtin(builtin) => Instruction::Builtin(builtin),
+        Instruction::Construct {
+            discriminant,
+            large_discriminant,
+            length,
+        } => Instruction::Construct {
+            discriminant,
+            large_discriminant,
+            length,
+        },
+        Instruction::Case { count } => Instruction::Case { count },
+    }
 }
 
 #[cfg(test)]

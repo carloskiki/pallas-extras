@@ -41,7 +41,7 @@
 //!
 //! let four: Program<String> = Program::from_str(FOUR, &arena).unwrap();
 //! let four = four.into_de_bruijn().unwrap();
-//! assert_eq!(evaluated, four);
+//! assert_eq!(evaluated.into_de_bruijn().unwrap(), four);
 //! ```
 
 use std::str::FromStr;
@@ -137,7 +137,7 @@ pub struct Version {
 ///
 /// const PROGRAM: &str = "(program 1.0.0 (lam x x))";
 /// let arena = plutus::Arena::default();
-/// let program: plutus::Program<String> = PROGRAM.parse().unwrap();
+/// let program: plutus::Program<String> = Program::from_str(PROGRAM, &arena).unwrap();
 /// ```
 ///
 /// A program can then be converted into a `Program<DeBruijn>` using [`Program::into_de_bruijn`].
@@ -418,8 +418,9 @@ impl<'a, T: PartialEq> Program<'a, T> {
     /// const PROGRAM_A: &str = "(program 1.0.0 (lam x (lam y [x y])))";
     /// const PROGRAM_B: &str = "(program 1.0.0 (lam hello (lam world [hello world])))";
     ///
-    /// let program_a: Program<String> = PROGRAM_A.parse().unwrap();
-    /// let program_b: Program<String> = PROGRAM_B.parse().unwrap();
+    /// let arena = plutus::Arena::default();
+    /// let program_a: Program<String> = Program::from_str(PROGRAM_A, &arena).unwrap();
+    /// let program_b: Program<String> = Program::from_str(PROGRAM_B, &arena).unwrap();
     ///
     /// assert_ne!(program_a, program_b);
     ///
@@ -568,9 +569,11 @@ where
 }
 
 impl<'a> Program<'a, DeBruijn> {
-    /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
-    /// failed.
-    pub fn evaluate(self, context: &mut Context<'_>) -> Option<Self> {
+    /// Evaluate a `Program<DeBruijn>`, producing a `Program<u32>`, or `None` if evaluation failed.
+    ///
+    /// The variable representation changes to `u32`, since debruijn indices loose their meaning
+    /// once the program is evaluated. To get them back, call [`Program::into_de_bruijn`].
+    pub fn evaluate(self, context: &mut Context<'_>) -> Option<Program<'a, u32>> {
         machine::run(self, context)
     }
 
