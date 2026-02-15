@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "bip32",
     "bip39",
@@ -54,14 +55,3 @@ zerocopy = { version = "0.8", features = ["derive"] }
 [patch.crates-io]
 # TODO: remove once https://github.com/dalek-cryptography/curve25519-dalek/pull/733 is merged
 ed25519-dalek = { git = "https://github.com/carloskiki/curve25519-dalek.git" }
-
-
-[package]
-edition = "2024"
-name = "pallas-extras"
-version = "0.1.0"
-
-[dependencies]
-anyhow = "1.0"
-ledger = { path = "ledger" }
-tinycbor = { workspace = true }

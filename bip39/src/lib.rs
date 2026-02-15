@@ -370,7 +370,7 @@ impl str::FromStr for Mnemonic {
 }
 
 fn is_invalid_word_count(word_count: usize) -> bool {
-    word_count < MIN_NB_WORDS || word_count % 3 != 0 || word_count > MAX_NB_WORDS
+    word_count < MIN_NB_WORDS || !word_count.is_multiple_of(3) || word_count > MAX_NB_WORDS
 }
 
 #[cfg(test)]

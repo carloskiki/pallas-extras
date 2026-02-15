@@ -134,17 +134,14 @@ mod tests {
     use ledger::alonzo::script::data::Construct;
 
     use super::*;
-    
+
     #[test]
     fn data() {
         let arena = Arena::default();
 
         let data = Data::Construct(Construct {
             tag: 0,
-            value: vec![
-                Data::Bytes(vec![]),
-                Data::Bytes(vec![1, 2, 3]),
-            ],
+            value: vec![Data::Bytes(vec![]), Data::Bytes(vec![1, 2, 3])],
         });
         let data2 = Data::Bytes(vec![4, 5, 6]);
         let data3 = Data::Bytes(vec![7, 8, 9]);

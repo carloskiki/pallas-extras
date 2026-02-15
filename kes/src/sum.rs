@@ -549,7 +549,7 @@ pub type Pow6Signature<S, T, H> = DoubleSignature<Pow5Signature<S, T, H>, Pow5<T
 #[cfg(test)]
 mod tests {
     use blake2::Blake2b;
-    use digest::{consts::U32, crypto_common::Generate};
+    use digest::{common::Generate, consts::U32};
     use ed25519_dalek::SigningKey;
     use signature::{Keypair, Signer, Verifier};
 

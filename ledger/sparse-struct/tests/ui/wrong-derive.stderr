@@ -1,31 +1,31 @@
 error: expected parentheses: #[struct_derive(...)]
-  --> tests/ui/wrong-derive.rs:13:17
+  --> tests/ui/wrong-derive.rs:14:17
    |
-13 | #[struct_derive = ""]
+14 | #[struct_derive = ""]
    |                 ^
 
 error: expected unsuffixed literal, found `[`
-  --> tests/ui/wrong-derive.rs:23:17
+  --> tests/ui/wrong-derive.rs:24:17
    |
-23 | #[struct_derive([u8; 3])]
+24 | #[struct_derive([u8; 3])]
    |                 ^
 
 error: `struct_derive` should be specified on the enum, not on its variants.
-  --> tests/ui/wrong-derive.rs:44:5
+  --> tests/ui/wrong-derive.rs:45:5
    |
-44 |     #[struct_derive(Clone)]
+45 |     #[struct_derive(Clone)]
    |     ^
 
 error: cannot find derive macro `NotInScope` in this scope
-  --> tests/ui/wrong-derive.rs:33:17
+  --> tests/ui/wrong-derive.rs:34:17
    |
-33 | #[struct_derive(NotInScope)]
+34 | #[struct_derive(NotInScope)]
    |                 ^^^^^^^^^^
 
 error[E0204]: the trait `std::marker::Copy` cannot be implemented for this type
- --> tests/ui/wrong-derive.rs:4:17
+ --> tests/ui/wrong-derive.rs:5:17
   |
-3 | #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
+4 | #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
   |                                                                    ------------ this field does not implement `std::marker::Copy`
-4 | #[struct_derive(Copy)]
+5 | #[struct_derive(Copy)]
   |                 ^^^^

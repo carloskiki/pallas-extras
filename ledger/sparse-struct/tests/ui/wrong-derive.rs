@@ -1,3 +1,4 @@
+extern crate alloc;
 use sparse_struct::SparseStruct;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]

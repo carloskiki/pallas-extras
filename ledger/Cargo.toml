@@ -44,7 +44,5 @@ bs58 = "0.5"
 const-hex = { workspace = true }
 
 [[test]]
-name = "codec"
-
-[[test]]
-name = "cbor_len"
+name = "chain"
+harness = false

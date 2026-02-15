@@ -87,18 +87,18 @@ impl Iterator for ChainPointerIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let num = &mut match self.state {
-            State::Slot => self.slot,
-            State::TxIndex => self.tx_index,
-            State::CertIndex => self.cert_index,
+        let num = match self.state {
+            State::Slot => &mut self.slot,
+            State::TxIndex => &mut self.tx_index,
+            State::CertIndex => &mut self.cert_index,
             State::Done => return None,
         };
 
-        let bit_count = 64 - num.leading_zeros();
+        let bit_count = u64::BITS - num.leading_zeros();
         // Get the first 7 bits in the correct window.
         // We do (- 1) because if there is a multiple of 7 bits, we don't want to shift by the
         // bitcount.
-        let shift_value = (bit_count - 1) / 7 * 7;
+        let shift_value = (bit_count.saturating_sub(1)) / 7 * 7;
         let mut value = *num >> shift_value;
         let mask = (1 << shift_value) - 1;
         *num &= mask;

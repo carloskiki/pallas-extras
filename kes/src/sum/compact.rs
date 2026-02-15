@@ -265,7 +265,7 @@ where
 #[cfg(test)]
 mod tests {
     use blake2::Blake2b256;
-    use digest::crypto_common::Generate;
+    use digest::common::Generate;
     use ed25519_dalek::SigningKey;
     use signature::{Keypair, Signer};
 

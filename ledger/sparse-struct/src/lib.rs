@@ -7,6 +7,8 @@
 //! ## Example
 //!
 //! ```rust
+//! # extern crate alloc;
+//! 
 //! #[derive(Debug, Clone, PartialEq, sparse_struct::SparseStruct)]
 //! #[struct_derive(Debug, Clone, PartialEq)]
 //! #[struct_name = "Person"]

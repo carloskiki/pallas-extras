@@ -151,7 +151,7 @@ impl<VK: KeySizeUser> KeySizeUser for VerifyingKey<VK> {
 mod tests {
     use super::SingleUse;
     use crate::Evolve;
-    use digest::crypto_common::Generate;
+    use digest::common::Generate;
     use ed25519_dalek::SigningKey;
 
     #[test]

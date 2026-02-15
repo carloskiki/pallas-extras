@@ -31,7 +31,7 @@ impl<'a, T: Copy> Node<'a, T> {
     fn push(&mut self, tail: Bucket<'a, T, SIZE>, mut index: usize, arena: &'a crate::Arena) {
         let shift = shift(index);
         let b = index >> shift;
-        index &= !(MASK << shift);
+        index &= (1 << shift) - 1;
 
         match self {
             Node::Leaf(bucket) if bucket.len() != SIZE => {
@@ -107,9 +107,9 @@ impl<'a, T: Copy> Vector<'a, T> {
                     let b = (index >> shift) & MASK;
                     if b != chunk.len() - 1 {
                         // We are not in the last child, so the subtree is full.
-                        max_index = max_index.next_power_of_two() - 1;
+                        max_index = usize::MAX;
                     }
-                    max_index &= !(MASK << shift);
+                    max_index &= (1 << shift) - 1;
 
                     // Safety: The index is valid since the tree is well formed.
                     node = unsafe { chunk.get_unchecked(b) };

@@ -1,7 +1,8 @@
 use bip32::{ExtendedSecretKey, HardIndex, SoftIndex};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use ed25519_bip32::XPrv;
 use rand::random;
+use std::hint::black_box;
 
 pub fn private_derive(c: &mut Criterion) {
     let mut group = c.benchmark_group("Private Key Derivation");
@@ -35,7 +36,7 @@ pub fn public_derive(c: &mut Criterion) {
         b.iter_with_setup(
             || random::<u32>() >> 1,
             |i: u32| {
-                black_box(ours.derive_child(SoftIndex::new(i)));
+                let _ = black_box(ours.derive_child(SoftIndex::new(i)));
             },
         )
     });
