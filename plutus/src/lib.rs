@@ -41,7 +41,7 @@
 //!
 //! let four: Program<String> = Program::from_str(FOUR, &arena).unwrap();
 //! let four = four.into_de_bruijn().unwrap();
-//! assert_eq!(evaluated, four);
+//! assert_eq!(evaluated.into_de_bruijn().unwrap(), four);
 //! ```
 
 use std::str::FromStr;
@@ -569,9 +569,12 @@ where
 }
 
 impl<'a> Program<'a, DeBruijn> {
-    /// Evaluate a `Program<DeBruijn>`, producing a `Program<DeBruijn>`, or `None` if evaluation
+    /// Evaluate a `Program<DeBruijn>`, producing a `Program<u32>`, or `None` if evaluation
     /// failed.
-    pub fn evaluate(self, context: &mut Context<'_>) -> Option<Self> {
+    ///
+    /// The variable representation changes because the evaluated program will not contain the same
+    /// structure as the input program, thus `DeBruijn` indices loose their meaning.
+    pub fn evaluate(self, context: &mut Context<'_>) -> Option<Program<'a, u32>> {
         machine::run(self, context)
     }
 

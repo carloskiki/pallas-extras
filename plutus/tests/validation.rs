@@ -35,7 +35,7 @@ fn perform_test(flat: &[u8], expected_file: &Path) -> Result<(), RunError> {
         budget,
     };
     let result = program.evaluate(&mut context).unwrap();
-    assert_eq!(result, output);
+    assert_eq!(result.into_de_bruijn().unwrap(), output);
     assert_eq!(context.budget.execution, 0);
     assert_eq!(context.budget.memory, 0);
     Ok(())

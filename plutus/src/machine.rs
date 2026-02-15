@@ -47,7 +47,7 @@ impl<'a> Value<'a> {
     /// This is defined in the [specification][spec] section 2.4.1.
     ///
     /// [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
-    fn discharge(self, mut program: Program<'a, DeBruijn>) -> Program<'a, DeBruijn> {
+    fn discharge(self, mut program: Program<'a, DeBruijn>) -> Program<'a, u32> {
         enum DischargeValue<'a> {
             Constant(Constant<'a>),
             Term {
@@ -132,12 +132,16 @@ impl<'a> Value<'a> {
                     while let Some(frame) = stack.pop() {
                         if let Some(write_back) = frame {
                             let index = instructions.len() as u32;
-                            let Instruction::Application(wb) = &mut instructions[write_back as usize] else {
-                                unreachable!("write_back should point to an application instruction");
+                            let Instruction::Application(wb) =
+                                &mut instructions[write_back as usize]
+                            else {
+                                unreachable!(
+                                    "write_back should point to an application instruction"
+                                );
                             };
                             *wb = TermIndex(index);
                         }
-                        
+
                         match program.program[index] {
                             Instruction::Delay | Instruction::Force | Instruction::Lambda(_) => {
                                 stack.push(frame);
@@ -173,7 +177,7 @@ impl<'a> Value<'a> {
                                 stack.extend(std::iter::repeat_n(None, count as usize + 1));
                             }
                         }
-                        instructions.push(program.program[index]);
+                        instructions.push(map_var(program.program[index], |DeBruijn(var)| var));
                         index += 1;
                     }
                 }
@@ -237,8 +241,12 @@ impl<'a> Value<'a> {
             }
         }
 
-        program.program = instructions;
-        program
+        Program {
+            version: program.version,
+            arena: program.arena,
+            constants: program.constants,
+            program: instructions,
+        }
     }
 }
 
@@ -275,7 +283,7 @@ enum Frame<'a> {
 pub fn run<'a>(
     program: Program<'a, DeBruijn>,
     context: &mut Context<'_>,
-) -> Option<Program<'a, DeBruijn>> {
+) -> Option<Program<'a, u32>> {
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
 
@@ -605,6 +613,29 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u64) -> usiz
         index += 1;
     }
     index
+}
+
+fn map_var<T, U>(instruction: Instruction<T>, f: impl FnOnce(T) -> U) -> Instruction<U> {
+    match instruction {
+        Instruction::Variable(var) => Instruction::Variable(f(var)),
+        Instruction::Delay => Instruction::Delay,
+        Instruction::Lambda(n) => Instruction::Lambda(f(n)),
+        Instruction::Application(term) => Instruction::Application(term),
+        Instruction::Constant(constant_index) => Instruction::Constant(constant_index),
+        Instruction::Force => Instruction::Force,
+        Instruction::Error => Instruction::Error,
+        Instruction::Builtin(builtin) => Instruction::Builtin(builtin),
+        Instruction::Construct {
+            discriminant,
+            large_discriminant,
+            length,
+        } => Instruction::Construct {
+            discriminant,
+            large_discriminant,
+            length,
+        },
+        Instruction::Case { count } => Instruction::Case { count },
+    }
 }
 
 #[cfg(test)]
