@@ -2,8 +2,6 @@
 //!
 //! This vector is implemented with a left leaning tree having bucket size of 8 (3 bits per level).
 
-use std::{hint::unreachable_unchecked, rc::Rc};
-
 mod bucket;
 pub use bucket::{Bucket, Chunk};
 
@@ -18,55 +16,81 @@ fn shift(index: usize) -> usize {
 }
 
 /// A node in the tree.
-#[derive(Debug)]
-enum Node<T> {
+#[derive(Debug, Clone, Copy)]
+enum Node<'a, T: Copy> {
     /// A branch node.
-    Branch(Rc<Chunk<Node<T>, SIZE>>),
+    Branch(&'a Chunk<Node<'a, T>, SIZE>),
     /// A leaf node.
     ///
     /// Instead of cotaining a chunk of elements. It contains a chunk of "tails".
     /// Every time the tail is full, it is pushed into the tree as a child to a leaf node.
-    Leaf(Bucket<Bucket<T, SIZE>, SIZE>),
+    Leaf(Bucket<'a, Bucket<'a, T, SIZE>, SIZE>),
 }
 
-impl<T> Node<T> {
-    /// Grow the node into a branch.
-    ///
-    /// `N -> Branch([N])`
-    fn grow(&mut self) -> &mut Chunk<Node<T>, SIZE> {
-        let old_self = std::mem::replace(self, Node::Branch(Rc::new(Chunk::default())));
-        let Node::Branch(new_chunk) = self else {
-            // Safety: We created a Branch node just above.
-            unsafe { unreachable_unchecked() }
-        };
-        // Safety: We just created the bucket, so we have unique access to it.
-        let new_chunk = unsafe { Rc::get_mut(new_chunk).unwrap_unchecked() };
-        new_chunk.push(old_self);
-        new_chunk
-    }
-}
+impl<'a, T: Copy> Node<'a, T> {
+    // TODO: Check #[inline] here
+    fn push(&mut self, tail: Bucket<'a, T, SIZE>, mut index: usize, arena: &'a crate::Arena) {
+        let shift = shift(index);
+        let b = index >> shift;
+        index &= !(MASK << shift);
 
-impl<T> Clone for Node<T> {
-    fn clone(&self) -> Self {
         match self {
-            Node::Branch(a) => Node::Branch(Rc::clone(a)),
-            Node::Leaf(a) => Node::Leaf(a.clone()),
+            Node::Leaf(bucket) if bucket.len() != SIZE => {
+                bucket.push(tail, arena);
+            }
+            // The rest of the index being zero means we need to push a new child.
+            // `b == 1` means we are at a power of SIZE. The node is full, we need to grow.
+            //
+            // This tansforms node `N -> Branch([N, Leaf(tail)])`. 
+            Node::Leaf(_) | Node::Branch(_) if index == 0 && b == 1 => {
+                let mut new_chunk = Chunk::default();
+                new_chunk.push(*self);
+                let mut leaf_bucket = Bucket::new(arena);
+                leaf_bucket.push(tail, arena);
+                new_chunk.push(Node::Leaf(leaf_bucket));
+                *self = Node::Branch(arena.alloc(new_chunk));
+            }
+            Node::Branch(chunk) => {
+                let mut new_chunk = **chunk;
+                // let chunk = Rc::make_mut(chunk);
+                if index != 0 {
+                    // Safety: We know that `b` is a valid index within the bucket because the tree is
+                    // valid.
+                    let child = unsafe { new_chunk.get_mut(b) };
+                    child.push(tail, index, arena);
+                } else {
+                    let mut leaf_bucket = Bucket::new(arena);
+                    leaf_bucket.push(tail, arena);
+                    new_chunk.push(Node::Leaf(leaf_bucket));
+                }
+                *chunk = arena.alloc(new_chunk);
+            }
+            Node::Leaf(_) => unreachable!(),
         }
+
     }
 }
 
 /// A bitmapped vector trie.
-#[derive(Debug)]
-pub struct Vector<T> {
+#[derive(Debug, Clone, Copy)]
+pub struct Vector<'a, T: Copy> {
     /// The root node of the tree.
-    root: Node<T>,
+    root: Node<'a, T>,
     /// The number of full chunks in the root.
     size: usize,
     /// The tail chunk.
-    tail: Bucket<T, SIZE>,
+    tail: Bucket<'a, T, SIZE>,
 }
 
-impl<T> Vector<T> {
+impl<'a, T: Copy> Vector<'a, T> {
+    pub fn new(arena: &'a crate::Arena) -> Self {
+        Vector {
+            root: Node::Leaf(Bucket::new(arena)),
+            size: 0,
+            tail: Bucket::new(arena),
+        }
+    }
+    
     pub fn get(&self, index: usize) -> Option<&T> {
         let tree_size = self.size * SIZE;
         if index >= tree_size + self.tail.len() {
@@ -102,73 +126,15 @@ impl<T> Vector<T> {
             }
         }
     }
-}
-
-impl<T: Clone> Vector<T> {
-    pub fn push(&mut self, v: T) {
+    
+    pub fn push(&mut self, v: T, arena: &'a crate::Arena) {
         // Need to push the tail into the tree.
         if self.tail.len() == SIZE {
-            let mut index = self.size;
-            let mut node = &mut self.root;
-            let tail = std::mem::take(&mut self.tail);
-
-            loop {
-                let shift = shift(index);
-                let b = index >> shift;
-                index &= !(MASK << shift);
-
-                match node {
-                    Node::Leaf(bucket) if bucket.len() != SIZE => {
-                        bucket.push(tail);
-                    }
-                    // The rest of the index being zero means we need to push a new child.
-                    // `b == 1` means we are at a power of SIZE. The node is full, we need to grow.
-                    Node::Leaf(_) | Node::Branch(_) if index == 0 && b == 1 => {
-                        let chunk = node.grow();
-                        let mut bucket = Bucket::default();
-                        bucket.push(tail);
-                        chunk.push(Node::Leaf(bucket));
-                    }
-                    Node::Branch(chunk) => {
-                        let chunk = Rc::make_mut(chunk);
-                        if index != 0 {
-                            // Safety: We know that `b` is a valid index within the bucket because the tree is
-                            // valid.
-                            node = unsafe { chunk.get_mut(b) };
-                            continue;
-                        }
-
-                        let mut bucket = Bucket::default();
-                        bucket.push(tail);
-                        chunk.push(Node::Leaf(bucket));
-                    }
-                    Node::Leaf(_) => unreachable!(),
-                }
-                break;
-            }
+            let tail = std::mem::replace(&mut self.tail, Bucket::new(arena));
+            self.root.push(tail, self.size, arena);
             self.size += 1;
         }
-        self.tail.push(v);
-    }
-}
-
-impl<T> Clone for Vector<T> {
-    fn clone(&self) -> Self {
-        Vector {
-            root: self.root.clone(),
-            tail: self.tail.clone(),
-            size: self.size,
-        }
-    }
-}
-
-impl<T> Default for Vector<T> {
-    fn default() -> Vector<T> {
-        Vector {
-            root: Node::Leaf(Bucket::default()),
-            tail: Bucket::default(),
-            size: 0,
-        }
+        self.tail.push(v, arena);
     }
 }
 
@@ -176,7 +142,7 @@ impl<T> Default for Vector<T> {
 mod test {
     use super::*;
 
-    impl<T> Vector<T> {
+    impl<'a, T: Copy> Vector<'a, T> {
         fn len(&self) -> usize {
             self.size * SIZE + self.tail.len()
         }
@@ -184,11 +150,12 @@ mod test {
 
     #[test]
     fn len() {
-        let mut vector: Vector<i32> = Vector::default();
+        let arena = crate::Arena::default();
+        let mut vector: Vector<i32> = Vector::new(&arena);
         assert_eq!(vector.len(), 0);
 
         for i in 0..1000 {
-            vector.push(i);
+            vector.push(i, &arena);
             assert_eq!(vector.len(), (i + 1) as usize);
         }
     }
@@ -196,11 +163,12 @@ mod test {
     #[test]
     fn push() {
         let limit = 32 * 32 * 32 + 1;
-        let mut vector: Vector<i32> = Vector::default();
+        let arena = crate::Arena::default();
+        let mut vector: Vector<i32> = Vector::new(&arena);
 
         for i in 0..limit {
             assert_eq!(vector.len(), i as usize);
-            vector.push(-i);
+            vector.push(-i, &arena);
             assert_eq!(vector.get(i as usize), Some(&-i));
         }
 
@@ -210,12 +178,13 @@ mod test {
     #[test]
     fn get() {
         let limit = 32 * 32 * 32 + 1;
-        let mut vector = Vector::default();
+        let arena = crate::Arena::default();
+        let mut vector = Vector::new(&arena);
 
         for i in 0..(limit - 1) {
-            vector.push(i + 1);
+            vector.push(i + 1, &arena);
         }
-        vector.push(limit);
+        vector.push(limit, &arena);
 
         assert_eq!(vector.get(0), Some(&1));
         assert_eq!(vector.get(2020), Some(&2021));
@@ -224,39 +193,44 @@ mod test {
     }
 
     #[test]
-    fn clone() {
-        let mut vector = Vector::default();
-        vector.push(1);
-        vector.push(2);
-        let clone = vector.clone();
-        assert_eq!(vector.len(), clone.len());
-        assert_eq!(vector.get(0), clone.get(0));
-        assert_eq!(vector.get(1), clone.get(1));
-        assert_eq!(vector.get(2), clone.get(2));
+    fn copy() {
+        let arena = crate::Arena::default();
+        let mut vector = Vector::new(&arena);
+        vector.push(1, &arena);
+        vector.push(2, &arena);
+        let mut copied = vector;
+        assert_eq!(vector.len(), copied.len());
+        assert_eq!(vector.get(0), copied.get(0));
+        assert_eq!(vector.get(1), copied.get(1));
+        assert_eq!(vector.get(2), copied.get(2));
+        copied.push(3, &arena);
+        assert_eq!(vector.len(), 2);
+        assert_eq!(copied.len(), 3);
     }
 
     #[test]
     fn complex() {
-        let mut a = Vector::default();
-        a.push(10);
-        a.push(20);
-        let mut b = a.clone();
-        let c = b.clone();
-        a.push(30);
+        let arena = crate::Arena::default();
+        let mut a = Vector::new(&arena);
+        a.push(10, &arena);
+        a.push(20, &arena);
+        let mut b = a;
+        let c = b;
+        a.push(30, &arena);
         assert_eq!(a.len(), 3);
         assert_eq!(b.len(), 2);
-        b.push(40);
+        b.push(40, &arena);
         assert_eq!(a.get(2), Some(&30));
         assert_eq!(b.get(2), Some(&40));
         assert_eq!(c.len(), 2);
         assert_eq!(c.get(0), Some(&10));
 
-        let mut d = a.clone();
+        let mut d = a;
         for i in 0..2000 {
-            a.push(i);
+            a.push(i, &arena);
         }
         assert_eq!(d.len(), 3);
-        d.push(50);
+        d.push(50, &arena);
         assert_eq!(d.get(3), Some(&50));
         assert_eq!(a.len(), 2003);
         assert_eq!(a.get(2002), Some(&1999));

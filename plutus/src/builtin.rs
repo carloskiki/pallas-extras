@@ -327,7 +327,7 @@ impl Builtin {
     /// is theoretically unreachable with a properly constructed CEK machine.
     pub fn apply<'a>(
         self,
-        args: Vec<machine::Value<'a>>,
+        args: &[machine::Value<'a>],
         arena: &'a constant::Arena,
         context: &mut cost::Context,
     ) -> Option<machine::Value<'a>> {
@@ -526,7 +526,7 @@ impl<'a> Output<'a> for machine::Value<'a> {
 pub trait Function<'a, I, CE, CM> {
     fn apply(
         self,
-        args: Vec<machine::Value<'a>>,
+        args: &[machine::Value<'a>],
         arena: &'a constant::Arena,
         context: &mut cost::Context,
     ) -> Option<machine::Value<'a>>;
@@ -538,6 +538,7 @@ impl_function!(A, B, C);
 impl_function!(A, B, C, D);
 impl_function!(A, B, C, D, E);
 impl_function!(A, B, C, D, E, F);
+pub const MAXIMUM_ARITY: usize = 6;
 
 /// Implement `Function` for builtin functions with varying number of arguments.
 macro_rules! impl_function {
@@ -551,15 +552,15 @@ macro_rules! impl_function {
         {
             fn apply(
                 self,
-                args: Vec<machine::Value<'a>>,
+                args: &[machine::Value<'a>],
                 arena: &'a constant::Arena,
                 context: &mut cost::Context,
             ) -> Option<machine::Value<'a>> {
-                let mut args = args.into_iter();
+                let mut args = args.iter();
                 let tuple = (
                     $(
                         $ty::from(
-                            args.next().expect("correct number of arguments passed"),
+                            *args.next().expect("correct number of arguments passed"),
                         )?
                     ),*
                 );

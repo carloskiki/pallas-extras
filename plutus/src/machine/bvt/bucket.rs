@@ -1,18 +1,25 @@
 //! [`Bucket`]s and [`Chunk`]s.
 
-use std::{cell::UnsafeCell, mem::MaybeUninit, rc::Rc};
+use std::{cell::UnsafeCell, mem::MaybeUninit};
 
 /// A [`Bucket`] that can hold up to [`SIZE`] elements.
 ///
 ///
 /// Acts as a clone-on-write container for a bucket of elements.
-#[derive(Debug)]
-pub struct Bucket<T, const SIZE: usize> {
-    data: Rc<UnsafeCell<Chunk<T, SIZE>>>,
+#[derive(Debug, Clone, Copy)]
+pub struct Bucket<'a, T: Copy, const SIZE: usize> {
+    data: &'a UnsafeCell<Chunk<T, SIZE>>,
     perceived: u8,
 }
 
-impl<T, const SIZE: usize> Bucket<T, SIZE> {
+impl<'a, T: Copy, const SIZE: usize> Bucket<'a, T, SIZE> {
+    pub fn new(arena: &'a crate::Arena) -> Self {
+        Bucket {
+            data: arena.alloc(UnsafeCell::new(Chunk::default())),
+            perceived: 0,
+        }
+    }
+
     // Gets a reference to the element at the given index.
     //
     // # Safety
@@ -30,21 +37,11 @@ impl<T, const SIZE: usize> Bucket<T, SIZE> {
     pub fn len(&self) -> usize {
         self.perceived as usize
     }
-}
 
-impl<T: Clone, const SIZE: usize> Bucket<T, SIZE> {
     /// Pushes a value to the bucket, panicking if the bucket is full.
-    pub fn push(&mut self, value: T) {
+    pub fn push(&mut self, value: T, arena: &'a crate::Arena) {
         let slot = self.perceived as usize;
         self.perceived += 1;
-
-        if let Some(cell) = Rc::get_mut(&mut self.data) {
-            let bucket = cell.get_mut();
-            bucket.data[slot].write(value);
-            // Increase the length if self.perceived is up to date.
-            bucket.len = bucket.len.max(self.perceived);
-            return;
-        }
 
         // Safety: Within this function there are no concurrent references to `data`, so we can
         // get a `&mut` to the content.
@@ -66,39 +63,32 @@ impl<T: Clone, const SIZE: usize> Bucket<T, SIZE> {
             data[i].write(val.clone());
         });
         data[slot].write(value);
-        self.data = Rc::new(UnsafeCell::new(Chunk {
+        self.data = arena.alloc(UnsafeCell::new(Chunk {
             data,
             len: self.perceived,
         }));
     }
 }
 
-impl<T, const SIZE: usize> Default for Bucket<T, SIZE> {
-    fn default() -> Self {
-        Bucket {
-            data: Rc::new(UnsafeCell::new(Chunk::default())),
-            perceived: 0,
-        }
+impl<'a, T: Copy, const SIZE: usize> AsRef<[T]> for Bucket<'a, T, SIZE> {
+    fn as_ref(&self) -> &[T] {
+        // Safety: There are no concurrent mutable references to `data` in this function, so we can safely get a
+        // reference to it.
+        let data = unsafe { &*self.data.get() };
+        // Safety: The perceived length is less than or equal to the actual length, so we can
+        // safely create a slice of the perceived length.
+        unsafe { std::slice::from_raw_parts(data.data.as_ptr() as *const T, self.perceived as usize) }
     }
 }
 
-impl<T, const SIZE: usize> Clone for Bucket<T, SIZE> {
-    fn clone(&self) -> Self {
-        Bucket {
-            data: Rc::clone(&self.data),
-            perceived: self.perceived,
-        }
-    }
-}
-
-// An inline vector of up to [`SIZE`] elements.
-#[derive(Debug)]
-pub struct Chunk<T, const SIZE: usize> {
+/// An inline vector of up to [`SIZE`] elements.
+#[derive(Debug, Clone, Copy)]
+pub struct Chunk<T: Copy, const SIZE: usize> {
     data: [MaybeUninit<T>; SIZE],
     len: u8,
 }
 
-impl<T, const SIZE: usize> Chunk<T, SIZE> {
+impl<T: Copy, const SIZE: usize> Chunk<T, SIZE> {
     /// Gets a reference to the element at the given index.
     ///
     /// # Safety
@@ -132,33 +122,10 @@ impl<T, const SIZE: usize> Chunk<T, SIZE> {
     }
 }
 
-impl<T: Clone, const SIZE: usize> Clone for Chunk<T, SIZE> {
-    fn clone(&self) -> Self {
-        // Safety: Standard procedure to create an array of `uninit`.
-        let mut new_data: [MaybeUninit<T>; SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
-        (0..self.len as usize).for_each(|i| {
-            // Safety: We know that values up to `len` are valid and initialized.
-            let val = unsafe { self.data[i].assume_init_ref() };
-            new_data[i].write(val.clone());
-        });
-        Chunk {
-            data: new_data,
-            len: self.len,
-        }
-    }
-}
-
-impl<T, const SIZE: usize> Default for Chunk<T, SIZE> {
+impl<T: Copy, const SIZE: usize> Default for Chunk<T, SIZE> {
     fn default() -> Self {
         // Safety: Standard procedure to create an array of `uninit`.
         let data: [MaybeUninit<T>; SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
         Chunk { data, len: 0 }
-    }
-}
-
-impl<T, const SIZE: usize> Drop for Chunk<T, SIZE> {
-    fn drop(&mut self) {
-        // Safety: We only drop the initialized and valid elements.
-        unsafe { self.data[..self.len as usize].assume_init_drop() };
     }
 }

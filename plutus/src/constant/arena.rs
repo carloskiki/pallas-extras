@@ -77,9 +77,15 @@ impl Arena {
         pairs
     }
 
-    /// Allocate to the arena, only for types that implement `Copy` (thus don't need drop
+    /// Allocate to the arena, only for types that don't `needs_drop` (thus don't need drop
     /// tracking).
-    pub(crate) fn alloc<T: Copy>(&self, value: T) -> &T {
+    pub(crate) fn alloc<T>(&self, value: T) -> &T {
+        const {
+            if std::mem::needs_drop::<T>() {
+                panic!("Cannot allocate type that needs drop to the arena");
+            }
+        }
+        
         self.bump.alloc(value)
     }
 

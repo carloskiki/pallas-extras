@@ -4,8 +4,6 @@
 //!
 //! [spec]: https://plutus.cardano.intersectmbo.org/resources/plutus-core-spec.pdf
 
-use std::rc::Rc;
-
 use crate::{
     ConstantIndex, Context, DeBruijn, Instruction, Program, TermIndex, builtin::Builtin,
     constant::Constant,
@@ -15,25 +13,25 @@ use bvt::Vector;
 pub mod bvt;
 
 /// Represents a processed value in the CEK machine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum Value<'a> {
     Constant(Constant<'a>),
     Delay {
         term: TermIndex,
-        environment: Vector<Value<'a>>,
+        environment: Vector<'a, Value<'a>>,
     },
     Lambda {
         term: TermIndex,
-        environment: Vector<Value<'a>>,
+        environment: Vector<'a, Value<'a>>,
     },
     Construct {
         discriminant: ConstantIndex,
-        values: Rc<[Value<'a>]>,
+        values: &'a [Value<'a>],
     },
     Builtin {
         builtin: Builtin,
         polymorphism: u8,
-        args: Vec<Value<'a>>,
+        args: bvt::Bucket<'a, Value<'a>, { crate::builtin::MAXIMUM_ARITY }>,
     },
 }
 
@@ -53,7 +51,7 @@ impl<'a> Value<'a> {
                 term: TermIndex,
                 // This is a number of terms, so u16 is sufficient.
                 remaining: u16,
-                environment: Vector<Value<'a>>,
+                environment: Vector<'a, Value<'a>>,
             },
             Construct {
                 discriminant: ConstantIndex,
@@ -91,7 +89,12 @@ impl<'a> Value<'a> {
                     } => DischargeValue::Builtin {
                         builtin,
                         force_count: builtin.quantifiers() - polymorphism,
-                        args: args.into_iter().map(DischargeValue::from).collect(),
+                        args: args
+                            .as_ref()
+                            .iter()
+                            .copied()
+                            .map(DischargeValue::from)
+                            .collect(),
                     },
                 }
             }
@@ -206,20 +209,20 @@ enum Frame<'a> {
     ApplyLeftValue(Value<'a>),
     ApplyRightValue(Value<'a>),
     ApplyLeftTerm {
-        environment: Vector<Value<'a>>,
+        environment: Vector<'a, Value<'a>>,
         next: TermIndex,
     },
     Construct {
         remaining: u16,
         discriminant: ConstantIndex,
         values: Vec<Value<'a>>,
-        environment: Vector<Value<'a>>,
+        environment: Vector<'a, Value<'a>>,
         next: TermIndex,
     },
     Case {
         count: u16,
         next: TermIndex,
-        environment: Vector<Value<'a>>,
+        environment: Vector<'a, Value<'a>>,
     },
 }
 
@@ -231,18 +234,16 @@ pub fn run<'a>(
     let base_costs = context.base()?;
     context.apply_no_args(&base_costs.startup)?;
 
+    let arena = &program.arena;
     let mut stack = Vec::new();
-    let mut environment: Vector<Value> = Vector::default();
+    let mut environment: Vector<Value> = Vector::new(arena);
     let mut index = 0;
 
     loop {
         let mut ret = match program.program[index] {
             Instruction::Variable(var) => {
                 context.apply_no_args(&base_costs.variable)?;
-                environment
-                    .get(var.0 as usize)
-                    .expect("variable exists")
-                    .clone()
+                *environment.get(var.0 as usize).expect("variable exists")
             }
             Instruction::Delay => {
                 context.apply_no_args(&base_costs.delay)?;
@@ -261,10 +262,7 @@ pub fn run<'a>(
             Instruction::Application(next) => {
                 context.apply_no_args(&base_costs.application)?;
                 index += 1;
-                stack.push(Frame::ApplyLeftTerm {
-                    environment: environment.clone(),
-                    next,
-                });
+                stack.push(Frame::ApplyLeftTerm { environment, next });
                 continue;
             }
             Instruction::Constant(constant_index) => {
@@ -285,7 +283,7 @@ pub fn run<'a>(
                 Value::Builtin {
                     builtin,
                     polymorphism: builtin.quantifiers(),
-                    args: Vec::new(),
+                    args: bvt::Bucket::new(arena),
                 }
             }
             Instruction::Construct {
@@ -297,7 +295,7 @@ pub fn run<'a>(
                 if length != 0 {
                     stack.push(Frame::Construct {
                         remaining: length - 1,
-                        environment: environment.clone(),
+                        environment,
                         values: Vec::new(),
                         discriminant,
                         next: TermIndex(skip_terms(&program.program, index, 1) as u32),
@@ -307,7 +305,7 @@ pub fn run<'a>(
 
                 Value::Construct {
                     discriminant,
-                    values: Rc::new([]),
+                    values: &[],
                 }
             }
             Instruction::Case { count } => {
@@ -315,7 +313,7 @@ pub fn run<'a>(
                 index += 1;
                 stack.push(Frame::Case {
                     count,
-                    environment: environment.clone(),
+                    environment,
                     next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                 });
                 continue;
@@ -363,7 +361,7 @@ pub fn run<'a>(
                         mut environment,
                     },
                 ) => {
-                    environment.push(value);
+                    environment.push(value, arena);
                     index = term.0 as usize + 1;
                     environment
                 }
@@ -383,9 +381,9 @@ pub fn run<'a>(
                         polymorphism: 0,
                     },
                 ) => {
-                    args.push(value);
+                    args.push(value, arena);
                     if args.len() == builtin.arity() as usize {
-                        ret = builtin.apply(args, program.arena, context)?;
+                        ret = builtin.apply(args.as_ref(), program.arena, context)?;
                         continue;
                     } else {
                         ret = Value::Builtin {
@@ -410,7 +408,7 @@ pub fn run<'a>(
                     if remaining == 0 {
                         ret = Value::Construct {
                             discriminant,
-                            values: values.into(),
+                            values: arena.slice_fill(values),
                         };
                         continue;
                     }
@@ -420,7 +418,7 @@ pub fn run<'a>(
                         discriminant,
                         next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                         remaining,
-                        environment: environment.clone(),
+                        environment,
                         values,
                     });
                     environment
