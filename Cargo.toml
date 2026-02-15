@@ -20,12 +20,11 @@ tinycbor = "0.11.0"
 tinycbor-derive = "0.12.0"
 
 # Crypto Traits
-digest = { version = "0.11.0-rc.5", default-features = false }
+digest = { version = "0.11.0", default-features = false }
 signature = { version = "3.0.0-rc.6", default-features = false }
 
 # Data types
-either = "1.15"
-mitsein = "0.8"
+mitsein = "0.9"
 rug = { version = "1.28.0", default-features = false, features = [
     "integer",
     "std",

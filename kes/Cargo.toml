@@ -6,9 +6,9 @@ version = "0.1.0"
 [dependencies]
 blake2 = { workspace = true }
 digest = { workspace = true, features = ["rand_core", "getrandom"] }
-either = { workspace = true }
 signature = { workspace = true, features = ["alloc"] }
 
+either = "1.15"
 ref-cast = { workspace = true }
 zerocopy = { workspace = true }
 
