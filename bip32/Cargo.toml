@@ -8,8 +8,8 @@ zerocopy = { workspace = true, features = ["derive"] }
 
 curve25519-dalek = { workspace = true }
 digest = { workspace = true }
-hmac = "0.13.0-rc.3"
-pbkdf2 = "0.13.0-rc.5"
+hmac = "0.13.0-rc.5"
+pbkdf2 = "0.13.0-rc.9"
 sha2 = { workspace = true }
 
 [dev-dependencies]
