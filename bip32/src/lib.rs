@@ -261,7 +261,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // `ed25519_bip32::XPrv::from_nonextended_force` is problematic...
     fn reference_xprv_derivation() {
         for _ in 0..5 {
             let secret: [u8; 32] = random();
@@ -283,7 +282,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // `ed25519_bip32::XPrv::from_nonextended_force` is problematic...
     fn reference_xpub_derivation() {
         for _ in 0..5 {
             let secret: [u8; 32] = random();

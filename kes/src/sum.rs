@@ -597,7 +597,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)] // Too slow on miri
     fn can_verify_from_all_evolutions() {
         let mut pow6 = Key::generate();
 

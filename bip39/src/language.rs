@@ -145,7 +145,6 @@ impl fmt::Display for Language {
     }
 }
 
-#[cfg(all(test, not(miri)))] // Miri is too slow for these tests
 mod tests {
     use const_hex::ToHexExt;
     use sha2::{Digest, Sha256};
