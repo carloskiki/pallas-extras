@@ -53,7 +53,7 @@ impl<'a> Value<'a> {
             Term {
                 term: TermIndex,
                 // This is a number of terms, so u16 is sufficient.
-                stack: Vec<Option<u32>>,
+                remaining: u16,
                 environment: Vector<Value<'a>>,
             },
             Construct {
@@ -75,7 +75,7 @@ impl<'a> Value<'a> {
                     Value::Delay { term, environment } | Value::Lambda { term, environment } => {
                         DischargeValue::Term {
                             term,
-                            stack: vec![None],
+                            remaining: 1,
                             environment,
                         }
                     }
@@ -101,17 +101,9 @@ impl<'a> Value<'a> {
             }
         }
 
-        struct Frame<'a> {
-            value: DischargeValue<'a>,
-            write_back: Option<u32>,
-        }
-
-        let mut value_stack = vec![Frame {
-            value: DischargeValue::from(self),
-            write_back: None,
-        }];
+        let mut value_stack = vec![DischargeValue::from(self)];
         let mut instructions = Vec::new();
-        while let Some(Frame { value, write_back }) = value_stack.pop() {
+        while let Some(value) = value_stack.pop() {
             match value {
                 DischargeValue::Constant(constant) => {
                     instructions.push(Instruction::Constant({
@@ -123,54 +115,38 @@ impl<'a> Value<'a> {
                 DischargeValue::Term {
                     term,
                     environment,
-                    mut stack,
+                    mut remaining,
                 } => {
-                    // FIXME: a stack within a stack is a bit unfortunate.
-                    // There is probably a more elegant way with the outer stack and a more complex
-                    // frame.
                     let mut index = term.0 as usize;
-                    while let Some(frame) = stack.pop() {
-                        if let Some(write_back) = frame {
-                            let index = instructions.len() as u32;
-                            let Instruction::Application(wb) = &mut instructions[write_back as usize] else {
-                                unreachable!("write_back should point to an application instruction");
-                            };
-                            *wb = TermIndex(index);
-                        }
-                        
+                    while remaining > 0 {
                         match program.program[index] {
-                            Instruction::Delay | Instruction::Force | Instruction::Lambda(_) => {
-                                stack.push(frame);
-                            }
+                            Instruction::Delay | Instruction::Force | Instruction::Lambda(_) => {}
                             Instruction::Variable(DeBruijn(var)) => {
+                                remaining -= 1;
                                 if let Some(value) = environment.get(var as usize).cloned() {
-                                    value_stack.push(Frame {
-                                        value: DischargeValue::Term {
-                                            term: TermIndex(index as u32 + 1),
-                                            stack,
-                                            environment,
-                                        },
-                                        write_back: None,
+                                    value_stack.push(DischargeValue::Term {
+                                        term: TermIndex(index as u32 + 1),
+                                        remaining,
+                                        environment,
                                     });
-                                    value_stack.push(Frame {
-                                        value: DischargeValue::from(value),
-                                        write_back: None,
-                                    });
+                                    value_stack.push(DischargeValue::from(value));
                                     break;
                                 }
                             }
                             Instruction::Constant(_)
                             | Instruction::Error
-                            | Instruction::Builtin(_) => {}
+                            | Instruction::Builtin(_)
+                            | Instruction::Construct { length: 0, .. } => {
+                                remaining -= 1;
+                            }
                             Instruction::Application(_) => {
-                                stack.push(Some(instructions.len() as u32));
-                                stack.push(None);
+                                remaining += 1;
                             }
                             Instruction::Construct { length, .. } => {
-                                stack.extend(std::iter::repeat_n(None, length as usize));
+                                remaining += length - 1;
                             }
                             Instruction::Case { count } => {
-                                stack.extend(std::iter::repeat_n(None, count as usize + 1));
+                                remaining += count;
                             }
                         }
                         instructions.push(program.program[index]);
@@ -187,22 +163,16 @@ impl<'a> Value<'a> {
                         large_discriminant,
                         length: values.len() as u16,
                     });
-                    value_stack.extend(
-                        values
-                            .into_iter()
-                            .map(|v| Frame {
-                                value: v,
-                                write_back: None,
-                            })
-                            .rev(),
-                    );
+                    value_stack.extend(values.into_iter().rev());
                 }
                 DischargeValue::Builtin {
                     builtin,
                     args,
                     force_count,
                 } => {
-                    let first_application_index = instructions.len();
+                    // TODO: Currently an evaluated program cannot be re-evaluated (even though
+                    // re-evaluation would do nothing), becuase discharging the value of a builtin
+                    // does not properly set the term index of the builtin's applications.
                     instructions.extend(std::iter::repeat_n(
                         Instruction::Application(TermIndex(0)),
                         args.len(),
@@ -212,28 +182,8 @@ impl<'a> Value<'a> {
                         force_count as usize,
                     ));
                     instructions.push(Instruction::Builtin(builtin));
-                    let mut args = args.into_iter().rev();
-                    if let Some(last) = args.next_back() {
-                        let last_application_index = instructions.len() - force_count as usize - 2;
-                        instructions[last_application_index] =
-                            Instruction::Application(TermIndex(instructions.len() as u32));
-                        value_stack.extend(args.enumerate().map(|(i, v)| Frame {
-                            value: v,
-                            write_back: Some((first_application_index + i) as u32),
-                        }));
-                        value_stack.push(Frame {
-                            value: last,
-                            write_back: None,
-                        });
-                    }
+                    value_stack.extend(args.into_iter().rev());
                 }
-            }
-            if let Some(write_back) = write_back {
-                let index = instructions.len() as u32;
-                let Instruction::Application(wb) = &mut instructions[write_back as usize] else {
-                    unreachable!("write_back should point to an application instruction");
-                };
-                *wb = TermIndex(index);
             }
         }
 
