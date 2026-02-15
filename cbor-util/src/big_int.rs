@@ -1,7 +1,9 @@
+use crate::{BoundedBytes, bounded_bytes, wrapper};
 use macro_rules_attribute::apply;
 use rug::Complete;
-use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, InvalidHeader, Type, Write, num, primitive, tag};
-use crate::{BoundedBytes, bounded_bytes, wrapper};
+use tinycbor::{
+    CborLen, Decode, Decoder, Encode, Encoder, InvalidHeader, Type, Write, num, primitive, tag,
+};
 
 #[apply(wrapper)]
 pub struct BigInt(pub rug::Integer);
@@ -76,7 +78,7 @@ impl Decode<'_> for BigInt {
                     Err(e) => return Err(Error::BigInt(e)),
                 }
                 *d = pre;
-                
+
                 tag::Tagged::<bounded_bytes::BoundedBytes, { tag::IanaTag::NegBignum as u64 }>::decode(d)
                     .map_err(Error::BigInt)
                     .map(|tagged| {

@@ -2,10 +2,7 @@ use std::collections::HashSet;
 
 use displaydoc::Display;
 use thiserror::Error;
-use tinycbor::{
-    Decode, EndOfInput, InvalidHeader, container,
-    tag
-};
+use tinycbor::{Decode, EndOfInput, InvalidHeader, container, tag};
 
 // Implements the ordered set from the ledger spec.
 pub struct Set<T, const STRICT: bool>(pub Vec<T>);

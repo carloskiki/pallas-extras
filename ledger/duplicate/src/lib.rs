@@ -3,7 +3,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use syn::{parse_macro_input, LitStr};
+use syn::{LitStr, parse_macro_input};
 
 #[proc_macro]
 pub fn duplicate(input: TokenStream) -> TokenStream {
@@ -11,9 +11,9 @@ pub fn duplicate(input: TokenStream) -> TokenStream {
     let input_lit = parse_macro_input!(input as LitStr);
     let relative_path = input_lit.value();
 
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR env var is not set");
-    
+    let manifest_dir =
+        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR env var is not set");
+
     let mut file_path = PathBuf::from(manifest_dir);
     file_path.push(&relative_path);
 
@@ -49,7 +49,7 @@ pub fn duplicate(input: TokenStream) -> TokenStream {
     // let path_str = file_path.to_string_lossy();
     // let output = quote! {
     //     #file_tokens
-    //     const _: &str = include_str!(#path_str); 
+    //     const _: &str = include_str!(#path_str);
     // };
 
     file_tokens.into()

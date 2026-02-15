@@ -1,5 +1,5 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
 use crate::shelley::Script;
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod bootstrap;
 pub use bootstrap::Bootstrap;

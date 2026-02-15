@@ -85,7 +85,7 @@ impl Arena {
                 panic!("Cannot allocate type that needs drop to the arena");
             }
         }
-        
+
         self.bump.alloc(value)
     }
 

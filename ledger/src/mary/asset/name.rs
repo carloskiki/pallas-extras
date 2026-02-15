@@ -53,8 +53,8 @@ impl<'a, 'b: 'a> Decode<'b> for &'a Name {
     type Error = container::Error<bounded::Error<Infallible>>;
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        Ok(<&'a [u8]>::decode(d)?
+        <&'a [u8]>::decode(d)?
             .try_into()
-            .map_err(|e| container::Error::Content(e))?)
+            .map_err(container::Error::Content)
     }
 }

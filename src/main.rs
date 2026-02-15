@@ -52,14 +52,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                         era = 3;
                         println!("Entered Mary era at file {file_name}");
                     }
-                    ledger::Block::Alonzo(_) => if era != 4 {
-                        era = 4;
-                        println!("Entered Alonzo era at file {file_name}");
+                    ledger::Block::Alonzo(_) => {
+                        if era != 4 {
+                            era = 4;
+                            println!("Entered Alonzo era at file {file_name}");
+                        }
                     }
-                    ledger::Block::Babbage(_) => if era != 5 {
-                        era = 5;
-                        println!("Entered Babbage era at file {file_name}");
-                    },
+                    ledger::Block::Babbage(_) => {
+                        if era != 5 {
+                            era = 5;
+                            println!("Entered Babbage era at file {file_name}");
+                        }
+                    }
                     _ => {}
                 },
                 Err(e) => {

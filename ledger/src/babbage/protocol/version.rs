@@ -7,7 +7,6 @@ pub struct Version {
     pub minor: u8,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
 pub enum Fork {

@@ -44,7 +44,7 @@ impl<'a, 'b: 'a> Decode<'b> for Data<'a> {
 }
 
 pub(crate) mod codec {
-    use tinycbor_derive::{Decode};
+    use tinycbor_derive::Decode;
 
     use crate::shelley::transaction::Data;
 
@@ -53,5 +53,4 @@ pub(crate) mod codec {
         pub metadata: Data<'a>,
         pub scripts: Vec<super::Script<'a>>,
     }
-
 }

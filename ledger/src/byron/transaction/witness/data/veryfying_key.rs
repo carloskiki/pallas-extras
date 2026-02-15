@@ -1,5 +1,5 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
 use crate::crypto;
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct VerifyingKey<'a> {
@@ -8,4 +8,3 @@ pub struct VerifyingKey<'a> {
     #[cbor(with = "cbor_util::Signature<'a>")]
     pub signature: &'a crypto::Signature,
 }
-

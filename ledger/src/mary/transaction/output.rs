@@ -1,5 +1,5 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
 use crate::{Address, mary::transaction::value::Value};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Output<'a> {

@@ -1,5 +1,5 @@
+use crate::{byron::delegation, crypto};
 use tinycbor_derive::{CborLen, Decode, Encode};
-use crate::{crypto, byron::delegation};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub enum Signature<'a> {

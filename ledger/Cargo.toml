@@ -13,7 +13,6 @@ tinycbor-derive = { workspace = true }
 digest = { workspace = true }
 
 # Data types
-either = { workspace = true }
 mitsein = { workspace = true }
 rug = { workspace = true }
 

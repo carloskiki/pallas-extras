@@ -43,7 +43,7 @@ impl Display for Address<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let hrp = Hrp::parse_unchecked(match self.network {
             Network::Main => "addr",
-            Network::Test => "addr_test"
+            Network::Test => "addr_test",
         });
 
         let network_magic = self.network as u8;
@@ -253,7 +253,7 @@ impl Display for Account<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let hrp = Hrp::parse_unchecked(match self.network {
             Network::Main => "stake",
-            Network::Test => "stake_test"
+            Network::Test => "stake_test",
         });
 
         iter::once(self.header())

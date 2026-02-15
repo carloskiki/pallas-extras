@@ -1,7 +1,7 @@
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::{
-    conway::{governance::{Action, Anchor}},
+    conway::governance::{Action, Anchor},
     shelley::{address::Account, transaction::Coin},
 };
 

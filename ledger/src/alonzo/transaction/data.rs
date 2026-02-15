@@ -64,7 +64,7 @@ impl<'a, 'b: 'a> Decode<'b> for Data<'a> {
                     native_scripts,
                     plutus_scripts,
                 })
-            },
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
-use crate::shelley::transaction::witness::{Bootstrap, VerifyingKey};
 use crate::allegra::Script;
+use crate::shelley::transaction::witness::{Bootstrap, VerifyingKey};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

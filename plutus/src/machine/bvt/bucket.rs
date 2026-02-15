@@ -67,7 +67,9 @@ impl<'a, T: Copy, const SIZE: usize> AsRef<[T]> for Bucket<'a, T, SIZE> {
         let data = unsafe { &*self.data.get() };
         // Safety: The perceived length is less than or equal to the actual length, so we can
         // safely create a slice of the perceived length.
-        unsafe { std::slice::from_raw_parts(data.data.as_ptr() as *const T, self.perceived as usize) }
+        unsafe {
+            std::slice::from_raw_parts(data.data.as_ptr() as *const T, self.perceived as usize)
+        }
     }
 }
 

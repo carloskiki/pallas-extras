@@ -1,8 +1,8 @@
+use super::Value;
 use crate::{
     Address,
     babbage::{self, transaction},
 };
-use super::Value;
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::Decode;
@@ -66,11 +66,11 @@ impl<'a, 'b: 'a> Decode<'b> for Output<'a> {
 }
 
 mod codec {
+    use super::Value;
     use crate::{
         Address,
         babbage::{self, transaction::Datum},
     };
-    use super::Value;
     use tinycbor::Encoded;
     use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -104,7 +104,8 @@ mod alonzo_style {
     use super::super::Value;
     use std::convert::Infallible;
     use tinycbor::{
-        Decode, Decoder, container::{self, bounded}
+        Decode, Decoder,
+        container::{self, bounded},
     };
 
     pub struct Output<'a> {

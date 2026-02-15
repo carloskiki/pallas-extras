@@ -1,4 +1,4 @@
-use tinycbor_derive::{Encode, CborLen, Decode};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::crypto::Blake2b256Digest;
 

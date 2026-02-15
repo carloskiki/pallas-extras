@@ -40,7 +40,7 @@ impl<'a, T: Copy> Node<'a, T> {
             // The rest of the index being zero means we need to push a new child.
             // `b == 1` means we are at a power of SIZE. The node is full, we need to grow.
             //
-            // This tansforms node `N -> Branch([N, Leaf(tail)])`. 
+            // This tansforms node `N -> Branch([N, Leaf(tail)])`.
             Node::Leaf(_) | Node::Branch(_) if index == 0 && b == 1 => {
                 let mut new_chunk = Chunk::default();
                 new_chunk.push(*self);
@@ -66,7 +66,6 @@ impl<'a, T: Copy> Node<'a, T> {
             }
             Node::Leaf(_) => unreachable!(),
         }
-
     }
 }
 
@@ -89,7 +88,7 @@ impl<'a, T: Copy> Vector<'a, T> {
             tail: Bucket::new(arena),
         }
     }
-    
+
     pub fn get(&self, index: usize) -> Option<&T> {
         let tree_size = self.size * SIZE;
         if index >= tree_size + self.tail.len() {
@@ -125,7 +124,7 @@ impl<'a, T: Copy> Vector<'a, T> {
             }
         }
     }
-    
+
     pub fn push(&mut self, v: T, arena: &'a crate::Arena) {
         // Need to push the tail into the tree.
         if self.tail.len() == SIZE {

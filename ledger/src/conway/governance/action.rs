@@ -1,12 +1,11 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
+use super::Constitution;
 use crate::{
     conway::protocol,
     crypto::Blake2b224Digest,
-    epoch,
-    interval,
+    epoch, interval,
     shelley::{Credential, address::Account, transaction::Coin},
 };
-use super::Constitution;
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod id;
 pub use id::Id;

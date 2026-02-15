@@ -1,4 +1,4 @@
-use crate::{shelley::transaction::Index, allegra};
+use crate::{allegra, shelley::transaction::Index};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod header;

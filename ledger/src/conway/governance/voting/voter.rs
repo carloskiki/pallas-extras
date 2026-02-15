@@ -57,14 +57,10 @@ impl<'a, 'b: 'a> Decode<'b> for Voter<'a> {
         use crate::shelley::credential::Error as CredError;
         macro_rules! wrap {
             ($key:ident, $voter:ident, $cred:ident) => {
-                Ok(Voter::$voter(Credential::$cred(
-                    $key.map_err(|e| {
-                        bounded::Error::Content(tag::Error::Content(Error::$voter(
-                            CredError::$cred(e),
-                        )))
-                    })?
-                )))
-            }
+                Ok(Voter::$voter(Credential::$cred($key.map_err(|e| {
+                    bounded::Error::Content(tag::Error::Content(Error::$voter(CredError::$cred(e))))
+                })?)))
+            };
         }
 
         let mut visitor = d.array_visitor()?;

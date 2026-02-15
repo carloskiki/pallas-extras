@@ -2,7 +2,9 @@ pub type Models = Vec<(u8, Vec<i64>)>;
 
 pub(crate) mod model {
     use tinycbor::{
-        CborLen, Decode, Encode, container::{self, map}, num
+        CborLen, Decode, Encode,
+        container::{self, map},
+        num,
     };
 
     #[derive(ref_cast::RefCast)]

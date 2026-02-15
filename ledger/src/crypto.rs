@@ -1,4 +1,7 @@
-use digest::{consts::{U28, U32}, common::KeySizeUser};
+use digest::{
+    common::KeySizeUser,
+    consts::{U28, U32},
+};
 
 pub type Blake2b224 = blake2::Blake2b<U28>;
 pub type Blake2b224Digest = [u8; 28];
@@ -37,5 +40,4 @@ pub mod kes {
         kes::SingleUse<super::Keypair>,
         super::Blake2b256,
     >;
-
 }

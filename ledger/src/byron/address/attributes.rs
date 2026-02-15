@@ -1,5 +1,5 @@
 use tinycbor::{CborLen, Decode, Encode, Encoder, Write};
-use tinycbor_derive::{Encode, Decode, CborLen};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 // TODO: Make sure that all three fields are actually used on mainnet.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
@@ -39,16 +39,16 @@ impl CborLen for NetworkMagic {
 impl Encode for NetworkMagic {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         let len = self.0.cbor_len();
-        // CBOR bytestring with length `len` header: 
+        // CBOR bytestring with length `len` header:
         e.0.write_all(&[0x40 | (len as u8)])?; // We know that `len` fits in info since its at most
-                                               // 4 bytes.
+        // 4 bytes.
         self.0.encode(e)
     }
 }
 
 impl Decode<'_> for NetworkMagic {
     type Error = tinycbor::num::Error;
-    
+
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = Decode::decode(d)?;
         let mut decoder = tinycbor::Decoder(bytes);

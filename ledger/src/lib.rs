@@ -6,9 +6,9 @@
 extern crate alloc;
 
 pub mod crypto;
-pub mod slot;
 pub mod epoch;
 pub mod interval;
+pub mod slot;
 
 pub mod address;
 pub use address::Address;
@@ -16,10 +16,10 @@ pub use address::Address;
 pub mod block;
 pub use block::Block;
 
-pub mod conway;
-pub mod babbage;
-pub mod alonzo;
-pub mod mary;
 pub mod allegra;
-pub mod shelley;
+pub mod alonzo;
+pub mod babbage;
 pub mod byron;
+pub mod conway;
+pub mod mary;
+pub mod shelley;

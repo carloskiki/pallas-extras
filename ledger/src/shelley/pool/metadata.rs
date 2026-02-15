@@ -1,5 +1,5 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
 use crate::crypto::Blake2b256Digest;
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, CborLen, Encode, Decode)]
 pub struct Metadata<'a> {

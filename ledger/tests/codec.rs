@@ -3,12 +3,11 @@ use ledger::Block;
 use minicbor::Decoder;
 use std::{fs::File, io::Read};
 
-
 fn hfc(decoder: &mut Decoder<'_>) -> anyhow::Result<()> {
     let len = decoder.array()?;
     assert!(len == Some(2));
     decoder.u8()?;
-    
+
     Ok(())
 }
 
@@ -20,17 +19,18 @@ fn block() -> anyhow::Result<()> {
         let entry = entry?;
         let file_name = entry.file_name();
         let file_name = file_name.to_string_lossy();
-        
+
         if !entry.file_type()?.is_file()
             || file_name.contains("byron")
             || file_name.contains("genesis")
-            || file_name.contains("conway") {
-                continue;
+            || file_name.contains("conway")
+        {
+            continue;
         }
 
         File::open(entry.path())?.read_to_end(&mut read_buffer)?;
         let binary: Vec<u8> = FromHex::from_hex(&read_buffer)?;
-        
+
         let mut decoder = minicbor::Decoder::new(&binary);
 
         hfc(&mut decoder)?;

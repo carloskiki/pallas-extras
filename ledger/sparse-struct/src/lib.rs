@@ -177,7 +177,7 @@ fn expand(
                 pub fn #set_ident(&mut self, value: #field) -> bool {
                     let significant_bit = (1 << #i) as u64;
                     let variant = #enum_ident::#variant_ident(value);
-                    
+
                     if self.present & significant_bit != 0 {
                         // Update existing value.
                         let index = (self.present & (significant_bit - 1)).count_ones() as ::core::primitive::usize;
@@ -191,7 +191,6 @@ fn expand(
                         true
                     }
                 }
-                
             }, quote! {
             #enum_ident::#variant_ident { .. } => #i,
         }))

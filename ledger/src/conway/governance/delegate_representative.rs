@@ -88,4 +88,3 @@ impl<'a, 'b: 'a> Decode<'b> for DelegateRepresentative<'a> {
         Ok(value)
     }
 }
-

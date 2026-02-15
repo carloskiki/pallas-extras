@@ -7,4 +7,3 @@ pub struct Unsigned {
     pub numerator: u64,
     pub denominator: NonZeroU64,
 }
-

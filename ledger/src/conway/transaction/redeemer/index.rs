@@ -1,4 +1,4 @@
-use tinycbor_derive::{Encode, Decode, CborLen};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Index {
@@ -20,5 +20,5 @@ pub enum Kind {
     #[n(4)]
     Vote,
     #[n(5)]
-    Propose
+    Propose,
 }

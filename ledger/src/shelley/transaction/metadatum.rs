@@ -1,7 +1,9 @@
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
-    CborLen, Decode, Encode, Type, container::{self, map}, primitive, string
+    CborLen, Decode, Encode, Type,
+    container::{self, map},
+    primitive, string,
 };
 
 pub type Label = u64;

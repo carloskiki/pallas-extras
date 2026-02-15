@@ -549,10 +549,7 @@ pub type Pow6Signature<S, T, H> = DoubleSignature<Pow5Signature<S, T, H>, Pow5<T
 #[cfg(test)]
 mod tests {
     use blake2::Blake2b;
-    use digest::{
-        consts::U32,
-        crypto_common::Generate,
-    };
+    use digest::{consts::U32, crypto_common::Generate};
     use ed25519_dalek::SigningKey;
     use signature::{Keypair, Signer, Verifier};
 
@@ -604,8 +601,7 @@ mod tests {
         let mut pow6 = Key::generate();
 
         let vkey = pow6.verifying_key();
-        let raw_signature: Signature =
-            pow6.try_sign(MESSAGES[0]).unwrap();
+        let raw_signature: Signature = pow6.try_sign(MESSAGES[0]).unwrap();
         let mut signature = KeyEvolvingSignature {
             signature: &raw_signature,
             period: pow6.period(),
