@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: 1. Checkout current repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 2. Get latest release tag from remote repo
         id: get_remote_tag
@@ -76,7 +76,7 @@ jobs:
 
     steps:
       - name: 1. Checkout current repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 2. Sync the directory
         run: |
