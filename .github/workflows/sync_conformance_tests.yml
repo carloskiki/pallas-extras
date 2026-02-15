@@ -167,7 +167,7 @@ jobs:
           echo "--- Processing finished ---"
 
       - name: 8. Commit and push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(conformance): Sync tests from ${{ env.REMOTE_REPO }}@${{ needs.check.outputs.remote_tag }}"
           file_pattern: "${{ env.LOCAL_DIR }}/**"
