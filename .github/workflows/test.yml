@@ -106,8 +106,7 @@ jobs:
       - name: Install stable
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # branch=master
         with:
-          toolchain: stable
-          targets: x86_64-pc-windows-gnu
+          toolchain: ${{ runner.os == 'Windows' && 'stable-x86_64-pc-windows-gnu' || 'stable' }}
       - name: Install MSYS2 for Windows
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@4f806de0a5a7294ffabaff804b38a9b435a73bda # tag=v2.30.0
@@ -129,7 +128,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          cargo test --locked --all-features --all-targets --target x86_64-pc-windows-gnu
+          cargo test --locked --all-features --all-targets
       - name: cargo test (macOS)
         # FIX 4: Only run the standard test command on non-Windows
         if: runner.os != 'Windows'
