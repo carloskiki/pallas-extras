@@ -32,9 +32,9 @@ rug = { version = "1.28.0", default-features = false, features = [
 ] }
 
 # Hashing
-blake2 = { version = "0.11.0-rc.3", default-features = false }
-sha2 = { version = "0.11.0-rc.3", default-features = false }
-sha3 = { version = "0.11.0-rc.3", default-features = false }
+blake2 = { version = "0.11.0-rc.5", default-features = false }
+sha2 = { version = "0.11.0-rc.5", default-features = false }
+sha3 = { version = "0.11.0-rc.5", default-features = false }
 
 # Public Key Cryptography
 curve25519-dalek = { version = "5.0.0-pre.6", default-features = false }
