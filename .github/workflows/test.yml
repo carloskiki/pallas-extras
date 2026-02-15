@@ -115,12 +115,12 @@ jobs:
         with:
           update: true
           install: >-
-          base-devel
-          mingw-w64-x86_64-toolchain
-          mingw-w64-x86_64-gcc
-          diffutils
-          m4
-          make
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc
+            diffutils
+            m4
+            make
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
