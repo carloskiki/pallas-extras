@@ -7,7 +7,7 @@ const FLAT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/validation"
 const EXPECTED_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/validation");
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
-#[cfg_attr(miri, ignore)] // Miri does not support `gmp`.
+#[cfg(not(miri))]
 fn main() {
     let dir = std::fs::read_dir(FLAT_DIR).unwrap();
 
@@ -24,6 +24,11 @@ fn main() {
             Trial::test(test_name, move |_| perform_test(&flat, &expected_file))
         }))
         .main()
+}
+
+#[cfg(miri)]
+fn main() {
+    println!("Miri does not support `gmp`, skipping validation tests.");
 }
 
 fn perform_test(flat: &[u8], expected_file: &Path) -> Result<(), RunError> {

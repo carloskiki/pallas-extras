@@ -6,7 +6,7 @@ use plutus::{Budget, Context, DeBruijn, Program};
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
-#[cfg_attr(miri, ignore)] // Miri does not support `gmp`.
+#[cfg(not(miri))]
 fn main() {
     let mut directories = vec![PathBuf::from(BASE_DIR)];
 
@@ -38,6 +38,11 @@ fn main() {
             None
         }))
         .main()
+}
+
+#[cfg(miri)]
+fn main() {
+    println!("Miri does not support `gmp`, skipping conformance tests.");
 }
 
 fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunError> {
