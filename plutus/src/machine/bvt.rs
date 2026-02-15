@@ -55,7 +55,7 @@ impl<'a, T: Copy> Node<'a, T> {
                 if index != 0 {
                     // Safety: We know that `b` is a valid index within the bucket because the tree is
                     // valid.
-                    let child = unsafe { new_chunk.get_mut(b) };
+                    let child = unsafe { new_chunk.get_mut_unchecked(b) };
                     child.push(tail, index, arena);
                 } else {
                     let mut leaf_bucket = Bucket::new(arena);
@@ -113,7 +113,7 @@ impl<'a, T: Copy> Vector<'a, T> {
                     max_index &= !(MASK << shift);
 
                     // Safety: The index is valid since the tree is well formed.
-                    node = unsafe { chunk.get(b) };
+                    node = unsafe { chunk.get_unchecked(b) };
                 }
                 Node::Leaf(bucket) => {
                     // Safety: The index is less than the length of the vec. This index is

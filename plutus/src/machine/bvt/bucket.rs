@@ -31,7 +31,7 @@ impl<'a, T: Copy, const SIZE: usize> Bucket<'a, T, SIZE> {
         // reference to it.
         let data = unsafe { &*self.data.get() };
         // Safety: The index is within the bucket, so it must be within the bucket.
-        unsafe { data.get(index) }
+        unsafe { data.get_unchecked(index) }
     }
 
     pub fn len(&self) -> usize {
@@ -52,21 +52,11 @@ impl<'a, T: Copy, const SIZE: usize> Bucket<'a, T, SIZE> {
             return;
         }
 
-        // Our perceived length is out of date; we must clone.
-        //
-        // Safety: Standard procedure to create an array of `uninit`.
-        let mut data: [MaybeUninit<T>; SIZE] = unsafe { MaybeUninit::uninit().assume_init() };
-        (0..slot).for_each(|i| {
-            // Safety: We know that values up to `len` are valid and initialized. We know that `slot <=
-            // len`. Thus, we can safely copy up to `slot`.
-            let val = unsafe { bucket.data[i].assume_init_ref() };
-            data[i].write(val.clone());
-        });
-        data[slot].write(value);
-        self.data = arena.alloc(UnsafeCell::new(Chunk {
-            data,
-            len: self.perceived,
-        }));
+        // Our perceived length is out of date; we must copy.
+        let mut data = *bucket;
+        data.data[slot].write(value);
+        data.len = self.perceived;
+        self.data = arena.alloc(UnsafeCell::new(data));
     }
 }
 
@@ -94,7 +84,7 @@ impl<T: Copy, const SIZE: usize> Chunk<T, SIZE> {
     /// # Safety
     ///
     /// The index must be less than the length of the chunk.
-    pub unsafe fn get(&self, index: usize) -> &T {
+    pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         debug_assert!(index < self.len as usize);
         // Safety: The index is within the chunk.
         unsafe { self.data[index].assume_init_ref() }
@@ -105,7 +95,7 @@ impl<T: Copy, const SIZE: usize> Chunk<T, SIZE> {
     /// # Safety
     ///
     /// The index must be less than the length of the chunk.
-    pub unsafe fn get_mut(&mut self, index: usize) -> &mut T {
+    pub unsafe fn get_mut_unchecked(&mut self, index: usize) -> &mut T {
         debug_assert!(index < self.len as usize);
         // Safety: The index is within the chunk.
         unsafe { self.data[index].assume_init_mut() }
