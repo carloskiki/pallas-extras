@@ -52,8 +52,7 @@ jobs:
       - name: Build documentation
         # `--workspace` ensures all crates in the workspace are included
         # `--no-deps` skips building docs for dependencies
-        # `--document-private-items` includes private items in the documentation
-        run: cargo doc --workspace --no-deps --document-private-items
+        run: cargo doc --workspace --no-deps
 
       # --- CUSTOMIZATION: REDIRECT ---
       # By default, the root `index.html` will be a list of crates
