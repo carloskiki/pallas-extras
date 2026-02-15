@@ -145,6 +145,7 @@ impl fmt::Display for Language {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use const_hex::ToHexExt;
     use sha2::{Digest, Sha256};
