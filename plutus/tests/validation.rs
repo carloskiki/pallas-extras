@@ -7,6 +7,7 @@ const FLAT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/validation"
 const EXPECTED_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/validation");
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
+#[cfg_attr(miri, ignore)] // Miri does not support `gmp`.
 fn main() {
     let dir = std::fs::read_dir(FLAT_DIR).unwrap();
 

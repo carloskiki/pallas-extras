@@ -6,6 +6,7 @@ use plutus::{Budget, Context, DeBruijn, Program};
 const BASE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/conformance");
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/cost-model.rs"));
 
+#[cfg_attr(miri, ignore)] // Miri does not support `gmp`.
 fn main() {
     let mut directories = vec![PathBuf::from(BASE_DIR)];
 
