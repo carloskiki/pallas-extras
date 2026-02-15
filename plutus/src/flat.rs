@@ -272,22 +272,16 @@ impl Encode for Program<'_, DeBruijn> {
                 Instruction::Construct {
                     discriminant,
                     length,
-                    large_discriminant,
                 } => {
                     buffer.write_bits::<4>(0b1000);
-                    if *large_discriminant {
-                        let Constant::Integer(discriminant) =
-                            &self.constants[*discriminant as usize]
-                        else {
-                            panic!("large_discriminant should point to an Integer constant");
-                        };
-                        discriminant
-                            .to_u64()
-                            .expect("discriminant should fit in u64")
-                    } else {
-                        *discriminant as u64
-                    }
-                    .encode(buffer)?;
+                    let Constant::Integer(discriminant) = &self.constants[discriminant.0 as usize]
+                    else {
+                        panic!("large_discriminant should point to an Integer constant");
+                    };
+                    discriminant
+                        .to_u64()
+                        .expect("discriminant should fit in u64")
+                        .encode(buffer)?;
                     if *length == 0 {
                         buffer.write_bits::<1>(0);
                         decrement(&mut list_stack, buffer, &mut var_count);
@@ -723,25 +717,16 @@ pub fn decode_program<'a>(
                 decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
             }
             8 => {
-                let discriminant = u64::decode(reader)?;
+                let discriminant_value = u64::decode(reader)?;
                 let index = instructions.len() as u32;
-                if discriminant > u32::MAX as u64 {
-                    let index = constants.len() as u32;
-                    constants.push(Constant::Integer(
-                        arena.integer(Integer::from(discriminant)),
-                    ));
-                    instructions.push(Instruction::Construct {
-                        discriminant: index,
-                        large_discriminant: true,
-                        length: 0,
-                    });
-                } else {
-                    instructions.push(Instruction::Construct {
-                        discriminant: discriminant as u32,
-                        large_discriminant: false,
-                        length: 0,
-                    });
-                }
+                let discriminant = ConstantIndex(constants.len() as u32);
+                constants.push(Constant::Integer(
+                    arena.integer(Integer::from(discriminant_value)),
+                ));
+                instructions.push(Instruction::Construct {
+                    discriminant,
+                    length: 0,
+                });
 
                 stack.push(Frame::Sized { index, length: 0 });
                 decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;

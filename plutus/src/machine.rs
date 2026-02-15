@@ -27,8 +27,7 @@ pub(crate) enum Value<'a> {
         environment: Vector<Value<'a>>,
     },
     Construct {
-        discriminant: u32,
-        large_discriminant: bool,
+        discriminant: ConstantIndex,
         values: Rc<[Value<'a>]>,
     },
     Builtin {
@@ -57,8 +56,7 @@ impl<'a> Value<'a> {
                 environment: Vector<Value<'a>>,
             },
             Construct {
-                discriminant: u32,
-                large_discriminant: bool,
+                discriminant: ConstantIndex,
                 values: Vec<DischargeValue<'a>>,
             },
             Builtin {
@@ -82,11 +80,9 @@ impl<'a> Value<'a> {
                     Value::Construct {
                         discriminant,
                         values,
-                        large_discriminant,
                     } => DischargeValue::Construct {
                         discriminant,
                         values: values.iter().cloned().map(DischargeValue::from).collect(),
-                        large_discriminant,
                     },
                     Value::Builtin {
                         builtin,
@@ -155,12 +151,10 @@ impl<'a> Value<'a> {
                 }
                 DischargeValue::Construct {
                     discriminant,
-                    large_discriminant,
                     values,
                 } => {
                     instructions.push(Instruction::Construct {
                         discriminant,
-                        large_discriminant,
                         length: values.len() as u16,
                     });
                     value_stack.extend(values.into_iter().rev());
@@ -217,8 +211,7 @@ enum Frame<'a> {
     },
     Construct {
         remaining: u16,
-        discriminant: u32,
-        large_discriminant: bool,
+        discriminant: ConstantIndex,
         values: Vec<Value<'a>>,
         environment: Vector<Value<'a>>,
         next: TermIndex,
@@ -297,7 +290,6 @@ pub fn run<'a>(
             }
             Instruction::Construct {
                 discriminant,
-                large_discriminant,
                 length,
             } => {
                 context.apply_no_args(&context.datatypes()?.construct)?;
@@ -308,7 +300,6 @@ pub fn run<'a>(
                         environment: environment.clone(),
                         values: Vec::new(),
                         discriminant,
-                        large_discriminant,
                         next: TermIndex(skip_terms(&program.program, index, 1) as u32),
                     });
                     continue;
@@ -316,7 +307,6 @@ pub fn run<'a>(
 
                 Value::Construct {
                     discriminant,
-                    large_discriminant,
                     values: Rc::new([]),
                 }
             }
@@ -409,7 +399,6 @@ pub fn run<'a>(
                 (
                     Some(Frame::Construct {
                         discriminant,
-                        large_discriminant,
                         mut remaining,
                         environment,
                         mut values,
@@ -421,7 +410,6 @@ pub fn run<'a>(
                     if remaining == 0 {
                         ret = Value::Construct {
                             discriminant,
-                            large_discriminant,
                             values: values.into(),
                         };
                         continue;
@@ -431,7 +419,6 @@ pub fn run<'a>(
                     stack.push(Frame::Construct {
                         discriminant,
                         next: TermIndex(skip_terms(&program.program, index, 1) as u32),
-                        large_discriminant,
                         remaining,
                         environment: environment.clone(),
                         values,
@@ -446,20 +433,18 @@ pub fn run<'a>(
                     }),
                     Value::Construct {
                         discriminant,
-                        large_discriminant,
                         values,
                     },
-                ) if discriminant < count as u32 || large_discriminant => {
-                    let discriminant = if large_discriminant {
-                        let Constant::Integer(discriminant) =
-                            &program.constants[discriminant as usize]
-                        else {
-                            panic!("large discriminant did not point to an integer constant");
-                        };
-                        discriminant.to_u64().expect("discriminant fits in u64")
-                    } else {
-                        discriminant as u64
+                ) => {
+                    let Constant::Integer(discriminant) =
+                        &program.constants[discriminant.0 as usize]
+                    else {
+                        panic!("large discriminant did not point to an integer constant");
                     };
+                    let discriminant = discriminant.to_u64().expect("discriminant fits in u64");
+                    if discriminant >= count as u64 {
+                        return None;
+                    }
 
                     stack.extend(values.iter().cloned().map(Frame::ApplyLeftValue).rev());
                     index = skip_terms(&program.program, next.0 as usize, discriminant);
@@ -578,11 +563,9 @@ fn un_debruijn(instruction: Instruction<DeBruijn>) -> Instruction<u32> {
         Instruction::Builtin(builtin) => Instruction::Builtin(builtin),
         Instruction::Construct {
             discriminant,
-            large_discriminant,
             length,
         } => Instruction::Construct {
             discriminant,
-            large_discriminant,
             length,
         },
         Instruction::Case { count } => Instruction::Case { count },

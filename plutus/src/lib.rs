@@ -322,16 +322,10 @@ impl<'a, T: FromStr> Program<'a, T> {
                             let discriminant: u64 = index_str
                                 .parse()
                                 .map_err(|_| ParseError::ConstructDiscriminant)?;
-                            let (discriminant, large_discriminant) =
-                                if discriminant > u32::MAX as u64 {
-                                    let index = constants.len() as u32;
-                                    constants.push(Constant::Integer(
-                                        arena.integer(rug::Integer::from(discriminant)),
-                                    ));
-                                    (index, true)
-                                } else {
-                                    (discriminant as u32, false)
-                                };
+                            let index = ConstantIndex(constants.len() as u32);
+                            constants.push(Constant::Integer(
+                                arena.integer(rug::Integer::from(discriminant)),
+                            ));
 
                             let mut count = 0u16;
                             while !rest.is_empty() {
@@ -342,9 +336,8 @@ impl<'a, T: FromStr> Program<'a, T> {
                                 count += 1;
                             }
                             program.push(Instruction::Construct {
-                                discriminant,
+                                discriminant: index,
                                 length: count,
-                                large_discriminant,
                             });
                         }
                         "case" if version.minor > 0 => {
@@ -487,21 +480,18 @@ impl<'a, T: PartialEq> Program<'a, T> {
                     Instruction::Construct {
                         discriminant,
                         length: len,
-                        large_discriminant,
                     } => {
                         if len > 0 {
                             increment_stack(&mut stack, len as u32 - 1);
                             Instruction::Construct {
                                 discriminant,
                                 length: len,
-                                large_discriminant,
                             }
                         } else {
                             decrement_stack(&mut stack, &mut variables);
                             Instruction::Construct {
                                 discriminant,
                                 length: len,
-                                large_discriminant,
                             }
                         }
                     }
@@ -543,23 +533,12 @@ where
                     Instruction::Construct {
                         discriminant: a_det,
                         length: a_len,
-                        large_discriminant: a_large,
                     },
                     Instruction::Construct {
                         discriminant: b_det,
                         length: b_len,
-                        large_discriminant: b_large,
                     },
-                ) => {
-                    a_len == b_len && {
-                        a_large == b_large
-                            && if *a_large {
-                                self.constants[*a_det as usize] == other.constants[*b_det as usize]
-                            } else {
-                                a_det == b_det
-                            }
-                    }
-                }
+                ) => a_len == b_len && a_det == b_det,
                 (Instruction::Case { count: a_count }, Instruction::Case { count: b_count }) => {
                     a_count == b_count
                 }
@@ -635,15 +614,8 @@ enum Instruction<T> {
     Error,
     Builtin(Builtin),
     Construct {
-        discriminant: u32,
+        discriminant: ConstantIndex,
         length: u16,
-        // TODO: Check if having discriminant always as a constant has minimal performance impact,
-        // and is simpler.
-        /// - `false`: the discriminant fits in 4 bytes, and is stored directly in the
-        ///   `discriminant` field.
-        /// - `true`: the discriminant is larger than 4 bytes, and the `discriminant` field
-        ///   contains the index into the constants pool where the actual discriminant is stored.
-        large_discriminant: bool,
     },
     Case {
         count: u16,
