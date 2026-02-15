@@ -11,9 +11,10 @@ coverage:
         # Avoid false negatives
         threshold: 1%
 
-# Test files aren't important for coverage
+# Test & bench files aren't important for coverage
 ignore:
-  - "tests"
+  - "**/tests"
+  - "**/benches"
 
 # Make comments less noisy
 comment:
