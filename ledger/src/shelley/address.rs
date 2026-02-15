@@ -354,9 +354,11 @@ mod tests {
         cert_index: 3,
     };
 
-    fn from_bech32<T: TryFrom<&'static [u8], Error: std::fmt::Debug>>(addr: &str) -> T {
-        let bytes: &'static _ = bech32::decode(addr).unwrap().1.leak();
-        T::try_from(bytes).unwrap()
+    macro_rules! from_bech32 {
+        ($addr:expr => $out:ident) => {
+            let bytes = bech32::decode($addr).unwrap().1;
+            let $out = TryFrom::try_from(bytes.as_ref()).unwrap();
+        };
     }
 
     #[test]
@@ -364,7 +366,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
         const ADDR_TEST: &str = "addr_test1qz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs68faae";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -376,7 +378,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -394,7 +396,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1z8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs9yc0hh";
         const ADDR_TEST: &str = "addr_test1zrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgsxj90mg";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -406,7 +408,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -424,7 +426,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1yx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs2z78ve";
         const ADDR_TEST: &str = "addr_test1yz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shsf5r8qx";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -436,7 +438,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -454,7 +456,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1x8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shskhj42g";
         const ADDR_TEST: &str = "addr_test1xrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs4p04xh";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -466,7 +468,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -486,7 +488,7 @@ mod tests {
         const ADDR_TEST: &str =
             "addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrdw5vky";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -498,7 +500,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -518,7 +520,7 @@ mod tests {
         const ADDR_TEST: &str =
             "addr_test12rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtupnz75xxcryqrvmw";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -530,7 +532,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -548,7 +550,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1vx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzers66hrl8";
         const ADDR_TEST: &str = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -560,7 +562,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -578,7 +580,7 @@ mod tests {
         const ADDR_MAIN: &str = "addr1w8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcyjy7wx";
         const ADDR_TEST: &str = "addr_test1wrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcl6szpr";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Address {
@@ -590,7 +592,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Address {
@@ -608,7 +610,7 @@ mod tests {
         const ADDR_MAIN: &str = "stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw";
         const ADDR_TEST: &str = "stake_test1uqehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gssrtvn";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Account {
@@ -619,7 +621,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Account {
@@ -636,7 +638,7 @@ mod tests {
         const ADDR_MAIN: &str = "stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5";
         const ADDR_TEST: &str = "stake_test17rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcljw6kf";
 
-        let main = from_bech32(ADDR_MAIN);
+        from_bech32!(ADDR_MAIN => main);
         assert!(matches!(
             main,
             Account {
@@ -647,7 +649,7 @@ mod tests {
         let serialized = main.to_string();
         assert_eq!(serialized, ADDR_MAIN);
 
-        let test = from_bech32(ADDR_TEST);
+        from_bech32!(ADDR_TEST => test);
         assert!(matches!(
             test,
             Account {

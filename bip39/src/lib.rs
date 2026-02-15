@@ -406,6 +406,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Miri is too slow to run all test vectors.
     fn test_vectors_english() {
         // These vectors are tuples of
         // (entropy, mnemonic)
