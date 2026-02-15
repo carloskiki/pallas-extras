@@ -137,7 +137,7 @@ pub struct Version {
 ///
 /// const PROGRAM: &str = "(program 1.0.0 (lam x x))";
 /// let arena = plutus::Arena::default();
-/// let program: plutus::Program<String> = PROGRAM.parse().unwrap();
+/// let program: plutus::Program<String> = Program::from_str(PROGRAM, &arena).unwrap();
 /// ```
 ///
 /// A program can then be converted into a `Program<DeBruijn>` using [`Program::into_de_bruijn`].
@@ -418,8 +418,9 @@ impl<'a, T: PartialEq> Program<'a, T> {
     /// const PROGRAM_A: &str = "(program 1.0.0 (lam x (lam y [x y])))";
     /// const PROGRAM_B: &str = "(program 1.0.0 (lam hello (lam world [hello world])))";
     ///
-    /// let program_a: Program<String> = PROGRAM_A.parse().unwrap();
-    /// let program_b: Program<String> = PROGRAM_B.parse().unwrap();
+    /// let arena = plutus::Arena::default();
+    /// let program_a: Program<String> = Program::from_str(PROGRAM_A, &arena).unwrap();
+    /// let program_b: Program<String> = Program::from_str(PROGRAM_B, &arena).unwrap();
     ///
     /// assert_ne!(program_a, program_b);
     ///

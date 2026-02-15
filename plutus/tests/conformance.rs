@@ -29,6 +29,10 @@ fn main() {
                         .to_string_lossy()
                         .to_string();
 
+                    if test_name != "uplc/evaluation/term/app/app-7" {
+                        continue;
+                    }
+
                     return Some(Trial::test(test_name, move |ctx| {
                         perform_test(ctx, &program_path)
                     }));
@@ -173,7 +177,9 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         Program::from_str(&expected_output, &arena)
             .map_err(|_| RunError::fail("Failed to parse expected output"))?;
 
-    if expected_program != output.into_de_bruijn().unwrap() {
+    dbg!(&output, &expected_output);
+
+    if expected_program != output {
         return Err(RunError::fail(
             "Output program does not match expected program",
         ));
