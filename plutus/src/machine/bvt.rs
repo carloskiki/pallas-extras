@@ -5,7 +5,7 @@
 mod bucket;
 pub use bucket::{Bucket, Chunk};
 
-const BITS: usize = 2;
+const BITS: usize = 3;
 const SIZE: usize = 1 << BITS;
 const MASK: usize = (1 << BITS) - 1;
 
