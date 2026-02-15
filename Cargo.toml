@@ -66,6 +66,3 @@ version = "0.1.0"
 anyhow = "1.0"
 ledger = { path = "ledger" }
 tinycbor = { workspace = true }
-
-# [profile.bench]
-# lto = true
