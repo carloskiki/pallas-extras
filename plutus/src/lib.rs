@@ -21,9 +21,6 @@
 //!
 //! This crate's public API is very minimal. One may start by reading the documentation for [`Program`].
 //!
-//! Private items (identified by a 🔒) are also documented. They briefly explain the underlying
-//! implementation.
-//!
 //! # Example
 //!
 //! ```rust
@@ -73,17 +70,18 @@ pub(crate) use ledger::alonzo::script::{Data, data::Construct};
 ///
 /// # Details
 ///
-///  This type represents _reversed_ De Bruijn indices starting from `0`, where `0`
-/// represents the outermost variable. The reason behind this choice is that it makes indexing
-/// variables in a stack much simpler, since the variable is simply the index into the stack.
+///  This type represents _reversed_ De Bruijn indices (also known as De Bruijn levels) starting
+///  from `0`, where `0` represents the outermost variable. The reason behind this choice is that
+///  it makes indexing variables in a stack much simpler, since the variable is simply the index
+///  into the stack.
 ///
 /// `flat` encoding uses traditional De Bruijn indices starting at `1`, so the conversion is done
 /// at the flat encoding/decoding boundary.
 ///
 /// ## Example
 ///
-/// We cover the same example in both traditional and reversed De Bruijn indices. We use `λ` to denote
-/// a lambda abstraction, and `[]` to denote application.
+/// We cover the same example in both traditional and reversed De Bruijn indices. We use `λ` to
+/// denote a lambda abstraction, and `[]` to denote application.
 ///
 /// A __normal__ De Bruijn index representation, starting from `0`:
 /// ```txt
@@ -126,14 +124,13 @@ pub struct Version {
 /// `T`. This can be anything, although the only known use cases are [`String`] and [`DeBruijn`].
 ///
 /// There are two ways to obtain a `Program<T>`:
-///  - Parsing it from its textual representation using the [`FromStr`] implementation.
+///  - Parsing it from its textual representation using [`Program::from_str`].
 ///  - Decoding it from its `flat` binary representation using [`Program::from_flat`].
 ///
 /// # Parsing
 ///
-/// To parse a program from its textual representation, use the [`FromStr`] implementation.
-/// Technically, type parameter `T` can be any type that implements [`FromStr`], but using
-/// [`String`] is the only known use case.
+/// The type parameter `T` can be any type that implements [`FromStr`]. Variables are usually
+/// represented as text: [`String`] would be the correct choice for that case.
 ///
 /// ```rust
 /// use plutus::Program;
@@ -208,6 +205,7 @@ pub enum ParseError<E> {
 }
 
 impl<'a, T: FromStr> Program<'a, T> {
+    /// Parse a `Program<T>` from its textual representation.
     pub fn from_str(s: &str, arena: &'a constant::Arena) -> Result<Self, ParseError<T::Err>> {
         let (program, "") =
             lex::group::<b'(', b')'>(s.trim()).ok_or(ParseError::UnmatchedDelimiter)?
@@ -596,14 +594,14 @@ impl<'a> Program<'a, DeBruijn> {
 /// An instruction in a `uplc` program.
 ///
 /// Instead of containing pointers to their sub-terms, instructions are laid out in a linear
-/// vector, like bytecode (`size_of::<Instruction<DeBruijn>>() == 8`). Each instruction knows how
-/// many sub-terms it has. For example, `[(lam x x) (delay error)]` is a single "term", and is
+/// vector, similar to bytecode (`size_of::<Instruction<DeBruijn>>() == 8`). Each instruction knows
+/// how many sub-terms it has. For example, `[(lam x x) (delay error)]` is a single "term", and is
 /// represented with the following instructions:
 /// ```ignore
-/// use plutus::Instruction;
+/// use plutus::{Instruction, TermIndex};
 ///
 /// let instructions = vec![
-///     Instruction::Application, // (Term) `[ ... ... ]` -- Expect two sub-terms
+///     Instruction::Application(TermIndex(3)), // (Term) `[ ... ... ]` -- Expect two sub-terms
 ///     Instruction::Lambda(String::from("x")), // (Sub-term 1) `(lam x ...)` -- Expect one sub-term
 ///     Instruction::Variable(String::from("x")),// (Sub-term 1.1) x -- Expect zero sub-terms
 ///     Instruction::Delay,               // (Sub-term 2) `(delay ...)` -- Expect one sub-term

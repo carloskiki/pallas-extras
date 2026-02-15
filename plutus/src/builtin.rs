@@ -539,8 +539,7 @@ impl_function!(A, B, C, D);
 impl_function!(A, B, C, D, E);
 impl_function!(A, B, C, D, E, F);
 
-/// Implement `Function` for builtin functions with varying number of arguments, and optionally
-/// access to the arena in last argument.
+/// Implement `Function` for builtin functions with varying number of arguments.
 macro_rules! impl_function {
     ($($ty:ident),*) => {
         #[allow(unused_parens, non_snake_case)]

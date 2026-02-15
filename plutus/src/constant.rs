@@ -15,6 +15,9 @@ pub use arena::Arena;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Array<'a>(pub List<'a>);
 
+/// A list, containing elements of a single type.
+///
+/// This contains some specialized variants, mostly for faster builtin execution.
 #[derive(Debug, Copy, Clone)]
 pub enum List<'a> {
     /// Introduced in batch 1 (specification section 4.3.1.1).
@@ -27,12 +30,10 @@ pub enum List<'a> {
     BLSG1Element(&'a [g1::Projective]),
     /// Introduced in batch 4 (specification section 4.3.4.2).
     BLSG2Element(&'a [g2::Projective]),
-    /// Generic list for when the type is nested.
+    /// Generic list.
     ///
-    /// This includes:
-    /// - list (pair _ _)
-    /// - list (list _)
-    /// - list (array _)
+    /// `Ok`: the list contains at least one element.
+    /// `Err`: a `Constant` is used as a type witness for the empty list.
     Generic(Result<&'a Slice1<Constant<'a>>, &'a Constant<'a>>),
 }
 
@@ -94,7 +95,7 @@ pub enum Constant<'a> {
     Array(Array<'a>),
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Pair(&'a Constant<'a>, &'a Constant<'a>),
-    // TODO: handle pairData in decode, encode, etc.
+    // Specialized pair for faster `UnMapData`.
     PairData(&'a (Data, Data)),
     /// Introduced in batch 1 (specification section 4.3.1.1).
     Data(&'a Data),
