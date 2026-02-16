@@ -1,8 +1,8 @@
 # Results
 
 This table presents benchmark results comparing three implementations:
-- The implementation `IntersectMBO/plutus` reference implementation.
-- The `uplc-turbo` implementation, also in Rust.
+- The `IntersectMBO/plutus` reference implementation.
+- The `uplc-turbo` implementation, in Rust.
 - The implementation in this repository.
 
 The benchmarks are run on a 8 Core M1 MacBook Pro with 16GB of RAM.
