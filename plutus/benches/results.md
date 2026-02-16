@@ -5,6 +5,8 @@ This table presents benchmark results comparing three implementations:
 - The `uplc-turbo` implementation, also in Rust.
 - The implementation in this repository.
 
+The benchmarks are run on a 8 Core M1 MacBook Pro with 16GB of RAM.
+
 Values are in nano-seconds, so __lower is better__.
 
 "Diff" shows the percentage speed-up (-x% __better__) or time increase (+x% __worse__) compared to the reference implementation.
