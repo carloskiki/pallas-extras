@@ -21,12 +21,12 @@ Values are in nano-seconds, so __lower is better__.
 | auction_2-4 | Median: 1,086,000.00<br>Mean: 1,087,000.00<br>Diff: - | Median: 917,293.83<br>Mean: 923,536.48<br>Diff: -17.70% | Median: 554,555.27<br>Mean: 562,470.57<br>Diff: -93.25% |
 | auction_2-5 | Median: 342,500.00<br>Mean: 342,200.00<br>Diff: - | Median: 301,778.68<br>Mean: 302,388.25<br>Diff: -13.17% | Median: 194,665.23<br>Mean: 196,214.48<br>Diff: -74.40% |
 | coop-1 | Median: 250,600.00<br>Mean: 250,200.00<br>Diff: - | N/A[^1] | Median: 185,429.34<br>Mean: 198,395.21<br>Diff: -26.11% |
-| coop-2 | Median: 795,000.00<br>Mean: 791,100.00<br>Diff: - | N/A[^1] | Median: 550,227.36<br>Mean: 550,657.98<br>Diff: -43.66% |
-| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | N/A[^1] | Median: 2,134,763.92<br>Mean: 2,138,884.27<br>Diff: +13.65% |
-| coop-4 | Median: 1,015,000.00<br>Mean: 1,007,000.00<br>Diff: - | N/A[^1] | Median: 777,923.46<br>Mean: 777,514.73<br>Diff: -29.52% |
-| coop-5 | Median: 564,200.00<br>Mean: 562,100.00<br>Diff: - | N/A[^1] | Median: 356,944.39<br>Mean: 357,950.79<br>Diff: -57.03% |
-| coop-6 | Median: 600,600.00<br>Mean: 601,300.00<br>Diff: - | N/A[^1] | Median: 504,091.97<br>Mean: 512,200.36<br>Diff: -17.40% |
-| coop-7 | Median: 341,800.00<br>Mean: 342,100.00<br>Diff: - | N/A[^1] | Median: 252,096.65<br>Mean: 257,151.05<br>Diff: -33.03% |
+| coop-2 | Median: 795,000.00<br>Mean: 791,100.00<br>Diff: - | N/A | Median: 550,227.36<br>Mean: 550,657.98<br>Diff: -43.66% |
+| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | N/A | Median: 2,134,763.92<br>Mean: 2,138,884.27<br>Diff: +13.65% |
+| coop-4 | Median: 1,015,000.00<br>Mean: 1,007,000.00<br>Diff: - | N/A | Median: 777,923.46<br>Mean: 777,514.73<br>Diff: -29.52% |
+| coop-5 | Median: 564,200.00<br>Mean: 562,100.00<br>Diff: - | N/A | Median: 356,944.39<br>Mean: 357,950.79<br>Diff: -57.03% |
+| coop-6 | Median: 600,600.00<br>Mean: 601,300.00<br>Diff: - | N/A | Median: 504,091.97<br>Mean: 512,200.36<br>Diff: -17.40% |
+| coop-7 | Median: 341,800.00<br>Mean: 342,100.00<br>Diff: - | N/A | Median: 252,096.65<br>Mean: 257,151.05<br>Diff: -33.03% |
 | crowdfunding-success-1 | Median: 370,000.00<br>Mean: 375,400.00<br>Diff: - | Median: 273,547.66<br>Mean: 272,236.40<br>Diff: -37.89% | Median: 179,652.31<br>Mean: 184,153.65<br>Diff: -103.85% |
 | crowdfunding-success-2 | Median: 376,300.00<br>Mean: 376,100.00<br>Diff: - | Median: 270,595.12<br>Mean: 271,352.64<br>Diff: -38.60% | Median: 187,429.50<br>Mean: 184,957.67<br>Diff: -103.34% |
 | crowdfunding-success-3 | Median: 374,400.00<br>Mean: 375,600.00<br>Diff: - | Median: 278,062.28<br>Mean: 277,889.44<br>Diff: -35.16% | Median: 178,203.92<br>Mean: 185,103.96<br>Diff: -102.91% |
