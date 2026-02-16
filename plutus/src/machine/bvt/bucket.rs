@@ -2,7 +2,7 @@
 
 use std::{cell::UnsafeCell, mem::MaybeUninit};
 
-/// A [`Bucket`] that can hold up to [`SIZE`] elements.
+/// A [`Bucket`] that can hold up to `SIZE` elements.
 ///
 ///
 /// Acts as a clone-on-write container for a bucket of elements.
@@ -73,7 +73,7 @@ impl<'a, T: Copy, const SIZE: usize> AsRef<[T]> for Bucket<'a, T, SIZE> {
     }
 }
 
-/// An inline vector of up to [`SIZE`] elements.
+/// An inline vector of up to `SIZE` elements.
 #[derive(Debug, Clone, Copy)]
 pub struct Chunk<T: Copy, const SIZE: usize> {
     data: [MaybeUninit<T>; SIZE],

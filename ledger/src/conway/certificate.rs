@@ -18,7 +18,7 @@ use crate::{
 pub enum Certificate<'a> {
     /// Certificate for Delegation and/or Registration.
     ///
-    /// Since the [`Era::Conway`] era, registration & delegation can be done at the same time, so this
+    /// Since the conway era, registration & delegation can be done at the same time, so this
     /// variant supports these options separately and at the same time.
     AccountAction {
         credential: Credential<'a>,
