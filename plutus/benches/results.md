@@ -5,9 +5,9 @@ This table presents benchmark results comparing three implementations:
 - The `uplc-turbo` implementation, also in Rust.
 - The implementation in this repository.
 
-Values are in nano-seconds, so lower is better. The "Diff" rows show
-the percentage speed-up (-x% __better__) or time increase (+x% __worse__) compared
-to the reference implementation.
+Values are in nano-seconds, so __lower is better__.
+
+"Diff" shows the percentage speed-up (-x% __better__) or time increase (+x% __worse__) compared to the reference implementation.
 
 | Benchmark | reference | uplc-turbo | ours |
 |---|---:|---:|---:| 
