@@ -19,7 +19,7 @@ pub fn bench(c: &mut Criterion) {
                 std::hint::black_box(program);
             });
         });
-        group.bench_with_input("evaluate", &flat, |b, flat| {
+        group.bench_with_input("full", &flat, |b, flat| {
             b.iter(|| {
                 let arena = plutus::Arena::default();
                 let program = Program::from_flat(flat, &arena).unwrap();

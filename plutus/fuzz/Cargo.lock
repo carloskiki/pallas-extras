@@ -116,9 +116,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bumpalo"
+version = "3.19.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
+
+[[package]]
 name = "bwst"
 version = "0.1.0"
-source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.7#7f885dc00c2bc39408d82228250120b66d09ba61"
+source = "git+https://github.com/carloskiki/bwst.git?tag=v0.1.8#46933e09d729db6c46ac67ebc057f58504713838"
 dependencies = [
  "bindgen",
  "cc",
@@ -305,14 +311,14 @@ dependencies = [
 
 [[package]]
 name = "digest"
-version = "0.11.0-rc.11"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02b42f1d9edf5207c137646b568a0168ca0ec25b7f9eaf7f9961da51a3d91cea"
+checksum = "f8bf3682cdec91817be507e4aa104314898b95b84d74f3d43882210101a545b6"
 dependencies = [
  "block-buffer",
  "const-oid",
  "crypto-common",
- "subtle",
+ "ctutils",
 ]
 
 [[package]]
@@ -636,7 +642,6 @@ dependencies = [
  "duplicate",
  "ed25519",
  "ed25519-dalek",
- "either",
  "hybrid-array",
  "kes",
  "mitsein",
@@ -708,9 +713,9 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "mitsein"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b274adb8f25abe29f072083a61653188837fb768f0da534170e4f6162c93b47d"
+checksum = "8a49aef75c004fb496a23f175395415ecfe2a630e4c6175ae6f7d9cc1a19332e"
 dependencies = [
  "either",
  "indexmap",
@@ -776,6 +781,7 @@ name = "plutus"
 version = "0.1.0"
 dependencies = [
  "blake2",
+ "bumpalo",
  "bwst",
  "const-hex",
  "ed25519-dalek",
@@ -784,6 +790,7 @@ dependencies = [
  "ledger",
  "log",
  "macro_rules_attribute",
+ "mitsein",
  "ripemd",
  "rug",
  "sha2",

@@ -151,8 +151,8 @@ pub struct Version {
 ///
 /// # Evaluating
 ///
-/// Evaluation is only supported for `Program<DeBruijn>`, by calling [`Program::evaluate`].
-/// This produces another `Program<DeBruijn>`, representing the evaluated program.
+/// Evaluation is only supported for `Program<DeBruijn>` by calling [`Program::evaluate`],
+/// which produces another `Program`.
 #[derive(Debug)]
 pub struct Program<'a, T> {
     /// The version of the program.
