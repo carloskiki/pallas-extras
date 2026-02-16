@@ -1,5 +1,13 @@
 # Results
 
+This table presents benchmark results comparing three implementations:
+- The implementation `IntersectMBO/plutus` reference implementation.
+- The `uplc-turbo` implementation, also in Rust.
+- The implementation in this repository.
+
+Values are in nano-seconds, so lower is better. The "Diff" rows show
+the percentage speed-up (-x% __better__) or time increase (+x% __worse__) compared
+to the reference implementation.
 
 | Benchmark | reference | uplc-turbo | ours |
 |---|---:|---:|---:| 
@@ -12,13 +20,13 @@
 | auction_2-3 | Median: 1,261,000.00<br>Mean: 1,251,000.00<br>Diff: - | Median: 1,054,966.51<br>Mean: 1,058,964.55<br>Diff: -18.13% | Median: 755,277.75<br>Mean: 754,943.54<br>Diff: -65.71% |
 | auction_2-4 | Median: 1,086,000.00<br>Mean: 1,087,000.00<br>Diff: - | Median: 917,293.83<br>Mean: 923,536.48<br>Diff: -17.70% | Median: 554,555.27<br>Mean: 562,470.57<br>Diff: -93.25% |
 | auction_2-5 | Median: 342,500.00<br>Mean: 342,200.00<br>Diff: - | Median: 301,778.68<br>Mean: 302,388.25<br>Diff: -13.17% | Median: 194,665.23<br>Mean: 196,214.48<br>Diff: -74.40% |
-| coop-1 | Median: 250,600.00<br>Mean: 250,200.00<br>Diff: - | Median: 34,428.06<br>Mean: 34,354.64<br>Diff: -628.29% | Median: 185,429.34<br>Mean: 198,395.21<br>Diff: -26.11% |
-| coop-2 | Median: 795,000.00<br>Mean: 791,100.00<br>Diff: - | Median: 74,530.48<br>Mean: 74,759.07<br>Diff: -958.20% | Median: 550,227.36<br>Mean: 550,657.98<br>Diff: -43.66% |
-| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | Median: 86,559.88<br>Mean: 86,448.13<br>Diff: -2,077.03% | Median: 2,134,763.92<br>Mean: 2,138,884.27<br>Diff: +13.65% |
-| coop-4 | Median: 1,015,000.00<br>Mean: 1,007,000.00<br>Diff: - | Median: 109,681.16<br>Mean: 109,115.38<br>Diff: -822.88% | Median: 777,923.46<br>Mean: 777,514.73<br>Diff: -29.52% |
-| coop-5 | Median: 564,200.00<br>Mean: 562,100.00<br>Diff: - | Median: 87,537.11<br>Mean: 87,685.52<br>Diff: -541.04% | Median: 356,944.39<br>Mean: 357,950.79<br>Diff: -57.03% |
-| coop-6 | Median: 600,600.00<br>Mean: 601,300.00<br>Diff: - | Median: 53,077.68<br>Mean: 57,183.63<br>Diff: -951.52% | Median: 504,091.97<br>Mean: 512,200.36<br>Diff: -17.40% |
-| coop-7 | Median: 341,800.00<br>Mean: 342,100.00<br>Diff: - | Median: 41,926.13<br>Mean: 41,834.77<br>Diff: -717.74% | Median: 252,096.65<br>Mean: 257,151.05<br>Diff: -33.03% |
+| coop-1 | Median: 250,600.00<br>Mean: 250,200.00<br>Diff: - | N/A[^1] | Median: 185,429.34<br>Mean: 198,395.21<br>Diff: -26.11% |
+| coop-2 | Median: 795,000.00<br>Mean: 791,100.00<br>Diff: - | N/A[^1] | Median: 550,227.36<br>Mean: 550,657.98<br>Diff: -43.66% |
+| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | N/A[^1] | Median: 2,134,763.92<br>Mean: 2,138,884.27<br>Diff: +13.65% |
+| coop-4 | Median: 1,015,000.00<br>Mean: 1,007,000.00<br>Diff: - | N/A[^1] | Median: 777,923.46<br>Mean: 777,514.73<br>Diff: -29.52% |
+| coop-5 | Median: 564,200.00<br>Mean: 562,100.00<br>Diff: - | N/A[^1] | Median: 356,944.39<br>Mean: 357,950.79<br>Diff: -57.03% |
+| coop-6 | Median: 600,600.00<br>Mean: 601,300.00<br>Diff: - | N/A[^1] | Median: 504,091.97<br>Mean: 512,200.36<br>Diff: -17.40% |
+| coop-7 | Median: 341,800.00<br>Mean: 342,100.00<br>Diff: - | N/A[^1] | Median: 252,096.65<br>Mean: 257,151.05<br>Diff: -33.03% |
 | crowdfunding-success-1 | Median: 370,000.00<br>Mean: 375,400.00<br>Diff: - | Median: 273,547.66<br>Mean: 272,236.40<br>Diff: -37.89% | Median: 179,652.31<br>Mean: 184,153.65<br>Diff: -103.85% |
 | crowdfunding-success-2 | Median: 376,300.00<br>Mean: 376,100.00<br>Diff: - | Median: 270,595.12<br>Mean: 271,352.64<br>Diff: -38.60% | Median: 187,429.50<br>Mean: 184,957.67<br>Diff: -103.34% |
 | crowdfunding-success-3 | Median: 374,400.00<br>Mean: 375,600.00<br>Diff: - | Median: 278,062.28<br>Mean: 277,889.44<br>Diff: -35.16% | Median: 178,203.92<br>Mean: 185,103.96<br>Diff: -102.91% |
@@ -88,3 +96,6 @@
 | uniswap-5 | Median: 1,721,000.00<br>Mean: 1,729,000.00<br>Diff: - | Median: 1,396,489.99<br>Mean: 1,402,865.56<br>Diff: -23.25% | Median: 972,683.47<br>Mean: 973,507.15<br>Diff: -77.61% |
 | uniswap-6 | Median: 398,400.00<br>Mean: 406,900.00<br>Diff: - | Median: 447,489.42<br>Mean: 447,677.85<br>Diff: +10.02% | Median: 233,165.35<br>Mean: 240,417.40<br>Diff: -69.25% |
 | vesting-1 | Median: 586,000.00<br>Mean: 584,700.00<br>Diff: - | Median: 479,638.12<br>Mean: 479,145.50<br>Diff: -22.03% | Median: 301,317.17<br>Mean: 307,431.05<br>Diff: -90.19% |
+
+[^1]: The `coop` benchmarks use a recent addition to `plutus`, namely constant value scrutinees of `case` terms.
+    `uplc-turbo` does not yet support this feature, and thus cannot run these benchmarks.
