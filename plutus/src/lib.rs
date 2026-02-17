@@ -579,7 +579,7 @@ impl<'a> Program<'a, DeBruijn> {
 /// vector, similar to bytecode (`size_of::<Instruction<DeBruijn>>() == 8`). Each instruction knows
 /// how many sub-terms it has. For example, `[(lam x x) (delay error)]` is a single "term", and is
 /// represented with the following instructions:
-/// ```ignore
+/// ```compile_fail
 /// use plutus::{Instruction, TermIndex};
 ///
 /// let instructions = vec![
