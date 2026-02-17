@@ -1,0 +1,9 @@
+=== Fuzzing Stability Report ===
+Date: Tue 17 Feb 2026
+-------------------------------
+fuzzer_pid        : 95076
+run_time          : 60
+execs_done        : 1219374
+execs_per_sec     : 20322.9
+unique_crashes    : 0
+unique_hangs      : 0
