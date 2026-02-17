@@ -2,8 +2,11 @@
 
 This table presents benchmark results comparing three implementations:
 - The `IntersectMBO/plutus` reference implementation.
+    tag: [`1.57.0.0`](https://github.com/IntersectMBO/plutus/tree/1.57.0.0),
 - The `uplc-turbo` implementation, in Rust.
+    commit: [`6152616`](https://github.com/pragma-org/uplc/tree/6152616cfb32b18c32aaaa0b0529b8711ac2fc26).
 - The implementation in this repository.
+    tag: [`M1`](https://github.com/carloskiki/pallas-extras/tree/M1).
 
 The benchmarks are run on a 8 Core M1 MacBook Pro with 16GB of RAM.
 
