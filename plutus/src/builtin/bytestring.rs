@@ -1,4 +1,4 @@
-use rug::{Integer, az::SaturatingAs, integer::IntegerExt64};
+use rug::{Integer, az::SaturatingAs};
 
 pub fn append(mut x: Vec<u8>, y: &[u8]) -> Vec<u8> {
     x.extend_from_slice(y);
@@ -131,7 +131,7 @@ pub fn rotate(mut x: Vec<u8>, by: &Integer) -> Vec<u8> {
     if by.is_zero() || x.is_empty() {
         return x;
     }
-    let by = by.mod_u64(x.len() as u64 * 8) as isize;
+    let by = by.mod_u(x.len() as u32 * 8) as isize;
 
     let byte_shift = by.unsigned_abs() / 8;
     let bit_shift = by.unsigned_abs() % 8;

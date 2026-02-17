@@ -147,7 +147,7 @@ impl Default for Buffer {
 /// from word `1`. When reading block index `3`, we are not reading from the last word, yet this is
 /// the last block we need to read. The last word has only two significant bits, so we only read
 /// those two bits.
-fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[c_ulong], buffer: &mut Buffer) {
+fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[u64], buffer: &mut Buffer) {
     let mut count = 0;
     let mut word = (DOUBLE & SUB1) as c_ulong;
     let mut to_read = DOUBLE as u32; // If we want to double, read 1 `0` bit as lsb, then words.
