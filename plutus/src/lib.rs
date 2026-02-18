@@ -199,6 +199,9 @@ pub enum ParseError<E> {
     /// A constructor with length zero.
     #[error("constructor with length zero")]
     ConstructDiscriminant,
+    /// A case without a scrutinee.
+    #[error("case without a scrutinee")]
+    EmptyCase,
     /// An application with less than two arguments.
     #[error("application with less than two arguments")]
     Application,
@@ -267,10 +270,12 @@ impl<'a, T: FromStr> Program<'a, T> {
             if s.is_empty() {
                 if let Some(index) = write_back {
                     let next = program.len() as u32;
-                    let Some(Instruction::Application(i)) = program.get_mut(index as usize) else {
+                    let Some(Instruction::Application(n) | Instruction::Case { next: n, .. }) =
+                        program.get_mut(index as usize)
+                    else {
                         unreachable!("index points to an application instruction");
                     };
-                    *i = TermIndex(next);
+                    n.0 = next;
                 }
 
                 stack.pop();
@@ -350,8 +355,15 @@ impl<'a, T: FromStr> Program<'a, T> {
                                 stack.push((arg, None));
                                 count += 1;
                             }
+                            if count == 0 {
+                                return Err(ParseError::EmptyCase);
+                            }
+                            stack.last_mut().expect("stack is not empty").1 =
+                                Some(program.len() as u32);
+
                             program.push(Instruction::Case {
                                 count: count as u16 - 1,
+                                next: TermIndex(0),
                             });
                         }
                         _ => {
@@ -473,9 +485,9 @@ impl<'a, T: PartialEq> Program<'a, T> {
                         Instruction::Application(i)
                     }
 
-                    Instruction::Case { count: len } => {
+                    Instruction::Case { count: len, next } => {
                         increment_stack(&mut stack, len as u32);
-                        Instruction::Case { count: len }
+                        Instruction::Case { count: len, next }
                     }
                     Instruction::Construct {
                         discriminant,
@@ -539,9 +551,10 @@ where
                         length: b_len,
                     },
                 ) => a_len == b_len && a_det == b_det,
-                (Instruction::Case { count: a_count }, Instruction::Case { count: b_count }) => {
-                    a_count == b_count
-                }
+                (
+                    Instruction::Case { count: a_count, .. },
+                    Instruction::Case { count: b_count, .. },
+                ) => a_count == b_count,
                 _ => false,
             })
     }
@@ -619,6 +632,7 @@ enum Instruction<T> {
     },
     Case {
         count: u16,
+        next: TermIndex,
     },
 }
 

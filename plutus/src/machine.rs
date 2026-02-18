@@ -144,7 +144,7 @@ impl<'a> Value<'a> {
                             Instruction::Construct { length, .. } => {
                                 remaining += length - 1;
                             }
-                            Instruction::Case { count } => {
+                            Instruction::Case { count, .. } => {
                                 remaining += count;
                             }
                         }
@@ -169,7 +169,8 @@ impl<'a> Value<'a> {
                 } => {
                     // FIXME: An evaluated program being re-evaluated (even though re-evaluation
                     // should do nothing) has an undefined output since we don't correctly set the
-                    // term indices for the `Application`s here and in `DischargeValue::Term`.
+                    // term indices for the `Application`s and `Case`s here and in
+                    // `DischargeValue::Term`.
                     //
                     // This could be solved by:
                     // - Keeping track of stuff (don't see the utility)
@@ -308,13 +309,13 @@ pub fn run<'a>(
                     values: &[],
                 }
             }
-            Instruction::Case { count } => {
+            Instruction::Case { count, next } => {
                 context.apply_no_args(&context.datatypes()?.case)?;
                 index += 1;
                 stack.push(Frame::Case {
                     count,
                     environment,
-                    next: TermIndex(skip_terms(&program.program, index, 1) as u32),
+                    next,
                 });
                 continue;
             }
@@ -540,7 +541,7 @@ fn skip_terms<T>(terms: &[Instruction<T>], mut index: usize, count: u64) -> usiz
             Instruction::Construct { length, .. } => {
                 remaining += length as u64 - 1;
             }
-            Instruction::Case { count } => {
+            Instruction::Case { count, .. } => {
                 remaining += count as u64;
             }
         }
@@ -566,7 +567,7 @@ fn un_debruijn(instruction: Instruction<DeBruijn>) -> Instruction<u32> {
             discriminant,
             length,
         },
-        Instruction::Case { count } => Instruction::Case { count },
+        Instruction::Case { count, next } => Instruction::Case { count, next },
     }
 }
 

@@ -20,8 +20,9 @@ not support partial cost models for cek machine steps.
 ## Available Optimizations
 
 - Check where inline could help `builtins`, `cost::Function`.
-- Store `next` in the instruction for `case` and construct?
+- For `case` and `construct`, store the indices of the terms instead of storing the length.
+    This removes `skip_terms` entirely.
+- Packed instruction representation with pointers instead of `ConstantIndex`.
 
-- Packed instruction representation.
 - Reduce size of `Frame`, `Value`, and `DischargeValue`.
   This implies reducing the size of `bvt::Vector`.

@@ -290,7 +290,7 @@ impl Encode for Program<'_, DeBruijn> {
                         list_stack.push(Ok(*length));
                     }
                 }
-                Instruction::Case { count } => {
+                Instruction::Case { count, .. } => {
                     buffer.write_bits::<4>(0b1001);
                     *top -= 1;
                     list_stack.push(Ok(*count));
@@ -656,11 +656,18 @@ pub fn decode_program<'a>(
             /// `construct`).
             length: u16,
         },
-        /// Frame for tracking an application instruction.
+        /// Frame for tracking an `application` or the  instruction.
         Application {
             /// The index of the `application` instruction in the program.
             ///
             /// Used to write back where the second argument starts.
+            index: u32,
+        },
+        /// Frame for tracking the scrutinee of a `case` instruction.
+        Scrutinee {
+            /// The index of the `case` instruction in the program.
+            ///
+            /// Used to write back when the first branch starts.
             index: u32,
         },
         /// Frame for tracking a lambda. After the lambda is read, we need to pop a variable
@@ -733,10 +740,10 @@ pub fn decode_program<'a>(
             }
             9 => {
                 let index = instructions.len() as u32;
-                instructions.push(Instruction::Case { count: 0 });
+                instructions.push(Instruction::Case { count: 0, next: TermIndex(0) });
 
                 stack.push(Frame::Sized { index, length: 0 });
-                stack.push(Frame::Other);
+                stack.push(Frame::Scrutinee { index });
             }
             _ => return None,
         }
@@ -773,7 +780,7 @@ pub fn decode_program<'a>(
                     }
 
                     let (Instruction::Construct { length: count, .. }
-                    | Instruction::Case { count }) = &mut program[*index as usize]
+                    | Instruction::Case { count, .. }) = &mut program[*index as usize]
                     else {
                         panic!("Instruction at index should be Construct or Case")
                     };
@@ -788,6 +795,14 @@ pub fn decode_program<'a>(
                     i.0 = next;
                     *top = Frame::Other;
                     break;
+                }
+                Frame::Scrutinee { index } => {
+                    let next = program.len() as u32;
+                    let Instruction::Case { next: i, .. } = &mut program[*index as usize] else {
+                        panic!("Instruction at index should be Case");
+                    };
+                    i.0 = next;
+                    stack.pop();
                 }
                 Frame::Variable => {
                     *variable_count -= 1;
