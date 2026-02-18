@@ -7,3 +7,4 @@ execs_done        : 1219374
 execs_per_sec     : 20322.9
 unique_crashes    : 0
 unique_hangs      : 0
+command:          : cargo afl fuzz -i corpus -o findings target/debug/fuzz
