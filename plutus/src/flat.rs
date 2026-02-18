@@ -740,7 +740,10 @@ pub fn decode_program<'a>(
             }
             9 => {
                 let index = instructions.len() as u32;
-                instructions.push(Instruction::Case { count: 0, next: TermIndex(0) });
+                instructions.push(Instruction::Case {
+                    count: 0,
+                    next: TermIndex(0),
+                });
 
                 stack.push(Frame::Sized { index, length: 0 });
                 stack.push(Frame::Scrutinee { index });
