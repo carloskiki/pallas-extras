@@ -27,7 +27,7 @@ Values are in nano-seconds, so __lower is better__.
 | auction_2-5 | Median: 342,500.00<br>Mean: 342,200.00<br>Diff: - | Median: 301,778.68<br>Mean: 302,388.25<br>Diff: -13.17% | Median: 194,665.23<br>Mean: 196,214.48<br>Diff: -74.40% |
 | coop-1 | Median: 250,600.00<br>Mean: 250,200.00<br>Diff: - | N/A[^1] | Median: 185,429.34<br>Mean: 198,395.21<br>Diff: -26.11% |
 | coop-2 | Median: 795,000.00<br>Mean: 791,100.00<br>Diff: - | N/A | Median: 550,227.36<br>Mean: 550,657.98<br>Diff: -43.66% |
-| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | N/A | Median: 2,134,763.92<br>Mean: 2,138,884.27<br>Diff: +13.65% |
+| coop-3 | Median: 1,900,000.00<br>Mean: 1,882,000.00<br>Diff: - | N/A | Median: 2,008,661.63<br>Mean: 2,014,932.11<br>Diff: +5.72% |
 | coop-4 | Median: 1,015,000.00<br>Mean: 1,007,000.00<br>Diff: - | N/A | Median: 777,923.46<br>Mean: 777,514.73<br>Diff: -29.52% |
 | coop-5 | Median: 564,200.00<br>Mean: 562,100.00<br>Diff: - | N/A | Median: 356,944.39<br>Mean: 357,950.79<br>Diff: -57.03% |
 | coop-6 | Median: 600,600.00<br>Mean: 601,300.00<br>Diff: - | N/A | Median: 504,091.97<br>Mean: 512,200.36<br>Diff: -17.40% |
