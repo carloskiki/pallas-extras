@@ -151,6 +151,17 @@ pub fn string(s: &str) -> Option<(String, &str)> {
         } else if c == '"' {
             break i;
         } else {
+            // Windows has CRLF line endings, so transform them into LF when parsing.
+            if cfg!(target_family = "windows")
+                && c == '\r'
+                && string_chars
+                    .peek()
+                    .map(|(_, next_c)| *next_c == '\n')
+                    .unwrap_or(false)
+            {
+                continue;
+            }
+
             string.push(c);
         }
     };
