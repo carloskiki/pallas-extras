@@ -2,7 +2,6 @@
 
 use std::{
     convert::Infallible,
-    ffi::c_ulong,
     num::NonZeroU8,
     ops::{Deref, DerefMut},
 };
@@ -149,7 +148,7 @@ impl Default for Buffer {
 /// those two bits.
 fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[u64], buffer: &mut Buffer) {
     let mut count = 0;
-    let mut word = (DOUBLE & SUB1) as c_ulong;
+    let mut word = (DOUBLE & SUB1) as u64;
     let mut to_read = DOUBLE as u32; // If we want to double, read 1 `0` bit as lsb, then words.
     let mut byte;
     let mut sub_1 = SUB1;
@@ -172,12 +171,12 @@ fn leb128<const DOUBLE: bool, const SUB1: bool>(data: &[u64], buffer: &mut Buffe
             byte |= (word & ((1 << shift) - 1)) << to_read;
             word >>= shift;
             if count == data.len() {
-                to_read = c_ulong::BITS - word.leading_zeros();
+                to_read = u64::BITS - word.leading_zeros();
                 if to_read == 0 {
                     break;
                 }
             } else {
-                to_read = c_ulong::BITS - shift;
+                to_read = u64::BITS - shift;
             };
         } else {
             to_read -= 7;
