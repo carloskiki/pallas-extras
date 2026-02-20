@@ -635,6 +635,7 @@ enum Instruction<T> {
         next: TermIndex,
     },
 }
+// Debruijn and ConstantIndex can be u16
 
 /// Index of a term in the program.
 ///

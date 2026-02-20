@@ -22,7 +22,10 @@ not support partial cost models for cek machine steps.
 - Check where inline could help `builtins`, `cost::Function`.
 - For `case` and `construct`, store the indices of the terms instead of storing the length.
     This removes `skip_terms` entirely.
+    
 - Packed instruction representation with pointers instead of `ConstantIndex`.
+    OR: Make `Instruction` fit in u32 (maintain number of seen instruction of each kind in environment, and use that as index into a vec).
+    
 
 - Reduce size of `Frame`, `Value`, and `DischargeValue`.
   This implies reducing the size of `bvt::Vector`.
