@@ -12,12 +12,14 @@ pub use metadatum::Metadatum;
 pub mod output;
 pub use output::Output;
 
+use crate::Unique;
+
 pub mod witness;
 
 pub type Id = crate::crypto::Blake2b256Digest;
 pub type Index = u16;
 pub type Coin = u64;
-pub type Data<'a> = Vec<(metadatum::Label, Metadatum<'a>)>;
+pub type Data<'a> = Unique<Vec<(metadatum::Label, Metadatum<'a>)>, false>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Transaction<'a> {

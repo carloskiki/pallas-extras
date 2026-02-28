@@ -10,6 +10,9 @@ pub mod epoch;
 pub mod interval;
 pub mod slot;
 
+pub mod unique;
+pub use unique::Unique;
+
 pub mod address;
 pub use address::Address;
 

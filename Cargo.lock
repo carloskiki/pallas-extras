@@ -893,6 +893,7 @@ dependencies = [
  "duplicate",
  "ed25519",
  "ed25519-dalek",
+ "hashbrown 0.16.1",
  "hybrid-array",
  "kes",
  "mitsein",

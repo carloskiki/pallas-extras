@@ -6,6 +6,8 @@ use tinycbor::{
     primitive, string,
 };
 
+use crate::Unique;
+
 pub type Label = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -14,7 +16,7 @@ pub enum Metadatum<'a> {
     Bytes(&'a [u8]),
     Text(&'a str),
     List(Vec<Metadatum<'a>>),
-    Map(Vec<(Metadatum<'a>, Metadatum<'a>)>),
+    Map(Unique<Vec<(Metadatum<'a>, Metadatum<'a>)>, false>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Error, Display)]

@@ -1,4 +1,7 @@
-use crate::shelley::{Credential, transaction::Coin};
+use crate::{
+    Unique,
+    shelley::{Credential, transaction::Coin},
+};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
@@ -13,7 +16,7 @@ pub enum Target<'a> {
     // TODO: This should be `DeltaCoin` instead of `Coin` which allows negative amounts. Since this
     // is no longer part of the ledger in `conway`, check if DeltaCoin is truly needed, or if
     // positive amounts suffice.
-    Accounts(Vec<(Credential<'a>, Coin)>),
+    Accounts(Unique<Vec<(Credential<'a>, Coin)>, false>),
 }
 
 #[derive(Debug, Display, Error)]

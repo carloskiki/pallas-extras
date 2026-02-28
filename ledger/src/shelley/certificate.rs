@@ -1,7 +1,9 @@
 use crate::{
+    Unique,
     crypto::{Blake2b224Digest, Blake2b256Digest},
     epoch, interval,
     shelley::{Credential, address::Account, pool, transaction::Coin},
+    unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -31,7 +33,8 @@ pub enum Certificate<'a> {
         cost: Coin,
         margin: interval::Unit,
         account: Account<'a>,
-        owners: Vec<&'a Blake2b224Digest>,
+        #[cbor(decode_with = "unique::codec::List<&'a Blake2b224Digest>")]
+        owners: Unique<Vec<&'a Blake2b224Digest>, false>,
         relays: Vec<pool::Relay<'a>>,
         pool_metadata: Option<pool::Metadata<'a>>,
     },
