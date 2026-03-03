@@ -1,17 +1,18 @@
 use crate::{
+    Unique,
     shelley::{
         Certificate, Update,
         address::Account,
         transaction::{Coin, Input, Output},
     },
-    slot, Unique,
+    slot, unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Body<'a> {
-    #[cbor(n(0), decode_with = "crate::unique::codec::List<Input<'a>>")]
+    #[cbor(n(0), decode_with = "unique::codec::Set<Input<'a>>")]
     pub inputs: Unique<Vec<Input<'a>>, false>,
     #[n(1)]
     pub outputs: Vec<Output<'a>>,

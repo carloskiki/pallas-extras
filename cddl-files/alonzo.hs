@@ -1,1 +1,0 @@
-/Users/charles/Code/cardano/src/cardano-ledger/eras/alonzo/impl/testlib/Test/Cardano/Ledger/Alonzo/CDDL.hs

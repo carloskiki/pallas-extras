@@ -21,3 +21,6 @@ pub struct Transaction<'a> {
     pub valid: bool,
     pub data: Option<Data<'a>>,
 }
+
+// To allow `duplicate!` of `body` to conway era.
+type SetCodec<T> = crate::unique::codec::Set<T>;

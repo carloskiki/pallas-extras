@@ -34,7 +34,6 @@ ed25519-dalek = { workspace = true, features = ["alloc"] }
 bumpalo = "3.19"
 mitsein = { workspace = true }
 log = "0.4"
-macro_rules_attribute = { workspace = true }
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = { workspace = true }
 zerocopy = "0.8"

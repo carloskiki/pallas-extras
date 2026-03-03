@@ -9,6 +9,7 @@ pub use construct::Construct;
 // TODO: Check if this can borrow bytes. There are potential problems with `plutus` crate.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum Data {
+    // TODO: Does the list here prune duplicates?
     Map(Vec<(Data, Data)>),
     List(Vec<Data>),
     Bytes(Vec<u8>),

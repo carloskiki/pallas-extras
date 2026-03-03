@@ -1,11 +1,7 @@
-use crate::conway::governance::action;
+use crate::{Unique, conway::governance::action};
 use cbor_util::NonEmpty;
 use mitsein::vec1::Vec1;
-use tinycbor::{
-    CborLen, Decode, Encode,
-    container::{self, map},
-    num::nonzero,
-};
+use tinycbor::{CborLen, Encode};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use super::Anchor;
@@ -32,7 +28,13 @@ pub enum Vote {
     Abstain,
 }
 
-pub type Procedures<'a> = Vec1<(Voter<'a>, Vec1<(action::Id<'a>, Procedure<'a>)>)>;
+pub type Procedures<'a> = Unique<
+    Vec1<(
+        Voter<'a>,
+        Unique<Vec1<(action::Id<'a>, Procedure<'a>)>, false>,
+    )>,
+    false,
+>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
@@ -54,9 +56,9 @@ impl<'a, 'b> From<&'b Procedures<'a>> for &'b Codec<'a> {
 impl Encode for Codec<'_> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         e.map(self.0.len().get())?;
-        for (voter, set) in &self.0 {
+        for (voter, set) in &*self.0 {
             voter.encode(e)?;
-            <&NonEmpty<_>>::from(set).encode(e)?;
+            <&NonEmpty<_>>::from(&**set).encode(e)?;
         }
         Ok(())
     }
@@ -65,36 +67,10 @@ impl Encode for Codec<'_> {
 impl CborLen for Codec<'_> {
     fn cbor_len(&self) -> usize {
         let mut len = self.0.len().cbor_len();
-        for (policy, bundle) in &self.0 {
+        for (policy, bundle) in &*self.0 {
             len += policy.cbor_len();
-            len += <&NonEmpty<_>>::from(bundle).cbor_len();
+            len += <&NonEmpty<_>>::from(&**bundle).cbor_len();
         }
         len
-    }
-}
-
-impl<'a, 'b: 'a> Decode<'b> for Codec<'a> {
-    type Error = container::Error<
-        nonzero::Error<
-            map::Error<
-                <Voter<'a> as Decode<'b>>::Error,
-                <NonEmpty<Vec<(action::Id<'a>, Procedure<'a>)>> as Decode<'b>>::Error,
-            >,
-        >,
-    >;
-
-    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-        let mut visitor = d.map_visitor()?;
-        let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
-        while let Some(result) =
-            visitor.visit::<Voter<'a>, NonEmpty<Vec<(action::Id<'a>, Procedure<'a>)>>>()
-        {
-            let (voter, procedures) =
-                result.map_err(|e| container::Error::Content(nonzero::Error::Value(e)))?;
-            items.push((voter, procedures.0));
-        }
-        Ok(Codec(items.try_into().map_err(|_| {
-            container::Error::Content(nonzero::Error::Zero)
-        })?))
     }
 }

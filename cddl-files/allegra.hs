@@ -1,1 +1,0 @@
-/Users/charles/Code/cardano/src/cardano-ledger/eras/allegra/impl/testlib/Test/Cardano/Ledger/Allegra/CDDL.hs

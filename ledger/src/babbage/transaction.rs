@@ -11,8 +11,6 @@ pub use datum::Datum;
 
 pub mod output;
 pub use output::Output;
-// So that we can duplicate the `Output` impl from here to the `conway` era.
-type Value<'a> = crate::mary::transaction::Value<'a>;
 
 pub mod witness;
 
@@ -23,3 +21,8 @@ pub struct Transaction<'a> {
     pub valid: bool,
     pub data: Option<Data<'a>>,
 }
+
+// To allow `duplicate!` of `body` to conway era.
+type SetCodec<T> = crate::unique::codec::Set<T>;
+// To allow `duplicate!` of `ouptut`to conway era.
+type Value<'a> = crate::mary::transaction::Value<'a>;

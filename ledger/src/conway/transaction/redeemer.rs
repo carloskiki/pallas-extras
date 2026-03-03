@@ -1,4 +1,7 @@
-use crate::alonzo::script::{Data, execution};
+use crate::{
+    Unique,
+    alonzo::script::{Data, execution},
+};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod index;
@@ -10,16 +13,13 @@ pub struct Redeemer {
     pub execution_units: execution::Units,
 }
 
-pub type Redeemers = Vec<(Index, Redeemer)>;
+pub type Redeemers = Unique<Vec<(Index, Redeemer)>, false>;
 
 mod codec {
-    use cbor_util::NonEmpty;
-    use mitsein::{iter1::IntoIterator1, vec1::Vec1};
-    use tinycbor::{
-        Decode, Type,
-        container::{self, map},
-        num::nonzero,
-    };
+    use mitsein::vec1::Vec1;
+    use tinycbor::{Decode, Type};
+
+    use crate::{Unique, unique};
 
     pub struct Codec(pub super::Redeemers);
 
@@ -34,19 +34,11 @@ mod codec {
         /// while decoding conway style `Redeemers`
         Conway(
             #[from]
-            nonzero::Error<
-                container::Error<
-                    map::Error<
-                        <super::Index as Decode<'static>>::Error,
-                        <super::Redeemer as Decode<'static>>::Error,
-                    >,
-                >,
-            >,
+            <Unique<Vec1<(super::Index, super::Redeemer)>, false> as Decode<'static>>::Error,
         ),
         /// while decoding alonzo style `Redeemers`
         Alonzo(
-            #[from]
-            nonzero::Error<container::Error<<super::legacy::Redeemer as Decode<'static>>::Error>>,
+            #[from] <unique::codec::NonEmpty<super::legacy::Redeemer> as Decode<'static>>::Error,
         ),
     }
 
@@ -56,25 +48,36 @@ mod codec {
         fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
             match d.datatype() {
                 Ok(Type::Array | Type::ArrayIndef) => {
-                    let x: Vec1<_> = <NonEmpty<Vec<super::legacy::Redeemer>>>::decode(d)?
-                        .0
-                        .into_iter1()
-                        .map(|r| {
-                            let index = super::Index {
-                                kind: r.kind,
-                                index: r.index,
-                            };
-                            let redeemer = super::Redeemer {
-                                data: r.data,
-                                execution_units: r.execution_units,
-                            };
-                            (index, redeemer)
-                        })
-                        .collect1();
-                    Ok(Codec(x.into()))
+                    let non_empty: Unique<Vec<_>, false> =
+                        unique::codec::NonEmpty::<super::legacy::Redeemer>::decode(d)?.into();
+                    Ok(Codec(Unique(
+                        non_empty
+                            .0
+                            .into_iter()
+                            .map(
+                                |super::legacy::Redeemer {
+                                     kind,
+                                     index,
+                                     data,
+                                     execution_units,
+                                 }| {
+                                    (
+                                        super::Index { kind, index },
+                                        super::Redeemer {
+                                            data,
+                                            execution_units,
+                                        },
+                                    )
+                                },
+                            )
+                            .collect(),
+                    )))
                 }
-                _ => Ok(NonEmpty::<Vec<(super::Index, super::Redeemer)>>::decode(d)
-                    .map(|r| Codec(r.0.into()))?),
+                _ => Ok(Codec(Unique(
+                    Unique::<Vec1<(super::Index, super::Redeemer)>, false>::decode(d)?
+                        .0
+                        .into_vec(),
+                ))),
             }
         }
     }
@@ -82,12 +85,29 @@ mod codec {
 
 mod legacy {
     use crate::alonzo::script::{Data, execution};
+    use std::hash::Hash;
 
+    #[repr(C)]
     #[derive(tinycbor_derive::Decode)]
     pub struct Redeemer {
         pub kind: super::index::Kind,
         pub index: u64,
         pub data: Data,
         pub execution_units: execution::Units,
+    }
+
+    impl PartialEq for Redeemer {
+        fn eq(&self, other: &Self) -> bool {
+            self.kind == other.kind && self.index == other.index
+        }
+    }
+
+    impl Eq for Redeemer {}
+
+    impl Hash for Redeemer {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.kind.hash(state);
+            self.index.hash(state);
+        }
     }
 }

@@ -8,9 +8,11 @@ use tinycbor::{
 pub mod name;
 pub use name::Name;
 
-pub type Asset<'a, T> = Vec<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>;
+use crate::Unique;
 
-pub type Bundle<'a, T> = Vec1<(&'a Name, T)>;
+pub type Asset<'a, T> = Unique<Vec<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>, false>;
+
+pub type Bundle<'a, T> = Unique<Vec1<(&'a Name, T)>, false>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
@@ -32,9 +34,9 @@ impl<'a, 'b, T> From<&'b Asset<'a, T>> for &'b Codec<'a, T> {
 impl<T: Encode> Encode for Codec<'_, T> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         e.map(self.0.len())?;
-        for (policy, bundle) in &self.0 {
+        for (policy, bundle) in self.0.iter() {
             policy.encode(e)?;
-            <&NonEmpty<_>>::from(bundle).encode(e)?;
+            <&NonEmpty<_>>::from(&**bundle).encode(e)?;
         }
         Ok(())
     }
@@ -43,9 +45,9 @@ impl<T: Encode> Encode for Codec<'_, T> {
 impl<T: CborLen> CborLen for Codec<'_, T> {
     fn cbor_len(&self) -> usize {
         let mut len = self.0.len().cbor_len();
-        for (policy, bundle) in &self.0 {
+        for (policy, bundle) in self.0.iter() {
             len += policy.cbor_len();
-            len += <&NonEmpty<_>>::from(bundle).cbor_len();
+            len += <&NonEmpty<_>>::from(&**bundle).cbor_len();
         }
         len
     }
@@ -62,17 +64,24 @@ impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
     >;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
+        // TODO: Check whether duplicates are merged or first one is kept.
+        // Special handling would be required for merge.
         let mut visitor = d.map_visitor()?;
-        let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
-        while let Some(result) =
-            visitor.visit::<&'a crate::crypto::Blake2b224Digest, Vec<(&'a Name, T)>>()
-        {
-            let (name, bundle) = result.map_err(container::Error::Content)?;
-            if let Ok(bundle) = Vec1::try_from(bundle) {
-                items.push((name, bundle));
-            }
-        }
-
-        Ok(Codec(items))
+        let size_hint = visitor.remaining();
+        crate::unique::decode_dedup_by_key(
+            || loop {
+                match visitor.visit::<&'a crate::crypto::Blake2b224Digest, Unique<Vec<(&'a Name, T)>, false>>()? {
+                    Ok((policy, bundle)) => {
+                        let Ok(bundle) = Vec1::try_from(bundle.0) else {
+                            continue;
+                        };
+                        return Some(Ok((policy, Unique(bundle))))
+                    },
+                    Err(e) => return Some(Err(container::Error::Content(e))),
+                };
+            },
+            |(k, _)| k,
+            size_hint,
+        ).map(|(_, unique)| Self(unique))
     }
 }

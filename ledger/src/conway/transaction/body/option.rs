@@ -1,7 +1,7 @@
 use crate::{
+    Unique,
     conway::{
-        asset,
-        Asset,
+        Asset, asset,
         governance::{
             proposal,
             voting::{self},
@@ -14,7 +14,7 @@ use crate::{
         address::Account,
         transaction::{Coin, Input},
     },
-    slot,
+    slot, unique,
 };
 use mitsein::vec1::Vec1;
 use sparse_struct::SparseStruct;
@@ -31,9 +31,18 @@ pub enum Option<'a> {
     #[n(3)]
     TimeToLive(slot::Number),
     #[n(4)]
-    Certificates(Vec<Certificate<'a>>),
+    Certificates(
+        #[cbor(with = "unique::codec::NonEmpty<Certificate<'a>>")]
+        Unique<Vec1<Certificate<'a>>, false>,
+    ),
     #[n(5)]
-    Withdrawals(Vec<(Account<'a>, Coin)>),
+    Withdrawals(
+        #[cbor(
+            encode_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>",
+            len_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>"
+        )]
+        Unique<Vec1<(Account<'a>, Coin)>, false>,
+    ),
     #[n(7)]
     AuxiliaryDataHash(&'a Blake2b256Digest),
     #[n(8)]
@@ -43,9 +52,12 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(Vec<Input<'a>>),
+    Collateral(#[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>),
     #[n(14)]
-    RequiredSigners(Vec<&'a Blake2b224Digest>),
+    RequiredSigners(
+        #[cbor(with = "unique::codec::NonEmpty<&'a Blake2b224Digest>")]
+        Unique<Vec1<&'a Blake2b224Digest>, false>,
+    ),
     #[n(15)]
     Network(Network),
     #[n(16)]
@@ -53,9 +65,14 @@ pub enum Option<'a> {
     #[n(17)]
     CollateralAmount(Coin),
     #[n(18)]
-    ReferenceInputs(Vec<Input<'a>>),
+    ReferenceInputs(
+        #[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>,
+    ),
     #[n(19)]
-    VotingProcedures(#[cbor(with = "voting::Codec<'a>")] voting::Procedures<'a>),
+    VotingProcedures(
+        #[cbor(encode_with = "voting::Codec<'a>", len_with = "voting::Codec<'a>")]
+        voting::Procedures<'a>,
+    ),
     #[n(20)]
     ProposalProcedures(
         #[cbor(with = "cbor_util::NonEmpty<Vec<proposal::Procedure<'a>>>")]

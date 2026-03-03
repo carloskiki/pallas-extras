@@ -1,1 +1,0 @@
-/Users/charles/Code/cardano/src/cardano-ledger/eras/conway/impl/testlib/Test/Cardano/Ledger/Conway/CDDL.hs

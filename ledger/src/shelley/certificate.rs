@@ -33,7 +33,7 @@ pub enum Certificate<'a> {
         cost: Coin,
         margin: interval::Unit,
         account: Account<'a>,
-        #[cbor(decode_with = "unique::codec::List<&'a Blake2b224Digest>")]
+        #[cbor(decode_with = "unique::codec::Set<&'a Blake2b224Digest>")]
         owners: Unique<Vec<&'a Blake2b224Digest>, false>,
         relays: Vec<pool::Relay<'a>>,
         pool_metadata: Option<pool::Metadata<'a>>,

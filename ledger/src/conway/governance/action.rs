@@ -1,9 +1,10 @@
-use super::Constitution;
 use crate::{
-    conway::protocol,
+    Unique,
+    conway::{governance::Constitution, protocol},
     crypto::Blake2b224Digest,
     epoch, interval,
     shelley::{Credential, address::Account, transaction::Coin},
+    unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -25,7 +26,7 @@ pub enum Action<'a> {
     },
     #[n(2)]
     TreasuryWithdrawals {
-        withdrawals: Vec<(Account<'a>, Coin)>,
+        withdrawals: Unique<Vec<(Account<'a>, Coin)>, false>,
         policy_hash: Option<&'a Blake2b224Digest>,
     },
     #[n(3)]
@@ -33,8 +34,9 @@ pub enum Action<'a> {
     #[n(4)]
     UpdateCommittee {
         id: Option<Id<'a>>,
-        remove: Vec<Credential<'a>>,
-        add: Vec<(Credential<'a>, epoch::Number)>,
+        #[cbor(decode_with = "unique::codec::Tagged<Credential<'a>>")]
+        remove: Unique<Vec<Credential<'a>>, false>,
+        add: Unique<Vec<(Credential<'a>, epoch::Number)>, false>,
         signature_threshold: interval::Unit,
     },
     #[n(5)]

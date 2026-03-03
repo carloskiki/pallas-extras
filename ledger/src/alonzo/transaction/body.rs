@@ -1,4 +1,7 @@
-use crate::shelley::transaction::{Coin, Input};
+use crate::{
+    Unique,
+    shelley::transaction::{Coin, Input},
+};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{container::bounded, *};
@@ -8,7 +11,7 @@ pub use option::Options;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Body<'a> {
-    pub inputs: Vec<Input<'a>>,
+    pub inputs: Unique<Vec<Input<'a>>, false>,
     pub outputs: Vec<super::output::Output<'a>>,
     pub fee: Coin,
     pub options: Options<'a>,
@@ -19,9 +22,9 @@ pub struct Body<'a> {
 /// while decoding `Transaction`
 pub enum Error {
     /// in field `inputs`
-    Inputs(#[from] container::Error<<Input<'static> as Decode<'static>>::Error>),
+    Inputs(#[from] <super::SetCodec<Input<'static>> as Decode<'static>>::Error),
     /// in field `outputs`
-    Outputs(#[from] container::Error<<super::output::Output<'static> as Decode<'static>>::Error>),
+    Outputs(#[from] container::Error<<super::Output<'static> as Decode<'static>>::Error>),
     /// in field `fee`
     Fee(#[from] primitive::Error),
     /// in field `options`
@@ -73,7 +76,7 @@ impl<'a, 'b: 'a> Decode<'b> for Body<'a> {
             let key: u64 = Decode::decode(d)?;
             match key {
                 0 if inputs.is_none() => {
-                    inputs = Some(Decode::decode(d).map_err(wrap)?);
+                    inputs = Some(super::SetCodec::decode(d).map_err(wrap)?.into());
                 }
                 1 if outputs.is_none() => {
                     outputs = Some(Decode::decode(d).map_err(wrap)?);

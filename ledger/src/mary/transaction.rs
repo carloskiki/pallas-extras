@@ -13,7 +13,7 @@ use crate::allegra::transaction::{data, witness};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Transaction<'a> {
-    pub body: body::Body<'a>,
+    pub body: Body<'a>,
     pub witness: witness::Set<'a>,
     pub data: Option<data::Data<'a>>,
 }

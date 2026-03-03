@@ -24,3 +24,6 @@ pub struct Transaction<'a> {
     pub valid: bool,
     pub data: Option<Data<'a>>,
 }
+
+// To allow `duplicate!` of `body`.
+type SetCodec<T> = crate::unique::codec::Tagged<T>;

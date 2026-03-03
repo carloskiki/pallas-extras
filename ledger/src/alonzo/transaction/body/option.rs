@@ -1,4 +1,5 @@
 use crate::{
+    Unique,
     alonzo::Update,
     crypto::{Blake2b224Digest, Blake2b256Digest},
     mary::{Asset, asset},
@@ -7,7 +8,7 @@ use crate::{
         address::Account,
         transaction::{Coin, Input},
     },
-    slot,
+    slot, unique,
 };
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
@@ -24,7 +25,7 @@ pub enum Option<'a> {
     #[n(4)]
     Certificates(Vec<Certificate<'a>>),
     #[n(5)]
-    Withdrawals(Vec<(Account<'a>, Coin)>),
+    Withdrawals(Unique<Vec<(Account<'a>, Coin)>, false>),
     #[n(6)]
     Update(Update<'a>),
     #[n(7)]
@@ -36,9 +37,14 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(Vec<Input<'a>>),
+    Collateral(
+        #[cbor(decode_with = "unique::codec::Set<Input<'a>>")] Unique<Vec<Input<'a>>, false>,
+    ),
     #[n(14)]
-    RequiredSigners(Vec<&'a Blake2b224Digest>),
+    RequiredSigners(
+        #[cbor(decode_with = "unique::codec::Set<&'a Blake2b224Digest>")]
+        Unique<Vec<&'a Blake2b224Digest>, false>,
+    ),
     #[n(15)]
     Network(Network),
 }
