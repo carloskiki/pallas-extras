@@ -24,7 +24,4 @@ pub use script::Script;
 pub mod transaction;
 pub use transaction::Transaction;
 
-pub mod url;
-pub use url::Url;
-// To be able to `duplicate!` `url` from `shelley`.
-const URL_SIZE: usize = 128;
+type Url = crate::Url<128>;

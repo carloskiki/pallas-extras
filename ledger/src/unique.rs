@@ -20,6 +20,12 @@ pub enum Error<E> {
     Content(#[from] E),
 }
 
+/// Ensures uniqueness of the elements in a `Vec` at deserialization time, maintaining insertion order.
+///
+/// the `STRICT` generic parameter determines whether construction errors or deduplicates
+/// (maintaining the first instance) when encountering duplicates.
+///
+/// For `Vec<(K, V)>`, this ensures uniqueness of `K`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Unique<T, const STRICT: bool>(pub(crate) T);
 
@@ -179,7 +185,7 @@ pub(crate) mod codec {
 
     use super::*;
 
-    // Maybe this should be named `Untagged` and `Tagged` should be named `Set`?
+    // TODO: Maybe this should be named `Untagged` and `Tagged` should be named `Set`?
     pub struct Set<T>(Unique<Vec<T>, false>);
 
     impl<T> From<Set<T>> for Unique<Vec<T>, false> {

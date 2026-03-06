@@ -25,10 +25,8 @@ pub use transaction::Transaction;
 pub mod update;
 pub use update::Update;
 
-pub mod url;
-pub use url::Url;
-// To be able to `duplicate!` `url` in `conway`.
-const URL_SIZE: usize = 64;
+// To allow duplicate `relay` and `metadata` to `conway`.
+pub type Url = crate::Url<64>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]

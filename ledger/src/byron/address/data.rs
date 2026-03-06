@@ -1,5 +1,4 @@
 use tinycbor_derive::{CborLen, Decode, Encode};
-
 use crate::crypto::VerifyingKey;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, CborLen)]

@@ -2,6 +2,7 @@ use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, container};
 
+/// A blockchain address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Address<'a> {
     Shelley(crate::shelley::Address<'a>),

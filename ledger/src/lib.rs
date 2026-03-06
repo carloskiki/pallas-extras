@@ -1,7 +1,9 @@
-//! Types for the Cardano Ledger
+//! The Cardano Ledger
 //!
-//! All types serialize into the Babbage era of the specification, and can be deserialized from any
-//! era between and including Shelley and Babbage.
+//! The root contains era independent types and utilities such as [`Block`], [`crypto`],
+//! [`Unique`], etc. Era dependent types are in their respective modules. Types are defined once in
+//! their respective era module, and reused if necessary in newer eras. For example, data for
+//! plutus scripts is defined as [`alonzo::script::Data`] and reused in all following eras.
 
 extern crate alloc;
 
@@ -10,14 +12,17 @@ pub mod epoch;
 pub mod interval;
 pub mod slot;
 
-pub mod unique;
-pub use unique::Unique;
-
-pub mod address;
+mod address;
 pub use address::Address;
 
-pub mod block;
+mod block;
 pub use block::Block;
+
+mod unique;
+pub use unique::Unique;
+
+mod url;
+pub use url::Url;
 
 pub mod allegra;
 pub mod alonzo;

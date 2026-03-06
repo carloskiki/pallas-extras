@@ -1,8 +1,10 @@
-pub mod positive;
+//! Fractions bounded on some interval.
+
+mod positive;
 pub use positive::Positive;
 
-pub mod unit;
+mod unit;
 pub use unit::Unit;
 
-pub mod unsigned;
+mod unsigned;
 pub use unsigned::Unsigned;

@@ -14,8 +14,8 @@ pub enum Relay<'a> {
     #[n(1)]
     HostName {
         port: Option<u16>,
-        dns_name: &'a super::DnsName,
+        url: &'a super::super::Url,
     },
     #[n(2)]
-    MultiHostName { dns_name: &'a super::DnsName },
+    MultiHostName { url: &'a super::super::Url },
 }

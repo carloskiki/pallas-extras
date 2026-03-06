@@ -1,16 +1,18 @@
+//! Address.
+
 use tinycbor::Encoded;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod payload;
+mod payload;
 pub use payload::Payload;
 
-pub mod distribution;
+mod distribution;
 pub use distribution::Distribution;
 
-pub mod attributes;
+mod attributes;
 pub use attributes::Attributes;
 
-pub mod data;
+mod data;
 pub use data::Data;
 
 /// Byron Era address.

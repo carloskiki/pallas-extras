@@ -1,8 +1,10 @@
 use crate::{
     byron::block::{self, Difficulty},
-    crypto, slot,
+    crypto,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
+
+mod slot;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Data<'a> {
@@ -12,3 +14,4 @@ pub struct Data<'a> {
     pub difficulty: [Difficulty; 1],
     pub signature: block::Signature<'a>,
 }
+
