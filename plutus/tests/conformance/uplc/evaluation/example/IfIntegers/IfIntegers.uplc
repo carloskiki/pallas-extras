@@ -12,7 +12,7 @@
                 (lam
                   y
                   [
-                    [ [ [(force (builtin ifThenElse)) b] x] y] (con unit ())
+                    [ [ [ (force (builtin ifThenElse)) b ] x ] y ] (con unit ())
                   ]
                 )
               )
