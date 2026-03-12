@@ -1,177 +1,134 @@
-use minicbor::{Decode, Encode};
-
+use tinycbor_derive::{Decode, Encode, CborLen};
 use crate::{
-    Point, Tip, WithEncoded, hard_fork_combinator,
+    Point, Tip,
     traits::{
         self,
-        message::{Message, nop_codec},
+        message::Message,
     },
 };
 
 use super::state::{CanAwait, Idle, Intersect, MustReply};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct Next;
 
 impl Message for Next {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 0;
+    const TAG: u64 = 0;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = CanAwait;
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-#[cbor(transparent)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct FindIntersect {
-    #[cbor(with = "cbor_util::boxed_slice")]
-    pub points: Box<[Point]>,
+    pub points: Vec<Point>,
 }
 
 impl Message for FindIntersect {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 4;
+    const TAG: u64 = 4;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Intersect;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct Done;
 
 impl Message for Done {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 7;
+    const TAG: u64 = 7;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = traits::state::Done;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IntersectFound {
-    pub point: Point,
-    pub tip: Tip,
-}
-
-impl<C> Encode<C> for IntersectFound {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.encode(self.point)?.encode(self.tip)?.ok()
+mod intersect_found {
+    use super::*;
+    
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+    #[cbor(naked)]
+    pub struct IntersectFound {
+        pub point: Point,
+        pub tip: Tip,
     }
 }
+pub use intersect_found::IntersectFound;
 
-impl<C> Decode<'_, C> for IntersectFound {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let point: Point = d.decode()?;
-        let tip: Tip = d.decode()?;
-
-        Ok(IntersectFound { point, tip })
-    }
-}
 
 impl Message for IntersectFound {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 5;
+    const TAG: u64 = 5;
     const ELEMENT_COUNT: u64 = 2;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-#[cbor(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct IntersectNotFound {
     pub tip: Tip,
 }
 
 impl Message for IntersectNotFound {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 6;
+    const TAG: u64 = 6;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RollForward {
-    pub header: WithEncoded<Box<ledger::block::Header>>,
-    pub tip: Tip,
-}
-
-impl<C> Encode<C> for RollForward {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        let ledger_era = self.header.body.protocol_version.major.era();
-        hard_fork_combinator::encode((&self.header, ledger_era), e, ctx)?;
-        self.tip.encode(e, ctx)
+mod roll_forward {
+    use super::*;
+    #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
+    #[cbor(naked)]
+    pub struct RollForward<'a> {
+        pub header: ledger::block::Header<'a>,
+        pub tip: Tip,
     }
 }
+pub use roll_forward::RollForward;
 
-impl<C> Decode<'_, C> for RollForward {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let (header, _): (WithEncoded<Box<ledger::block::Header>>, _) =
-            hard_fork_combinator::decode(d, ctx)?;
-        let tip: Tip = d.decode()?;
 
-        Ok(RollForward { header, tip })
-    }
-}
-
-impl Message for RollForward {
+impl Message for RollForward<'_> {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 2;
+    const TAG: u64 = 2;
     const ELEMENT_COUNT: u64 = 2;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RollBackward {
-    pub point: Point,
-    pub tip: Tip,
-}
-
-impl<C> Encode<C> for RollBackward {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.encode(self.point)?.encode(self.tip)?.ok()
+mod roll_backward {
+    use super::*;
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+    #[cbor(naked)]
+    pub struct RollBackward {
+        pub point: Point,
+        pub tip: Tip,
     }
 }
-
-impl<C> Decode<'_, C> for RollBackward {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let point: Point = d.decode()?;
-        let tip: Tip = d.decode()?;
-
-        Ok(RollBackward { point, tip })
-    }
-}
+pub use roll_backward::RollBackward;
 
 impl Message for RollBackward {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 3;
+    const TAG: u64 = 3;
     const ELEMENT_COUNT: u64 = 2;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct AwaitReply;
 
 impl Message for AwaitReply {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 1;
+    const TAG: u64 = 1;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = MustReply;
 }
-
-nop_codec!(Next, Done, AwaitReply);

@@ -1,16 +1,3 @@
-// Writer Task
-//
-// Receiver: Message & sendback pair for <P>
-// Getting the agency of the message:
-// - Message<MP> -> Agency
-//
-// When do we need agency?
-//
-// For the client & server to implement the right function OK
-// For the writer to send a message with the correct tag OK - Every message has a valid from state
-// For the reader know whether to remove the client receiver from the queue OK - if we make the Done
-// state a client agency.
-
 use std::{
     convert::Infallible,
     marker::PhantomData,
@@ -382,6 +369,10 @@ where
     for<'a, 'b> CMap<ProcessMessage<'a, 'b>>:
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>>>,
 {
+    // TODO: two payloads for a single message can be interleaved with payloads from another
+    // mini-protocol. This assumes that they are not interleaved and is incorrect.
+    //
+    // Each mini-protocol needs to maintain its own buffer with a streaming skipper to fix this.
     if previous_state.is_some_and(|(p, _)| p != protocol) {
         return Err(MuxError::InvalidPeerMessage);
     }

@@ -5,11 +5,14 @@ version = "0.1.0"
 
 [dependencies]
 cbor-util = { workspace = true }
-minicbor = { workspace = true }
+tinycbor = { workspace = true }
+tinycbor-derive = { workspace = true }
 zerocopy = { workspace = true }
 
 futures = "0.3"
 ledger = { path = "../ledger" }
+thiserror = { workspace = true }
+displaydoc = { workspace = true }
 
 [[test]]
 name = "mux"

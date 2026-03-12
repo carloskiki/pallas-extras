@@ -1,12 +1,5 @@
+use crate::traits::protocol::Protocol;
 use zerocopy::transmute;
-
-use crate::{
-    traits::{
-        mini_protocol,
-        protocol::{Protocol, UnknownProtocol},
-    },
-    typefu::map::{CMap, HMap, Identity, TypeMap},
-};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Header<T> {
@@ -19,9 +12,9 @@ impl<P> TryFrom<[u8; 8]> for Header<P>
 where
     P: Protocol,
 {
-    type Error = UnknownProtocol;
+    type Error = ();
 
-    fn try_from(value: [u8; 8]) -> std::result::Result<Self, UnknownProtocol> {
+    fn try_from(value: [u8; 8]) -> std::result::Result<Self, ()> {
         let [timestamp, rest]: [[u8; 4]; 2] = transmute!(value);
         let [protocol, payload_len]: [[u8; 2]; 2] = transmute!(rest);
 
@@ -63,9 +56,9 @@ impl<P> TryFrom<u16> for ProtocolNumber<P>
 where
     P: Protocol,
 {
-    type Error = UnknownProtocol;
+    type Error = ();
 
-    fn try_from(value: u16) -> std::result::Result<Self, UnknownProtocol> {
+    fn try_from(value: u16) -> std::result::Result<Self, ()> {
         let responder = value & 0x8000 != 0;
         let protocol = P::from_number(value & 0x7FFF)?;
 

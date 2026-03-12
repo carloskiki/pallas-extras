@@ -1,123 +1,136 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
-use minicbor::{Decode, Encode};
+use tinycbor::{CborLen, Decode, Encode};
+use tinycbor_derive::{CborLen, Decode, Encode};
 use zerocopy::transmute;
 
-use crate::{traits::message::{nop_codec, Message}, typefu::coproduct::Coprod};
+use crate::traits::message::Message;
 
 use super::state::{Busy, Idle};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-#[cbor(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct ShareRequest {
+    #[cbor(with = "tinycbor::num::U8")]
     pub amount: u8,
 }
 
 impl Message for ShareRequest {
     const SIZE_LIMIT: usize = 5760;
 
-    const TAG: u8 = 0;
+    const TAG: u64 = 0;
 
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Busy;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SharePeers {
-    pub peers: Box<[SocketAddr]>,
+mod share_peers {
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct SharePeers {
+        pub peers: Vec<SocketAddr>,
+    }
+
+    impl Encode for SharePeers {
+        fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
+            e.array(self.peers.len() as u64)?;
+            for peer in self.peers.iter() {
+                SocketCodec::from(peer).encode(e)?;
+            }
+            Ok(())
+        }
+    }
+
+    impl Decode<'_> for SharePeers {
+        type Error = tinycbor::container::Error<Error>;
+
+        fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+            let mut visitor = d.array_visitor()?;
+            let mut peers = Vec::with_capacity(visitor.remaining().unwrap_or(0) as usize);
+
+            while let Some(peer_codec) = visitor.visit::<SocketCodec>() {
+                let peer_codec = peer_codec?;
+                peers.push(SocketAddr::from(peer_codec));
+            }
+        }
+    }
+
+    impl CborLen for SharePeers {
+        fn cbor_len(&self) -> usize {
+            1 + self.peers.iter().map(|peer| SocketCodec::from(peer).cbor_len()).sum::<usize>()
+        }
+    }
+
+    #[derive(Encode, Decode, CborLen)]
+    enum SocketCodec {
+        #[n(0)]
+        V4(u32, u16),
+        #[n(1)]
+        V6(u32, u32, u32, u32, u16),
+    }
+
+    impl From<&SocketAddr> for SocketCodec {
+        fn from(addr: &SocketAddr) -> Self {
+            match addr {
+                // TODO: check byte order for IP addresses (both v4 and v6)
+                SocketAddr::V4(addr) => SocketCodec::V4(addr.ip().to_bits(), addr.port()),
+                SocketAddr::V6(addr) => {
+                    let [a, b, c, d]: [[u8; 4]; 4] = transmute!(addr.ip().octets());
+                    SocketCodec::V6(
+                        u32::from_be_bytes(a),
+                        u32::from_be_bytes(b),
+                        u32::from_be_bytes(c),
+                        u32::from_be_bytes(d),
+                        addr.port(),
+                    )
+                }
+            }
+        }
+    }
+
+    impl From<SocketCodec> for SocketAddr {
+        fn from(codec: SocketCodec) -> Self {
+            match codec {
+                SocketCodec::V4(ip, port) => {
+                    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::from_bits(ip), port))
+                }
+                SocketCodec::V6(octets0, octets1, octets2, octets3, port) => {
+                    let ip: Ipv6Addr = Ipv6Addr::from_bits(transmute!([[
+                        octets0.to_be_bytes(),
+                        octets1.to_be_bytes(),
+                        octets2.to_be_bytes(),
+                        octets3.to_be_bytes()
+                    ]]));
+                    SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0))
+                }
+            }
+        }
+    }
 }
+pub use share_peers::SharePeers;
 
 impl Message for SharePeers {
     const SIZE_LIMIT: usize = 5760;
 
-    const TAG: u8 = 1;
+    const TAG: u64 = 1;
 
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Idle;
 }
 
-impl<C> Encode<C> for SharePeers {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.array(self.peers.len() as u64)?;
-        for peer in self.peers.iter() {
-            match peer {
-                SocketAddr::V4(socket_addr_v4) => {
-                    e.array(3)?
-                        .u8(0)?
-                        .u32(u32::from_ne_bytes(socket_addr_v4.ip().octets()))?
-                        .u16(socket_addr_v4.port())?;
-                }
-                SocketAddr::V6(socket_addr_v6) => {
-                    let [octets0, octets1, octets2, octets3]: [u32; 4] =
-                        transmute!(socket_addr_v6.ip().octets());
-                    e.array(6)?
-                        .u8(1)?
-                        .u32(octets0)?
-                        .u32(octets1)?
-                        .u32(octets2)?
-                        .u32(octets3)?
-                        .u16(socket_addr_v6.port())?;
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<C> Decode<'_, C> for SharePeers {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let len = d.array()?;
-        let mut peers = Vec::with_capacity(len.unwrap_or(4) as usize);
-
-        let mut index = 0;
-        while len.is_none_or(|l| l != index) && d.datatype()? != minicbor::data::Type::Break {
-            index += 1;
-            let peer_type = d.u8()?;
-            match peer_type {
-                0 => {
-                    let ip = d.u32()?;
-                    let port = d.u16()?;
-                    peers.push(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::from_bits(ip), port)));
-                }
-                1 => {
-                    let octets0 = d.u32()?;
-                    let octets1 = d.u32()?;
-                    let octets2 = d.u32()?;
-                    let octets3 = d.u32()?;
-                    let port = d.u16()?;
-                    let ip = Ipv6Addr::from_bits(transmute!([octets0, octets1, octets2, octets3]));
-                    peers.push(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)));
-                }
-                _ => return Err(minicbor::decode::Error::message("Invalid peer type, expected 0 or 1")),
-            }
-        }
-        if len.is_none() {
-            d.skip()?;
-        } 
-
-        Ok(SharePeers {
-            peers: peers.into_boxed_slice(),
-        })
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct Done;
 
 impl Message for Done {
     const SIZE_LIMIT: usize = 5760;
 
-    const TAG: u8 = 3;
+    const TAG: u64 = 3;
 
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = crate::traits::state::Done;
 }
-
-nop_codec!(Done);

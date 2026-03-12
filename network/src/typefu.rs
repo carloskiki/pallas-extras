@@ -30,7 +30,7 @@ pub mod index;
 pub(crate) mod map;
 pub(crate) mod constructor;
 
-/// An alternative to AsRef that does not force the reference type to be a pointer itself.
+/// An alternative to `AsRef` that does not force the reference type to be a pointer itself.
 ///
 /// This lets us create implementations for our recursive traits that take the resulting
 /// Output reference type, without having to deal with strange, spurious overflows
@@ -65,7 +65,7 @@ pub(crate) trait FuncOnce<Input>: TypeMap<Input> {
 
 /// This is a simple, user-implementable alternative to `Fn`.
 ///
-/// Might not be necessary if/when Fn(Once, Mut) traits are implementable
+/// Might not be necessary if/when `Fn{Once, Mut}` traits are implementable
 /// in stable Rust
 pub(crate) trait Func<Input>: TypeMap<Input> {
     /// Call the `Func`.

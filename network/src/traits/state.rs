@@ -1,18 +1,14 @@
-use minicbor::{Decode, Encode};
-
 use crate::typefu::{
     coproduct::CNil,
     map::TypeMap,
 };
-
-use super::message::TagContext;
 
 pub trait State: Default {
     const TIMEOUT: std::time::Duration;
 
     type Agency: Agency;
     #[allow(private_bounds)]
-    type Message: Encode<()> + for<'a> Decode<'a, TagContext> + 'static;
+    type Message;
 }
 
 pub trait Agency {
@@ -29,6 +25,7 @@ impl Agency for Server {
     const SERVER: bool = true;
 }
 
+// TODO: is this needed?
 pub enum AgencyDone {}
 impl Agency for AgencyDone {
     const SERVER: bool = false;

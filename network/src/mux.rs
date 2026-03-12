@@ -41,6 +41,8 @@ use crate::{
 };
 
 // TODO: In client and server, ensure that the timeouts are checked.
+// TODO: Check for cancel safety anywhere `select!` is used.
+// TODO: Check for snoozing (pretty much anywhere async is used).
 
 pub mod client;
 mod header;

@@ -31,5 +31,5 @@ impl State for Streaming {
     const TIMEOUT: Duration = Duration::from_secs(60);
     
     type Agency = Server;
-    type Message = Coprod![super::message::Block, super::message::Done];
+    type Message = Coprod![super::message::Block<'static>, super::message::Done];
 }

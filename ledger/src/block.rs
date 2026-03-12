@@ -1,6 +1,9 @@
 use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
+mod header;
+pub use header::Header;
+
 /// Era-independent block.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub enum Block<'a> {

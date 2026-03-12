@@ -1,123 +1,88 @@
-use minicbor::{Decode, Encode};
-
 use crate::{
-    Point, hard_fork_combinator,
-    traits::{
-        message::{Message, nop_codec},
-        state,
-    },
+    Point,
+    traits::{message::Message, state},
 };
+use tinycbor_derive::{Decode, Encode, CborLen};
 
 use super::state::{Busy, Idle, Streaming};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RequestRange {
-    pub start: Point,
-    pub end: Point,
-}
-
-impl<C> Encode<C> for RequestRange {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        _: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        e.encode(self.start)?.encode(self.end)?.ok()
+mod request_range {
+    use super::*;
+    
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+    #[cbor(naked)]
+    pub struct RequestRange {
+        pub start: Point,
+        pub end: Point,
     }
 }
-
-impl<C> Decode<'_, C> for RequestRange {
-    fn decode(d: &mut minicbor::Decoder<'_>, _: &mut C) -> Result<Self, minicbor::decode::Error> {
-        Ok(Self {
-            start: d.decode()?,
-            end: d.decode()?,
-        })
-    }
-}
+pub use request_range::RequestRange;
 
 impl Message for RequestRange {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 0;
+    const TAG: u64 = 0;
     const ELEMENT_COUNT: u64 = 2;
 
     type ToState = Busy;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct NoBlocks;
 
 impl Message for NoBlocks {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 3;
+    const TAG: u64 = 3;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct StartBatch;
 
 impl Message for StartBatch {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 2;
+    const TAG: u64 = 2;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = Streaming;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Block(pub ledger::block::Block);
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
+#[cbor(naked)]
+pub struct Block<'a>(pub ledger::Block<'a>);
 
-impl<C> Encode<C> for Block {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut minicbor::Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), minicbor::encode::Error<W::Error>> {
-        // hard_fork_combinator::encode(
-        //     (&self.0, self.0.header.body.protocol_version.major.era()),
-        //     e,
-        //     ctx,
-        // )
-        todo!()
-    }
-}
-
-impl<C> Decode<'_, C> for Block {
-    fn decode(d: &mut minicbor::Decoder<'_>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        todo!()
-    }
-}
-
-impl Message for Block {
+impl<'a> Message for Block<'a> {
     const SIZE_LIMIT: usize = 2_500_000;
-    const TAG: u8 = 4;
+    const TAG: u64 = 4;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Streaming;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct BatchDone;
 
 impl Message for BatchDone {
     // In the spec, this is 2_500_000, but that's absurdly large for nothing
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 5;
+    const TAG: u64 = 5;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = Idle;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct Done;
 
 impl Message for Done {
     const SIZE_LIMIT: usize = 65535;
-    const TAG: u8 = 1;
+    const TAG: u64 = 1;
     const ELEMENT_COUNT: u64 = 0;
 
     type ToState = state::Done;
 }
-
-nop_codec!(BatchDone, Done, NoBlocks, StartBatch);

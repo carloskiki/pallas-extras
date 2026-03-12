@@ -39,7 +39,7 @@ impl State for CanAwait {
 
     type Agency = Server;
 
-    type Message = Coprod![AwaitReply, RollForward, RollBackward];
+    type Message = Coprod![AwaitReply, RollForward<'static>, RollBackward];
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

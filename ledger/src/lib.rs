@@ -15,8 +15,11 @@ pub mod slot;
 mod address;
 pub use address::Address;
 
-mod block;
+pub mod block;
 pub use block::Block;
+
+pub mod transaction;
+pub use transaction::Transaction;
 
 mod unique;
 pub use unique::Unique;

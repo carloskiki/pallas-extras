@@ -1,5 +1,4 @@
 use state::{Busy, Idle, Streaming};
-
 use crate::{HList, traits::mini_protocol::MiniProtocol};
 
 pub mod message;
