@@ -218,13 +218,14 @@ pub(crate) mod codec {
         type Error = tag::Error<container::Error<<T as Decode<'a>>::Error>>;
 
         fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
-            match d.peekable().next() {
-                Some(Ok(tinycbor::Token::Tag(258))) => {
-                    let _ = d.next().expect("tag was peeked");
+            let saved = *d;
+            match d.next() {
+                Some(Ok(tinycbor::Token::Tag(258))) => {}
+                Some(Ok(tinycbor::Token::Array(_) | tinycbor::Token::BeginArray)) => {
+                    *d = saved;
                 }
-                Some(Ok(tinycbor::Token::Tag(_))) => return Err(InvalidHeader.into()),
-                Some(Ok(tinycbor::Token::Array(_) | tinycbor::Token::BeginArray)) => {}
                 Some(Err(container::Error::Malformed(e))) => return Err(tag::Error::Malformed(e)),
+                Some(Ok(tinycbor::Token::Tag(_))) => return Err(tag::Error::InvalidTag),
                 Some(_) => return Err(InvalidHeader.into()),
                 None => return Err(EndOfInput.into()),
             }

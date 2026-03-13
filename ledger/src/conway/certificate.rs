@@ -5,6 +5,7 @@ use tinycbor::{
 };
 
 use crate::{
+    Unique,
     conway::{
         governance::{self, Anchor},
         pool,
@@ -37,7 +38,7 @@ pub enum Certificate<'a> {
         cost: Coin,
         margin: interval::Unit,
         account: Account<'a>,
-        owners: Vec<&'a Blake2b224Digest>,
+        owners: Unique<Vec<&'a Blake2b224Digest>, false>,
         relays: Vec<pool::Relay<'a>>,
         metadata: Option<pool::Metadata<'a>>,
     },
@@ -98,7 +99,7 @@ pub enum Error {
     /// while decoding field `account` in variant `PoolRegistration`
     PoolRegistrationAccount(#[source] <Account<'static> as Decode<'static>>::Error),
     /// while decoding field `owners` in variant `PoolRegistration`
-    PoolRegistrationOwners(#[source] <Vec<&'static Blake2b224Digest> as Decode<'static>>::Error),
+    PoolRegistrationOwners(#[source] <crate::unique::codec::Tagged<&'static Blake2b224Digest> as Decode<'static>>::Error),
     /// while decoding field `relays` in variant `PoolRegistration`
     PoolRegistrationRelays(#[source] <Vec<pool::Relay<'static>> as Decode<'static>>::Error),
     /// while decoding field `metadata` in variant `PoolRegistration`
@@ -323,7 +324,16 @@ impl<'a, 'b: 'a> Decode<'b> for Certificate<'a> {
                 cost: visit!(v, PoolRegistrationCost)?,
                 margin: visit!(v, PoolRegistrationMargin)?,
                 account: visit!(v, PoolRegistrationAccount)?,
-                owners: visit!(v, PoolRegistrationOwners)?,
+                owners: {
+                    v.visit::<crate::unique::codec::Tagged<_>>()
+                        .ok_or(bounded::Error::Missing)?
+                        .map(|tagged| tagged.into())
+                        .map_err(|e| {
+                            bounded::Error::Content(tag::Error::Content(
+                                Error::PoolRegistrationOwners(e),
+                            ))
+                        })?
+                },
                 relays: visit!(v, PoolRegistrationRelays)?,
                 metadata: visit!(v, PoolRegistrationMetadata)?,
             },

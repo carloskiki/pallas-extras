@@ -2,7 +2,7 @@ use crate::{
     Unique, allegra,
     alonzo::script::{Data, PlutusV1},
     babbage::script::PlutusV2,
-    conway::{script::PlutusV3, transaction::Redeemers},
+    conway::{script::PlutusV3, transaction::{Redeemers, redeemer}},
     shelley::transaction::witness::{Bootstrap, VerifyingKey},
     unique,
 };
@@ -29,7 +29,7 @@ pub struct Set<'a> {
     pub plutus_v1: Unique<Vec<&'a PlutusV1>, false>,
     #[cbor(n(4), optional, decode_with = "unique::codec::NonEmpty<Data>")]
     pub plutus_data: Unique<Vec<Data>, false>,
-    #[cbor(n(5), optional)]
+    #[cbor(n(5), optional, decode_with = "redeemer::codec::Codec")]
     pub redeemers: Redeemers,
     #[cbor(n(6), optional, decode_with = "unique::codec::NonEmpty<&'a PlutusV2>")]
     pub plutus_v2: Unique<Vec<&'a PlutusV2>, false>,

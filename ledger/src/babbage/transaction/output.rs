@@ -1,7 +1,7 @@
 use super::Value;
 use crate::{
     Address,
-    babbage::{self, transaction},
+    babbage::transaction,
 };
 use displaydoc::Display;
 use thiserror::Error;
@@ -18,7 +18,7 @@ pub struct Output<'a> {
     #[cbor(n(2), optional)]
     pub datum: Option<transaction::Datum<'a>>,
     #[cbor(n(3), optional)]
-    pub script: Option<babbage::Script<'a>>,
+    pub script: Option<super::super::Script<'a>>,
 }
 
 #[derive(Debug, Error, Display)]
@@ -69,10 +69,12 @@ mod codec {
     use super::Value;
     use crate::{
         Address,
-        babbage::{self, transaction::Datum},
+        babbage::transaction::Datum,
     };
     use tinycbor::Encoded;
     use tinycbor_derive::{CborLen, Decode, Encode};
+    
+    type Script<'a> = super::super::super::Script<'a>;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
     #[cbor(map)]
@@ -84,14 +86,14 @@ mod codec {
         #[cbor(n(2), optional, decode_with = "Datum<'a>")]
         pub datum: Option<Datum<'a>>,
         #[cbor(n(3), optional, decode_with = "EncodedScript<'a>")]
-        pub script: Option<babbage::Script<'a>>,
+        pub script: Option<Script<'a>>,
     }
 
     #[derive(Decode)]
     #[cbor(naked)]
-    pub struct EncodedScript<'a>(pub Encoded<babbage::Script<'a>>);
+    pub struct EncodedScript<'a>(pub Encoded<Script<'a>>);
 
-    impl<'a> From<EncodedScript<'a>> for Option<babbage::Script<'a>> {
+    impl<'a> From<EncodedScript<'a>> for Option<Script<'a>> {
         fn from(encoded: EncodedScript<'a>) -> Self {
             Some(encoded.0.0)
         }

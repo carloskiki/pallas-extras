@@ -15,7 +15,7 @@ pub struct Redeemer {
 
 pub type Redeemers = Unique<Vec<(Index, Redeemer)>, false>;
 
-mod codec {
+pub(super) mod codec {
     use mitsein::vec1::Vec1;
     use tinycbor::{Decode, Type};
 

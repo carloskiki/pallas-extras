@@ -1,6 +1,7 @@
 use crate::{
     Unique,
     conway::{
+        Certificate,
         Asset, asset,
         governance::{
             proposal,
@@ -10,7 +11,7 @@ use crate::{
     },
     crypto::{Blake2b224Digest, Blake2b256Digest},
     shelley::{
-        Certificate, Network,
+        Network,
         address::Account,
         transaction::{Coin, Input},
     },
@@ -75,8 +76,8 @@ pub enum Option<'a> {
     ),
     #[n(20)]
     ProposalProcedures(
-        #[cbor(with = "cbor_util::NonEmpty<Vec<proposal::Procedure<'a>>>")]
-        Vec1<proposal::Procedure<'a>>,
+        #[cbor(with = "unique::codec::NonEmpty<proposal::Procedure<'a>>")]
+        Unique<Vec1<proposal::Procedure<'a>>, false>
     ),
     #[n(21)]
     CurrentTreasury(Coin),
