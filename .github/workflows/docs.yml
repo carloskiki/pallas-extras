@@ -74,7 +74,7 @@ jobs:
       - name: Upload documentation artifact
         # This packages the `target/doc` directory and uploads it
         # for the `deploy` job to use.
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: target/doc
 
