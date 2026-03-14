@@ -25,15 +25,7 @@ impl<'a, 'b: 'a> Decode<'b> for Input<'a> {
 
     fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
         let codec::Codec::Input(codec::Inner { id, index }) =
-            codec::Codec::decode(d).map_err(|e| {
-                e.map(|e| {
-                    e.map(|e| {
-                        e.map(|e| match e {
-                            codec::CodecError::Input(e) => e,
-                        })
-                    })
-                })
-            })?;
+            codec::Codec::decode(d)?;
         Ok(Input { id, index })
     }
 }
@@ -57,7 +49,6 @@ mod codec {
     }
 
     #[derive(Encode, Decode, CborLen)]
-    #[cbor(error = "CodecError")]
     pub(super) enum Codec<'a> {
         #[n(0)]
         Input(#[cbor(with = "tinycbor::Encoded<Inner<'a>>")] Inner<'a>),

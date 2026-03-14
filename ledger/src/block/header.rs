@@ -127,7 +127,7 @@ mod codec {
     use tinycbor_derive::Decode;
 
     #[derive(Debug, displaydoc::Display, thiserror::Error)]
-    enum ByronError {
+    pub enum ByronError {
         /// while decoding a byron era boundary block header.
         Boundary(
             #[source]
@@ -152,7 +152,7 @@ mod codec {
             #[cbor(error = "IndexError")]
             struct Index {
                 tag: u64,
-                block_size_hint: u32,
+                _size_hint: u32,
             }
 
             let mut visitor = d.array_visitor()?;

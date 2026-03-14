@@ -24,15 +24,7 @@ impl<'a> Decode<'a> for FeePolicy {
     >;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
-        match codec::Codec::decode(d).map_err(|e| {
-            e.map(|e| {
-                e.map(|e| {
-                    e.map(|e| match e {
-                        codec::CodecError::Content(e) => e,
-                    })
-                })
-            })
-        })? {
+        match codec::Codec::decode(d)? {
             codec::Codec::Content(inner) => Ok(FeePolicy {
                 constant: inner.constant,
                 coefficient: inner.coefficient,
@@ -59,7 +51,6 @@ mod codec {
     }
 
     #[derive(Encode, Decode, CborLen)]
-    #[cbor(error = "CodecError")]
     pub(super) enum Codec {
         #[n(0)]
         Content(#[cbor(with = "tinycbor::Encoded<Inner>")] Inner),
