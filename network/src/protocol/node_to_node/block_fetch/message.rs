@@ -2,13 +2,13 @@ use crate::{
     Point,
     traits::{message::Message, state},
 };
-use tinycbor_derive::{Decode, Encode, CborLen};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 use super::state::{Busy, Idle, Streaming};
 
 mod request_range {
     use super::*;
-    
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
     #[cbor(naked)]
     pub struct RequestRange {
@@ -26,7 +26,9 @@ impl Message for RequestRange {
     type ToState = Busy;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen,
+)]
 #[cbor(naked)]
 pub struct NoBlocks;
 
@@ -38,7 +40,9 @@ impl Message for NoBlocks {
     type ToState = Idle;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen,
+)]
 #[cbor(naked)]
 pub struct StartBatch;
 
@@ -52,7 +56,7 @@ impl Message for StartBatch {
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 #[cbor(naked)]
-pub struct Block<'a>(pub ledger::Block<'a>);
+pub struct Block<'a>(#[cbor(with = "tinycbor::Encoded<ledger::Block<'a>>")] pub ledger::Block<'a>);
 
 impl<'a> Message for Block<'a> {
     const SIZE_LIMIT: usize = 2_500_000;
@@ -62,7 +66,9 @@ impl<'a> Message for Block<'a> {
     type ToState = Streaming;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen,
+)]
 #[cbor(naked)]
 pub struct BatchDone;
 
@@ -75,7 +81,9 @@ impl Message for BatchDone {
     type ToState = Idle;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen,
+)]
 #[cbor(naked)]
 pub struct Done;
 

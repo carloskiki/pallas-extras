@@ -18,6 +18,9 @@ pub use address::Address;
 pub mod block;
 pub use block::Block;
 
+mod transaction;
+pub use transaction::Transaction;
+
 mod unique;
 pub use unique::Unique;
 
