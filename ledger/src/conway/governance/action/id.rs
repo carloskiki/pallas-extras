@@ -1,4 +1,4 @@
-use crate::shelley::transaction;
+use crate::byron::transaction;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]

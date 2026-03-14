@@ -2,11 +2,14 @@ use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
 use tinycbor::Encoded;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
+mod id;
+pub use id::Id;
+
 /// Era-independent transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub enum Transaction<'a> {
     #[n(0)]
-    Byron(#[cbor(with = "codec::Codec<'a>")] byron::Transaction<'a>),
+    Byron(#[cbor(with = "codec::Codec<'a>")] byron::transaction::Payload<'a>),
     #[n(1)]
     Shelley(#[cbor(with = "Encoded<shelley::Transaction<'a>>")] shelley::Transaction<'a>),
     #[n(2)]
@@ -23,35 +26,31 @@ pub enum Transaction<'a> {
 
 mod codec {
     use crate::byron;
-    use mitsein::vec1::Vec1;
     use tinycbor_derive::{CborLen, Decode, Encode};
 
     #[repr(transparent)]
     #[derive(CborLen, Encode, Decode)]
     pub enum Codec<'a> {
+        // We only implement "mempool" transactions for byron because we don't expect to receive
+        // payloads that communicate transactions for that era anyway. In the byron era, there were
+        // other types of payloads: certificate, update, and vote.
+        // See https://github.com/IntersectMBO/cardano-ledger/issues/5124.
         #[n(0)]
-        MempoolTx(byron::Transaction<'a>),
+        MempoolTx(byron::transaction::Payload<'a>),
     }
 
-    #[derive(Encode, Decode, CborLen)]
-    struct TransactionCodec<'a>(
-        byron::Transaction<'a>,
-        #[cbor(with = "cbor_util::NonEmpty<Vec<byron::transaction::Witness<'a>>>")]
-        Vec1<byron::transaction::Witness<'a>>,
-    );
-
-    impl<'a> From<Codec<'a>> for byron::Transaction<'a> {
-        fn from(value: Codec<'a>) -> Self {
-            match value {
+    impl<'a> From<Codec<'a>> for byron::transaction::Payload<'a> {
+        fn from(codec: Codec<'a>) -> Self {
+            match codec {
                 Codec::MempoolTx(tx) => tx,
             }
         }
     }
 
-    impl<'a> From<&byron::Transaction<'a>> for &Codec<'a> {
-        fn from(value: &byron::Transaction<'a>) -> Self {
-            // Safety: `Codec` is `repr(transparent)` over `byron::Transaction`.
-            unsafe { &*(value as *const byron::Transaction<'a> as *const Codec<'a>) }
+    impl From<&byron::transaction::Payload<'_>> for &Codec<'_> {
+        fn from(tx: &byron::transaction::Payload<'_>) -> Self {
+            // SAFETY: `Codec` is `repr(transparent)` and has the same layout as `byron::transaction::Payload`.
+            unsafe { &*(tx as *const byron::transaction::Payload<'_> as *const Codec<'_>) }
         }
     }
 }

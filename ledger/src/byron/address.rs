@@ -6,6 +6,7 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 mod payload;
 pub use payload::Payload;
 
+// TODO: Do we remove this?
 mod distribution;
 pub use distribution::Distribution;
 

@@ -16,7 +16,6 @@ use crate::Unique;
 
 pub mod witness;
 
-pub type Id = crate::crypto::Blake2b256Digest;
 pub type Index = u16;
 pub type Coin = u64;
 pub type Data<'a> = Unique<Vec<(metadatum::Label, Metadatum<'a>)>, false>;
