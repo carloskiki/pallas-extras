@@ -23,7 +23,7 @@ impl State for Idle {
 
     type Agency = Server;
 
-    type Message = Coprod![RequestTransactions, RequestTransactionIds<false>, RequestTransactionIds<true>];
+    type Message = Coprod![RequestTransactions<'static>, RequestTransactionIds<false>, RequestTransactionIds<true>];
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -34,7 +34,7 @@ impl State for Transactions {
 
     type Agency = Client;
 
-    type Message = Coprod![ReplyTransactions];
+    type Message = Coprod![ReplyTransactions<'static>];
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -45,7 +45,7 @@ impl State for TransactionIds<false> {
 
     type Agency = Client;
 
-    type Message = Coprod![ReplyTransactionIds];
+    type Message = Coprod![ReplyTransactionIds<'static>];
 }
 
 impl State for TransactionIds<true> {
@@ -53,5 +53,5 @@ impl State for TransactionIds<true> {
 
     type Agency = Client;
 
-    type Message = Coprod![ReplyTransactionIds, super::message::Done];
+    type Message = Coprod![ReplyTransactionIds<'static>, super::message::Done];
 }

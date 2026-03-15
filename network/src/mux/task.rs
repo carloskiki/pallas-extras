@@ -13,12 +13,12 @@ use futures::{
     select,
     sink::Feed,
 };
-use minicbor::{Decode, Encode};
+use tinycbor::{Decode, Encode};
 
 use crate::{
     traits::{
         message::Message,
-        mini_protocol::{self, DecodeContext, EncodeContext, MiniProtocol},
+        mini_protocol::{self, MiniProtocol},
         protocol::{self, Protocol},
         state::{self, Agency, State},
     },
@@ -38,7 +38,7 @@ use super::{
 #[allow(private_bounds)]
 pub(super) async fn task<P>(
     mut bearer: impl AsyncRead + AsyncWrite,
-    mut receiver: Receiver<ProtocolSendBundle<P>>,
+    mut receiver: Receiver<Box<[u8]>>,
     mut task_state: ProtocolTaskState<P>,
 ) -> Result<Infallible, MuxError>
 where
@@ -67,23 +67,18 @@ where
         FuncOnce<ReaderZipped<'a, P>, Output: Future<Output = Result<(), MuxError>> + Send>,
 {
     let mut bearer = pin!(bearer);
-    let mut encode_buffer = Vec::with_capacity(64 * 1024);
     let mut decode_buffer = Vec::with_capacity(64 * 1024);
-    let mut peeked = None;
     let mut previous_state: Option<(P, usize)> = None;
-    let time = std::time::Instant::now();
     let mut header_buffer = [0; 8];
 
     loop {
         select! {
-            next_message = NextMessage { receiver: &mut receiver, peeked: &mut peeked } => {
+            next_message = NextMessage { receiver: &mut receiver } => {
                 writer_task(
                     &mut bearer,
                     &mut receiver,
                     &mut task_state,
                     &mut peeked,
-                    &time,
-                    &mut encode_buffer,
                     next_message?,
                 ).await?;
             },
@@ -158,10 +153,7 @@ async fn writer_task<'b, P>(
     writer: &mut Pin<&mut impl AsyncWrite>,
     rx: &mut Receiver<ProtocolSendBundle<P>>,
     task_state: &mut ProtocolTaskState<P>,
-    peeked: &mut Option<ProtocolSendBundle<P>>,
-    time: &std::time::Instant,
-    encode_buffer: &'b mut Vec<u8>,
-    message: ProtocolSendBundle<P>,
+    message: Vec<u8>,
 ) -> Result<(), MuxError>
 where
     P: Protocol,

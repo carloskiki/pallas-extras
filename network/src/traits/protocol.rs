@@ -13,7 +13,7 @@ impl<S, Tail> Protocol for Coproduct<S, Tail>
 where
     Tail: Protocol,
     HMap<Identity>: TypeMap<Tail>,
-    S: MiniProtocol + Copy + Eq + Send,
+    S: MiniProtocol + Copy + Eq + Send + 'static,
 {
     fn from_number(number: u16) -> Option<Self> {
         Coproduct::<S, CNil>::from_number(number)
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<S: MiniProtocol + Copy + Eq + Send> Protocol for Coproduct<S, CNil> {
+impl<S: MiniProtocol + Copy + Eq + Send + 'static> Protocol for Coproduct<S, CNil> {
     fn from_number(number: u16) -> Option<Self> {
         if number == S::NUMBER {
             Some(Coproduct::Inl(S::default()))

@@ -1,7 +1,5 @@
 use std::{fmt::Debug, time::Duration};
 
-use minicbor::Encode;
-
 use crate::traits::state::{Client, Server, State};
 
 use super::{
@@ -40,10 +38,7 @@ impl<T> Default for Propose<T> {
 
 impl<T> Eq for Propose<T> {}
 
-impl<VD> State for Propose<VD>
-where
-    VD: Encode<()> + for<'a> minicbor::Decode<'a, ()> + 'static,
-{
+impl<VD> State for Propose<VD> {
     const TIMEOUT: Duration = Duration::from_secs(10);
     type Agency = Client;
 
@@ -81,10 +76,7 @@ impl<T> PartialEq for Confirm<T> {
 
 impl<T> Eq for Confirm<T> {}
 
-impl<VD> State for Confirm<VD>
-where
-    VD: Encode<()> + for<'a> minicbor::Decode<'a, ()> + 'static,
-{
+impl<VD> State for Confirm<VD> {
     const TIMEOUT: std::time::Duration = Duration::from_secs(10);
     type Agency = Server;
 

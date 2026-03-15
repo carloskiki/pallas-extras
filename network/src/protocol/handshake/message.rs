@@ -1,147 +1,145 @@
-use std::borrow::Cow;
-
-use minicbor::{Decode, Encode, Encoder, encode};
-
-use crate::{traits::{message::Message, state::Done}, NetworkMagic};
-
 use super::state::Confirm;
+use crate::{
+    NetworkMagic,
+    traits::{message::Message, state::Done},
+};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Encode, Decode)]
-#[cbor(transparent)]
+#[cbor(
+    naked,
+    decode_bound = "D: tinycbor::Decode<'_>",
+    encode_bound = "D: tinycbor::Encode",
+    len_bound = "D: tinycbor::CborLen"
+)]
 pub struct ProposeVersions<D>(pub VersionTable<D>);
 
-impl<D> Message for ProposeVersions<D>
-where
-    D: Encode<()> + for<'a> Decode<'a, ()> + 'static,
-{
+impl<D> Message for ProposeVersions<D> {
     const SIZE_LIMIT: usize = 5760;
-    const TAG: u8 = 0;
+    const TAG: u64 = 0;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Confirm<D>;
 }
 
-#[derive(Debug)]
-pub struct AcceptVersion<D>(pub Version, pub D);
+mod accept_version {
+    use super::*;
 
-impl<C, D: Encode<C>> Encode<C> for AcceptVersion<D> {
-    fn encode<W: encode::Write>(
-        &self,
-        e: &mut Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        e.u16(self.0)?;
-        e.encode_with(&self.1, ctx)?.ok()
-    }
+    #[derive(Debug, Encode, Decode, CborLen)]
+    #[cbor(
+        naked,
+        decode_bound = "D: tinycbor::Decode<'_>",
+        encode_bound = "D: tinycbor::Encode",
+        len_bound = "D: tinycbor::CborLen"
+    )]
+    pub struct AcceptVersion<D>(pub Version, pub D);
 }
+pub use accept_version::AcceptVersion;
 
-impl<'a, C, D: Decode<'a, C>> Decode<'a, C> for AcceptVersion<D> {
-    fn decode(d: &mut minicbor::Decoder<'a>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        Ok(Self(d.u16()?, d.decode_with(ctx)?))
-    }
-}
-
-impl<D> Message for AcceptVersion<D>
-where
-    D: Encode<()> + for<'a> Decode<'a, ()> + 'static,
-{
+impl<D> Message for AcceptVersion<D> {
     const SIZE_LIMIT: usize = 5760;
-    const TAG: u8 = 1;
+    const TAG: u64 = 1;
     const ELEMENT_COUNT: u64 = 2;
 
     type ToState = Done;
 }
 
-#[derive(Debug, Encode, Decode)]
-#[cbor(transparent)]
+#[derive(Debug, Encode, Decode, CborLen)]
+#[cbor(naked)]
 pub struct Refuse<'a>(pub RefuseReason<'a>);
 
 impl Message for Refuse<'static> {
     const SIZE_LIMIT: usize = 5760;
-    const TAG: u8 = 2;
+    const TAG: u64 = 2;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Done;
 }
 
-#[derive(Debug, Encode, Decode)]
-#[cbor(transparent)]
-pub struct QueryReply<VD>(pub VersionTable<VD>);
+#[derive(Debug, Encode, Decode, CborLen)]
+#[cbor(naked, decode_bound = "D: tinycbor::Decode<'_>")]
+pub struct QueryReply<D>(pub VersionTable<D>);
 
-impl<D> Message for QueryReply<D>
-where
-    D: Encode<()> + for<'a> Decode<'a, ()> + 'static,
-{
+impl<D> Message for QueryReply<D> {
     const SIZE_LIMIT: usize = 5760;
-    const TAG: u8 = 3;
+    const TAG: u64 = 3;
     const ELEMENT_COUNT: u64 = 1;
 
     type ToState = Done;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode, CborLen)]
+#[cbor(naked, decode_bound = "D: tinycbor::Decode<'_>")]
 pub struct VersionTable<D> {
     pub versions: Vec<(Version, D)>,
 }
 
-impl<C, D> Encode<C> for VersionTable<D>
-where
-    D: Encode<C>,
-{
-    fn encode<W: encode::Write>(
-        &self,
-        e: &mut Encoder<W>,
-        ctx: &mut C,
-    ) -> Result<(), encode::Error<W::Error>> {
-        e.map(self.versions.len() as u64)?;
-        for (version, data) in &self.versions {
-            e.u16(*version)?;
-            e.encode_with(data, ctx)?;
+mod node_to_node {
+    use super::*;
+    use tinycbor::{CborLen, Decode, Encode};
+
+    #[derive(Debug, Encode, Decode, CborLen)]
+    pub struct VersionData {
+        pub network_magic: NetworkMagic,
+        pub diffusion_mode: bool,
+        #[cbor(with = "BoolU")]
+        pub peer_sharing: bool,
+        pub query: bool,
+    }
+
+    struct BoolU(bool);
+
+    impl Encode for BoolU {
+        fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
+            (self.0 as u64).encode(e)
         }
-        Ok(())
+    }
+
+    impl Decode<'_> for BoolU {
+        type Error = tinycbor::primitive::Error;
+
+        fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+            let value = u64::decode(d)?;
+            if value == 1 {
+                Ok(Self(true))
+            } else if value == 0 {
+                Ok(Self(false))
+            } else {
+                Err(tinycbor::primitive::Error::InvalidHeader)
+            }
+        }
+    }
+
+    impl CborLen for BoolU {
+        fn cbor_len(&self) -> usize {
+            1
+        }
     }
 }
 
-impl<'a, C, D> Decode<'a, C> for VersionTable<D>
-where
-    D: Decode<'a, C>,
-{
-    fn decode(d: &mut minicbor::Decoder<'a>, ctx: &mut C) -> Result<Self, minicbor::decode::Error> {
-        let versions: Vec<(u16, D)> = d.map_iter_with(ctx)?.collect::<Result<_, _>>()?;
-        Ok(Self { versions })
+mod node_to_client {
+    use super::*;
+
+    #[derive(Debug, Encode, Decode)]
+    pub struct VersionData {
+        pub network_magic: NetworkMagic,
+        pub query: bool,
     }
 }
 
-#[derive(Debug, Encode, Decode)]
-pub struct NodeToNodeVersionData {
-    #[n(0)]
-    pub network_magic: NetworkMagic,
-    #[n(1)]
-    pub diffusion_mode: bool,
-    #[n(2)]
-    #[cbor(with = "cbor_util::bool_as_u8")]
-    pub peer_sharing: bool,
-    #[n(3)]
-    pub query: bool,
-}
+mod refuse_reason {
+    use super::*;
 
-#[derive(Debug, Encode, Decode)]
-pub struct NodeToClientVersionData {
-    #[n(0)]
-    pub network_magic: NetworkMagic,
-    #[n(1)]
-    pub query: bool,
+    #[derive(Debug, Encode, Decode)]
+    pub enum RefuseReason<'a> {
+        #[n(0)]
+        VersionMismatch(Vec<Version>),
+        #[n(1)]
+        HandshakeDecodeError(Version, &'a str),
+        #[n(2)]
+        Refused(Version, &'a str),
+    }
 }
-
-#[derive(Debug, Encode, Decode)]
-#[cbor(flat)]
-pub enum RefuseReason<'a> {
-    #[n(0)]
-    VersionMismatch(#[n(0)] Vec<Version>),
-    #[n(1)]
-    HandshakeDecodeError(#[n(0)] Version, #[n(1)] Cow<'a, str>),
-    #[n(2)]
-    Refused(#[n(0)] Version, #[n(1)] Cow<'a, str>),
-}
+pub use refuse_reason::RefuseReason;
 
 pub type Version = u16;

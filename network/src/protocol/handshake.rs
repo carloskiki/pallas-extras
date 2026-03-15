@@ -1,4 +1,3 @@
-use minicbor::{Decode, Encode};
 use state::{Confirm, Propose};
 
 use crate::{
@@ -28,19 +27,13 @@ impl<T> PartialEq for Handshake<T> {
 
 impl<T> Eq for Handshake<T> {}
 
-impl<VD> Default for Handshake<VD>
-where
-    VD: Encode<()> + for<'a> Decode<'a, ()> + 'static,
-{
+impl<VD> Default for Handshake<VD> {
     fn default() -> Self {
         Self(std::marker::PhantomData)
     }
 }
 
-impl<VD> MiniProtocol for Handshake<VD>
-where
-    VD: Encode<()> + for<'a> Decode<'a, ()> + 'static,
-{
+impl<VD> MiniProtocol for Handshake<VD> {
     const NUMBER: u16 = 0;
     const READ_BUFFER_SIZE: usize = 1;
 

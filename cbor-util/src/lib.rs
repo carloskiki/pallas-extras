@@ -24,8 +24,8 @@ pub use net::{Ipv4Addr, Ipv6Addr};
 pub mod option;
 pub use option::Array;
 
-pub mod set;
-pub use set::Set;
+pub mod indefinite;
+pub use indefinite::Indefinite;
 
 pub type ExtendedVerifyingKey<'a> = Bytes<'a, bip32::ExtendedVerifyingKey>;
 pub type VerifyingKey<'a> = Bytes<'a, ed25519_dalek::pkcs8::PublicKeyBytes>;
