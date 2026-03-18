@@ -1,8 +1,8 @@
+use super::mini_protocol::MiniProtocol;
 use crate::typefu::{
     coproduct::{CNil, Coproduct},
     map::{HMap, Identity, TypeMap},
 };
-use super::mini_protocol::MiniProtocol;
 
 pub trait Protocol: Eq + Copy + Sized + Send + 'static {
     fn from_number(number: u16) -> Option<Self>;
@@ -17,7 +17,7 @@ where
 {
     fn from_number(number: u16) -> Option<Self> {
         Coproduct::<S, CNil>::from_number(number)
-            .map(Coproduct::Inl)
+            .map(|Coproduct::Inl(s)| Coproduct::Inl(s))
             .or_else(|| Tail::from_number(number).map(Coproduct::Inr))
     }
 

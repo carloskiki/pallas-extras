@@ -1,12 +1,8 @@
-use futures::{
-    FutureExt, SinkExt, StreamExt,
-    channel::mpsc::{Sender, UnboundedReceiver, UnboundedSender},
-    select,
-};
-
+use super::{MiniProtocolSendBundle, MuxError};
 use crate::{
+    mux::{Request, Response},
     traits::{
-        message::Message,
+        message::{Message, encode_message},
         mini_protocol::{self, MiniProtocol},
         protocol::Protocol,
         state::{self, Agency, State},
@@ -17,64 +13,48 @@ use crate::{
         map::{CMap, TypeMap},
     },
 };
-
-use super::{
-    MiniProtocolSendBundle, MuxError, ProtocolSendBundle, SendBundle, TaskHandle,
-};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 #[allow(private_bounds)]
-pub struct Client<P, MP, S>
+pub struct Client<P, S>
 where
     P: Protocol,
-    MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>,
-    CMap<MiniProtocolSendBundle>: TypeMap<P>,
+    S: State,
 {
-    pub(super) task_handle: TaskHandle,
-    pub(super) request_sender: Sender<ProtocolSendBundle<P>>,
-    pub(super) response_sender: UnboundedSender<mini_protocol::Message<MP>>,
-    pub(super) response_receiver: UnboundedReceiver<mini_protocol::Message<MP>>,
-    pub(super) _state: S,
+    request_sender: Sender<Request<P>>,
+    response_sender: Sender<Response>,
+    response_receiver: Receiver<Response>,
+    _state: S,
 }
 
-#[allow(private_bounds)]
-impl<P, MP, S> Client<P, MP, S>
+impl<P, S> Client<P, S>
 where
     P: Protocol,
-    MP: MiniProtocol,
     S: State<Agency = state::Client>,
-    CMap<state::Message>: TypeMap<MP::States>,
-    CMap<MiniProtocolSendBundle>: TypeMap<P>,
 {
-    pub async fn send<M, IM, IS, IMP>(
-        mut self,
-        message: M,
-    ) -> Result<Client<P, MP, M::ToState>, MuxError>
+    pub async fn send<M, IM>(mut self, message: &M) -> Option<Client<P, M::ToState>>
     where
         M: Message,
         S::Message: CoprodInjector<M, IM>,
-        mini_protocol::Message<MP>: CoprodInjector<S::Message, IS>,
-        ProtocolSendBundle<P>: CoprodInjector<SendBundle<MP>, IMP>,
     {
         // If the agency goes to the server, send a response_sender along to receive responses.
         let send_back =
             <<M::ToState as State>::Agency as Agency>::SERVER.then(|| self.response_sender.clone());
+        // TODO: Buffer pool.
+        let mut encoded_message = Vec::new();
+        encode_message(message, &mut encoded_message);
 
-        let state_message = S::Message::inject(message);
-        let mini_protocol_message = mini_protocol::Message::<MP>::inject(state_message);
-        let bundle = SendBundle {
-            message: mini_protocol_message,
-            send_back,
-        };
+        self.request_sender
+            .send(Request {
+                message: encoded_message,
+                protocol: todo!(), // We need to store the protocol value for this somewhere, or derive
+                // it from the mini-protocol (in which case we need MP type param).
+                send_back,
+            })
+            .await
+            .ok()?;
 
-        let protocol_bundle = ProtocolSendBundle::<P>::inject(bundle);
-
-        if (self.request_sender.feed(protocol_bundle).await).is_err() {
-            return Err(self.task_handle.expect_err());
-        }
-
-        Ok(Client {
-            task_handle: self.task_handle,
+        Some(Client {
             request_sender: self.request_sender,
             response_sender: self.response_sender,
             response_receiver: self.response_receiver,
@@ -84,32 +64,18 @@ where
 }
 
 #[allow(private_bounds)]
-impl<P, MP, S> Client<P, MP, S>
+impl<P, S> Client<P, S>
 where
     P: Protocol,
-    MP: MiniProtocol,
-    S: State<Agency = state::Server>,
-    CMap<state::Message>: TypeMap<MP::States>,
-    CMap<MiniProtocolSendBundle>: TypeMap<P>,
-    CMap<MessageClientPair<P, MP, S>>: FuncOnce<S::Message>,
-{
-    #[allow(private_interfaces)]
-    pub async fn receive<IS>(mut self) -> Result<NextClient<P, MP, S>, MuxError>
+    S: State<Agency = state::Server>, {
+    pub async fn receive<IS>(mut self) -> Option<NextClient<P, S>>
     where
         mini_protocol::Message<MP>: CoprodUninjector<S::Message, IS>,
     {
-        select! {
-            received = self.response_receiver.next() => {
-                let Some(received) = received else {
-                    return Err(self.task_handle.expect_err());
-                };
-                let state_message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
-                Ok(CMap(MessageClientPair { client: self }).call_once(state_message))
-            },
-            err = (&self.task_handle).fuse() => {
-                Err(err)
-            }
-        }
+        let message = self.response_receiver.recv().await?;
+        let state_message = received.uninject().or(Err(MuxError::InvalidPeerMessage))?;
+            Ok(CMap(MessageClientPair { client: self }).call_once(state_message))
+        },
     }
 }
 

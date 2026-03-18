@@ -12,11 +12,11 @@ use tx_submission::TxSubmission;
 
 use crate::typefu::coproduct::Coprod;
 
-use super::handshake::{Handshake, message::NodeToNodeVersionData};
+use super::handshake::{Handshake, message::node_to_node::VersionData};
 
 /// The node-to-node protocol.
 pub type NodeToNode = Coprod![
-    Handshake<NodeToNodeVersionData>,
+    Handshake<VersionData>,
     ChainSync,
     BlockFetch,
     TxSubmission,

@@ -57,7 +57,12 @@ impl Message for Refuse<'static> {
 }
 
 #[derive(Debug, Encode, Decode, CborLen)]
-#[cbor(naked, decode_bound = "D: tinycbor::Decode<'_>")]
+#[cbor(
+    naked,
+    decode_bound = "D: tinycbor::Decode<'_>",
+    encode_bound = "D: tinycbor::Encode",
+    len_bound = "D: tinycbor::CborLen"
+)]
 pub struct QueryReply<D>(pub VersionTable<D>);
 
 impl<D> Message for QueryReply<D> {
@@ -69,12 +74,17 @@ impl<D> Message for QueryReply<D> {
 }
 
 #[derive(Debug, Encode, Decode, CborLen)]
-#[cbor(naked, decode_bound = "D: tinycbor::Decode<'_>")]
+#[cbor(
+    naked,
+    decode_bound = "D: tinycbor::Decode<'_>",
+    encode_bound = "D: tinycbor::Encode",
+    len_bound = "D: tinycbor::CborLen"
+)]
 pub struct VersionTable<D> {
     pub versions: Vec<(Version, D)>,
 }
 
-mod node_to_node {
+pub(crate) mod node_to_node {
     use super::*;
     use tinycbor::{CborLen, Decode, Encode};
 
@@ -87,7 +97,21 @@ mod node_to_node {
         pub query: bool,
     }
 
+    #[repr(transparent)]
     struct BoolU(bool);
+
+    impl From<BoolU> for bool {
+        fn from(value: BoolU) -> Self {
+            value.0
+        }
+    }
+
+    impl<'a> From<&'a bool> for &'a BoolU {
+        fn from(value: &bool) -> Self {
+            // Safety: `BoolU` is a transparent wrapper around `bool`.
+            unsafe { &*(value as *const bool as *const BoolU) }
+        }
+    }
 
     impl Encode for BoolU {
         fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
@@ -117,7 +141,7 @@ mod node_to_node {
     }
 }
 
-mod node_to_client {
+pub(crate) mod node_to_client {
     use super::*;
 
     #[derive(Debug, Encode, Decode)]
@@ -130,7 +154,7 @@ mod node_to_client {
 mod refuse_reason {
     use super::*;
 
-    #[derive(Debug, Encode, Decode)]
+    #[derive(Debug, Clone, Encode, Decode, CborLen)]
     pub enum RefuseReason<'a> {
         #[n(0)]
         VersionMismatch(Vec<Version>),

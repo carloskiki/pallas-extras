@@ -3,33 +3,24 @@
 //! The type requirements for the [`mux`] function may seem daunting, but the function's
 //! documentation is quite clear.
 
+// INVARIANT: The client must not keep agency after sending a message.
 
 use std::{
     collections::VecDeque,
     convert::Infallible,
-    error::Error,
-    fmt::Display,
     io,
-    sync::{Arc, Mutex},
-    task::{ready, Poll},
+    sync::{Arc, Mutex, mpsc::Sender},
+    task::{Poll, ready},
 };
 
+use bytes::Bytes;
 use client::Client;
-use futures::{
-    AsyncRead, AsyncWrite, FutureExt,
-    channel::mpsc::{Receiver, Sender, UnboundedSender},
-    future::RemoteHandle,
-    task::{Spawn, SpawnError, SpawnExt},
-};
 use server::Server;
-use task::{
-    BundleRef, MessageFromAgency, ProcessBundle, ProcessMessage, ReaderZipped, WriterZipped,
-};
 
 use crate::{
     traits::{
         mini_protocol::{self, MiniProtocol},
-        protocol::{self, Protocol, UnknownProtocol},
+        protocol::{self, Protocol},
         state,
     },
     typefu::{
@@ -50,72 +41,39 @@ pub mod server;
 mod task;
 
 /// Errors that can occur while using the multiplexer.
-#[derive(Debug)]
-pub enum MuxError {
-    /// An IO error occurred.
-    Io(io::Error),
-    /// The message received contained an unknown protocol.
-    Protocol(UnknownProtocol),
-    /// An error occurred while decoding a message.
-    Decode(minicbor::decode::Error),
-    /// An error occurred while encoding a message.
-    Encode(minicbor::encode::Error<Infallible>),
-    /// The peer sent a message that is invalid for the current state.
-    InvalidPeerMessage,
-    /// The error was already caught by another handle.
-    AlreadyCaught,
-    /// The sender or receiver from a `Server` or `Client` handle was dropped.
-    HandleDropped,
+#[derive(Debug, thiserror::Error, displaydoc::Display)]
+pub enum MuxError<P> {
+    /// IO error
+    Io(#[from] io::Error),
+    /// receive message for an unknown protocol
+    UnknownProtocol(u16),
+    /// received malformed message from a peer
+    Malformed(Box<[u8]>),
+    /// received a message that we weren't expecting in this state
+    UnexpectedMessage(Box<[u8]>),
+    /// receiving buffer for {protocol}[server: {server}] is full
+    Full {
+        protocol: P,
+        server: bool,
+    },
 }
 
-impl From<io::Error> for MuxError {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
+impl<P> From<u16> for MuxError<P> {
+    fn from(value: u16) -> Self {
+        MuxError::UnknownProtocol(value)
     }
 }
 
-impl From<UnknownProtocol> for MuxError {
-    fn from(e: UnknownProtocol) -> Self {
-        Self::Protocol(e)
-    }
+struct Request<P> {
+    message: Vec<u8>,
+    protocol: P,
+    send_back: Option<Sender<Response>>,
 }
 
-impl From<minicbor::decode::Error> for MuxError {
-    fn from(e: minicbor::decode::Error) -> Self {
-        Self::Decode(e)
-    }
+struct Response {
+    message: Bytes,
+    timestamp: std::time::Duration,
 }
-
-impl From<minicbor::encode::Error<Infallible>> for MuxError {
-    fn from(e: minicbor::encode::Error<Infallible>) -> Self {
-        Self::Encode(e)
-    }
-}
-
-impl Display for MuxError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(e) => write!(f, "IO error: {}", e),
-            Self::Protocol(e) => write!(f, "Unknown protocol: {}", e),
-            Self::Decode(e) => write!(f, "Decode error: {}", e),
-            Self::Encode(e) => write!(f, "Encode error: {}", e),
-            Self::AlreadyCaught => {
-                write!(f, "The MUX task error was already caught by another handle")
-            }
-            Self::InvalidPeerMessage => {
-                write!(f, "Peer sent a message invalid for the current state")
-            }
-            Self::HandleDropped => {
-                write!(
-                    f,
-                    "A `Server` or `Client` handle was dropped while it was still awaiting messages."
-                )
-            }
-        }
-    }
-}
-
-impl Error for MuxError {}
 
 /// Create a multiplexer for the given protocol.
 ///
@@ -141,7 +99,7 @@ impl Error for MuxError {}
 /// of `(Client, Server)` pairs. Each [`Client`] and [`Server`] to the spawned mux task.
 ///
 /// ## Example
-/// 
+///
 /// Using the `NodeToNode` protocol:
 /// ```
 /// use network::{hlist_pat, mux, protocol::NodeToNode};
@@ -150,7 +108,7 @@ impl Error for MuxError {}
 ///
 /// let stream = TcpStream::connect("preview-node.play.dev.cardano.org:3001").unwrap();
 /// let pool = LocalPool::new();
-/// 
+///
 /// let hlist_pat![(handshake_client, _), (chain_sync_client, _), ...] =
 ///     mux::<NodeToNode>(AllowStdIo::new(stream), &pool.spawner()).unwrap();
 /// ```
@@ -336,14 +294,11 @@ where
     }
 }
 
-struct TaskState<MP>
-where
-    MP: MiniProtocol,
-    CMap<state::Message>: TypeMap<MP::States>,
-{
-    server_send_back: Sender<mini_protocol::Message<MP>>,
-    client_send_backs: VecDeque<UnboundedSender<mini_protocol::Message<MP>>>,
+struct TaskState {
+    server_send_back: Sender<Box<[u8]>>,
+    client_send_backs: VecDeque<Sender<Box<[u8]>>>,
 }
+
 enum MiniProtocolTaskState {}
 impl<MP> TypeMap<MP> for MiniProtocolTaskState
 where
@@ -368,7 +323,9 @@ impl TaskHandle {
         let Some(ref mut handle) = *opt else {
             return MuxError::AlreadyCaught;
         };
-        let Poll::Ready(Err(e)) = handle.poll_unpin(&mut std::task::Context::from_waker(std::task::Waker::noop())) else {
+        let Poll::Ready(Err(e)) =
+            handle.poll_unpin(&mut std::task::Context::from_waker(std::task::Waker::noop()))
+        else {
             panic!("Expected the task to error but it did not");
         };
         e

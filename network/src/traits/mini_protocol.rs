@@ -7,7 +7,7 @@ use super::{
     state,
 };
 
-pub trait MiniProtocol: Default /* + 'static */ {
+pub trait MiniProtocol: Default {
     const NUMBER: u16;
     const READ_BUFFER_SIZE: usize;
 

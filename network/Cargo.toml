@@ -9,7 +9,10 @@ tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
 zerocopy = { workspace = true }
 
-futures = "0.3"
+hybrid-array = { workspace = true }
+tokio = { version = "1.50.0", features = ["sync", "io-util", "macros"] }
+tokio-stream = "0.1.18"
+bytes = "1.11.1"
 ledger = { path = "../ledger" }
 thiserror = { workspace = true }
 displaydoc = { workspace = true }

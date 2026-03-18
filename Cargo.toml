@@ -17,7 +17,7 @@ members = [
 
 # CBOR
 cbor-util = { path = "cbor-util" }
-tinycbor = "0.11.0"
+tinycbor = "0.11.2"
 tinycbor-derive = "0.15.1"
 
 # Crypto Traits

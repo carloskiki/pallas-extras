@@ -12,9 +12,9 @@ impl<P> TryFrom<[u8; 8]> for Header<P>
 where
     P: Protocol,
 {
-    type Error = ();
+    type Error = u16;
 
-    fn try_from(value: [u8; 8]) -> std::result::Result<Self, ()> {
+    fn try_from(value: [u8; 8]) -> std::result::Result<Self, u16> {
         let [timestamp, rest]: [[u8; 4]; 2] = transmute!(value);
         let [protocol, payload_len]: [[u8; 2]; 2] = transmute!(rest);
 
@@ -56,11 +56,12 @@ impl<P> TryFrom<u16> for ProtocolNumber<P>
 where
     P: Protocol,
 {
-    type Error = ();
+    type Error = u16;
 
-    fn try_from(value: u16) -> std::result::Result<Self, ()> {
+    fn try_from(value: u16) -> std::result::Result<Self, u16> {
         let responder = value & 0x8000 != 0;
-        let protocol = P::from_number(value & 0x7FFF)?;
+        let value = value & 0x7FFF;
+        let protocol = P::from_number(value).ok_or(value)?;
 
         Ok(Self {
             server_sent: responder,

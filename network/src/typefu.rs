@@ -29,6 +29,7 @@ pub mod hlist;
 pub mod index;
 pub(crate) mod map;
 pub(crate) mod constructor;
+pub(crate) mod array;
 
 /// An alternative to `AsRef` that does not force the reference type to be a pointer itself.
 ///
