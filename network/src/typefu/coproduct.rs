@@ -2,8 +2,6 @@
 //!
 //! Think of "Coproduct" as ad-hoc enums.
 
-use std::{ops::DerefMut, pin::Pin};
-
 use super::{
     ToMut, ToRef,
     index::{Here, There},
@@ -69,24 +67,6 @@ where
 {
     fn default() -> Self {
         Coproduct::Inl(Head::default())
-    }
-}
-
-impl<Head, Tail> Future for Coproduct<Head, Tail>
-where
-    Head: Future + Unpin,
-    Tail: Future<Output = Head::Output> + Unpin,
-{
-    type Output = Head::Output;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        match self.deref_mut() {
-            Coproduct::Inl(l) => Pin::new(l).poll(cx),
-            Coproduct::Inr(r) => Pin::new(r).poll(cx),
-        }
     }
 }
 
@@ -271,9 +251,7 @@ pub(crate) use Coprod;
 
 #[cfg(test)]
 mod tests {
-
     use super::Coproduct::*;
-    use super::*;
 
     #[test]
     fn coproduct_inject() {

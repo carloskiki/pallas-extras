@@ -1,13 +1,9 @@
-use crate::typefu::{
-    coproduct::CNil,
-    map::TypeMap,
-};
+use crate::typefu::coproduct::CNil;
 
 pub trait State: Default {
     const TIMEOUT: std::time::Duration;
 
     type Agency: Agency;
-    #[allow(private_bounds)]
     type Message;
 }
 
@@ -25,27 +21,14 @@ impl Agency for Server {
     const SERVER: bool = true;
 }
 
-// TODO: is this needed?
-pub enum AgencyDone {}
-impl Agency for AgencyDone {
-    const SERVER: bool = false;
-}
-
 #[derive(Default)]
 pub struct Done;
 
 impl State for Done {
     const TIMEOUT: std::time::Duration = std::time::Duration::MAX;
 
-    type Agency = AgencyDone;
-
+    // Final agency goes to the client, so that the `client_send_back` is dropped if the server
+    // sends a message that transitions to this state.
+    type Agency = Client;
     type Message = CNil;
-}
-
-pub enum Message {}
-impl<S> TypeMap<S> for Message
-where
-    S: State,
-{
-    type Output = S::Message;
 }

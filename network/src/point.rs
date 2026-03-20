@@ -26,14 +26,10 @@ pub enum Point {
 
 #[derive(Debug, Display, Error)]
 pub enum Error {
-    /// while decoding point
-    Malformed(#[from] primitive::Error),
     /// while decoding the point's slot
-    BlockSlot(primitive::Error),
+    BlockSlot(#[from] primitive::Error),
     /// while decoding the point's hash
     BlockHash(#[from] container::Error<bounded::Error<std::convert::Infallible>>),
-    /// surplus elements in point structure
-    Surplus,
 }
 
 impl Encode for Point {
@@ -41,7 +37,7 @@ impl Encode for Point {
         if let Point::Block { slot, hash } = self {
             e.array(2)?;
             slot.encode(e)?;
-            hash.encode(e)?;
+            hash.encode(e)
         } else {
             e.array(0)
         }
@@ -49,20 +45,27 @@ impl Encode for Point {
 }
 
 impl Decode<'_> for Point {
-    type Error = Error;
+    type Error = container::Error<bounded::Error<Error>>;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         let mut visitor = d.array_visitor()?;
         if visitor.remaining() == Some(0) {
-            Ok(Point::Genesis)
+            return Ok(Point::Genesis);
         }
         let ret = Self::Block {
-            slot: Decode::decode(d).map_err(Error::BlockSlot)?,
-            hash: Decode::decode(d)?,
+            slot: visitor
+                .visit()
+                .ok_or(bounded::Error::Missing)?
+                .map_err(|e| bounded::Error::Content(Error::BlockSlot(e)))?,
+            hash: visitor
+                .visit()
+                .ok_or(bounded::Error::Missing)?
+                .map_err(|e| bounded::Error::Content(Error::BlockHash(e)))?,
         };
         if visitor.remaining() != Some(0) {
-            return Error::Surplus;
+            return Err(bounded::Error::Surplus.into());
         }
+        Ok(ret)
     }
 }
 

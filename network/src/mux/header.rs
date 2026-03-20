@@ -1,9 +1,13 @@
 use crate::traits::protocol::Protocol;
 use zerocopy::transmute;
 
+/// The lower 32 bits of the peer's monotonic clock, representing microseconds.
+#[derive(Debug, Clone, Copy)]
+pub struct Timestamp(pub u32);
+
 #[derive(Debug, Clone, Copy)]
 pub struct Header<T> {
-    pub timestamp: u32,
+    pub timestamp: Timestamp,
     pub protocol: ProtocolNumber<T>,
     pub payload_len: u16,
 }
@@ -23,7 +27,7 @@ where
         let payload_len = u16::from_be_bytes(payload_len);
 
         Ok(Self {
-            timestamp,
+            timestamp: Timestamp(timestamp),
             protocol,
             payload_len,
         })
@@ -40,7 +44,7 @@ where
             protocol_value.to_be_bytes(),
             value.payload_len.to_be_bytes()
         ]);
-        let timestamp: [u8; 4] = value.timestamp.to_be_bytes();
+        let timestamp: [u8; 4] = value.timestamp.0.to_be_bytes();
 
         transmute!([timestamp, protocol_and_payload_len])
     }

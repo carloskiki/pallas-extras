@@ -100,12 +100,20 @@ mod request_transaction_ids {
 }
 pub use request_transaction_ids::RequestTransactionIds;
 
-impl<const B: bool> Message for RequestTransactionIds<B> {
+impl Message for RequestTransactionIds<false> {
     const SIZE_LIMIT: usize = 5760;
     const TAG: u64 = 0;
     const ELEMENT_COUNT: u64 = 3;
 
-    type ToState = TransactionIds<B>;
+    type ToState = TransactionIds<false>;
+}
+
+impl Message for RequestTransactionIds<true> {
+    const SIZE_LIMIT: usize = 5760;
+    const TAG: u64 = 0;
+    const ELEMENT_COUNT: u64 = 3;
+
+    type ToState = TransactionIds<true>;
 }
 
 mod reply_transaction_ids {
@@ -146,17 +154,17 @@ mod reply_transaction_ids {
     }
 
     impl<'a> Decode<'a> for ReplyTransactionIds<'a> {
-        type Error = container::Error<Error>;
+        type Error = <Codec<'a> as Decode<'a>>::Error;
 
-        fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+        fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
             let mut ids = Vec::new();
             let mut visitor = d.array_visitor()?;
             if visitor.definite() {
                 return Err(container::Error::Malformed(primitive::Error::InvalidHeader));
             }
 
-            while let Some(codec) = visitor.visit::<Codec<'a>>()? {
-                let Codec { transaction, size } = Codec::decode(d)?;
+            while let Some(codec) = visitor.visit::<Codec<'a>>() {
+                let Codec { transaction, size } = codec?;
                 ids.push((transaction, size));
             }
             Ok(Self(ids))

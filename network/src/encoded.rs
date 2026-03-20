@@ -1,6 +1,7 @@
-use displaydoc::Display;
-use thiserror::Error;
+use bytes::Bytes;
 use tinycbor::Decode;
+
+use crate::typefu::map::TypeMap;
 
 /// `T` encoded as cbor bytes.
 ///
@@ -8,8 +9,8 @@ use tinycbor::Decode;
 /// on their encoding. Peers might encode values in a slightly different way that is
 /// still considered valid, yielding different hashes for the same data.
 pub struct Encoded<T> {
-    pub bytes: Box<[u8]>,
-    _phantom: std::marker::PhantomData<T>,
+    pub bytes: Bytes,
+    pub(crate) _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T> Encoded<T> {
@@ -19,17 +20,18 @@ impl<T> Encoded<T> {
         T: Decode<'a>,
     {
         let mut d = tinycbor::Decoder(&self.bytes);
-        let value = T::decode(d)?;
+        let value = T::decode(&mut d)?;
         if d.0.len() != 0 {
             return Err(Error::Trailing);
         }
+        Ok(value)
     }
 }
 
-#[derive(Debug, Display, Error)]
+#[derive(Debug, displaydoc::Display, thiserror::Error)]
 pub enum Error<E> {
-    /// Error while decoding vlaue.
+    /// error while decoding value
     Value(#[from] E),
-    /// Encoded value contains trailing content.
+    /// encoded value contains trailing content
     Trailing,
 }

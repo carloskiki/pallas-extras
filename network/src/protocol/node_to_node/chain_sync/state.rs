@@ -52,5 +52,5 @@ impl State for MustReply {
 
     type Agency = Server;
 
-    type Message = Coprod![RollForward, RollBackward];
+    type Message = Coprod![RollForward<'static>, RollBackward];
 }

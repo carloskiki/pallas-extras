@@ -35,7 +35,7 @@ mod share_peers {
 
     impl Encode for SharePeers {
         fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-            e.array(self.peers.len() as u64)?;
+            e.array(self.peers.len())?;
             for peer in self.peers.iter() {
                 SocketCodec::from(peer).encode(e)?;
             }
@@ -44,7 +44,7 @@ mod share_peers {
     }
 
     impl Decode<'_> for SharePeers {
-        type Error = tinycbor::container::Error<Error>;
+        type Error = <SocketCodec as Decode<'static>>::Error;
 
         fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
             let mut visitor = d.array_visitor()?;
@@ -54,6 +54,7 @@ mod share_peers {
                 let peer_codec = peer_codec?;
                 peers.push(SocketAddr::from(peer_codec));
             }
+            Ok(SharePeers { peers })
         }
     }
 

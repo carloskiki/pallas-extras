@@ -34,8 +34,11 @@ impl Tip {
                 hash,
                 block_number,
             } => Codec {
-                block_number,
-                point: Point::Block { slot, hash },
+                block_number: *block_number,
+                point: Point::Block {
+                    slot: *slot,
+                    hash: *hash,
+                },
             },
         }
     }
@@ -47,12 +50,12 @@ impl Encode for Tip {
     }
 }
 
-impl Decode<'_> for Tip {
-    type Error = Error;
+impl<'a> Decode<'a> for Tip {
+    type Error = <Codec as Decode<'a>>::Error;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         // We don't ensure that the `block_number` of  `Genesis` is `0`.
-        Codec::decode(d).into()
+        Ok(Codec::decode(d)?.into())
     }
 }
 

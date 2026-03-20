@@ -1,7 +1,7 @@
 use crate::byron::transaction;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub enum Id<'a> {
     #[n(0)]
     Byron(&'a transaction::Id),
@@ -20,9 +20,9 @@ pub enum Id<'a> {
 }
 
 mod codec {
-    use tinycbor_derive::{CborLen, Decode, Encode};
     use crate::byron::transaction;
-    
+    use tinycbor_derive::{CborLen, Decode, Encode};
+
     #[derive(Encode, Decode, CborLen)]
     #[repr(transparent)]
     enum Codec<'a> {
