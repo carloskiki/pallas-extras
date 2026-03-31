@@ -1,87 +1,39 @@
-use crate::traits::protocol::Protocol;
-use zerocopy::transmute;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, network_endian::{U16, U32}};
 
-/// The lower 32 bits of the peer's monotonic clock, representing microseconds.
-#[derive(Debug, Clone, Copy)]
-pub struct Timestamp(pub u32);
+/// The lower 32 bits of the peer's monotonic microseconds clock.
+#[derive(Debug, Clone, Copy, Default, FromBytes, IntoBytes, Immutable)]
+#[repr(transparent)]
+pub struct Timestamp(pub U32);
 
-#[derive(Debug, Clone, Copy)]
-pub struct Header<T> {
+impl Timestamp {
+    pub fn elapsed(time: &std::time::Instant) -> Self {
+        Self((time.elapsed().as_micros() as u32).into())
+    }
+}
+
+// TODO: use network order for everything.
+#[derive(Debug, Clone, Copy, FromBytes, IntoBytes, Immutable, KnownLayout)]
+#[repr(C)]
+pub struct Header {
     pub timestamp: Timestamp,
-    pub protocol: ProtocolNumber<T>,
-    pub payload_len: u16,
+    pub protocol: ProtocolNumber,
+    pub payload_len: U16,
 }
 
-impl<P> TryFrom<[u8; 8]> for Header<P>
-where
-    P: Protocol,
-{
-    type Error = u16;
+#[derive(Debug, Clone, Copy, FromBytes, IntoBytes, Immutable)]
+#[repr(transparent)]
+pub struct ProtocolNumber(U16);
 
-    fn try_from(value: [u8; 8]) -> std::result::Result<Self, u16> {
-        let [timestamp, rest]: [[u8; 4]; 2] = transmute!(value);
-        let [protocol, payload_len]: [[u8; 2]; 2] = transmute!(rest);
-
-        let timestamp = u32::from_be_bytes(timestamp);
-        let protocol = ProtocolNumber::<P>::try_from(u16::from_be_bytes(protocol))?;
-        let payload_len = u16::from_be_bytes(payload_len);
-
-        Ok(Self {
-            timestamp: Timestamp(timestamp),
-            protocol,
-            payload_len,
-        })
+impl ProtocolNumber {
+    pub fn new(protocol: u16, server_sent: bool) -> Self {
+        Self((protocol | (server_sent as u16 * 0x8000)).into())
     }
-}
 
-impl<P> From<Header<P>> for [u8; 8]
-where
-    P: Protocol,
-{
-    fn from(value: Header<P>) -> Self {
-        let protocol_value: u16 = value.protocol.into();
-        let protocol_and_payload_len: [u8; 4] = transmute!([
-            protocol_value.to_be_bytes(),
-            value.payload_len.to_be_bytes()
-        ]);
-        let timestamp: [u8; 4] = value.timestamp.0.to_be_bytes();
-
-        transmute!([timestamp, protocol_and_payload_len])
+    pub fn number(&self) -> u16 {
+        u16::from(self.0) & 0x7FFF
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-pub struct ProtocolNumber<T> {
-    pub protocol: T,
-    pub server_sent: bool,
-}
-
-impl<P> TryFrom<u16> for ProtocolNumber<P>
-where
-    P: Protocol,
-{
-    type Error = u16;
-
-    fn try_from(value: u16) -> std::result::Result<Self, u16> {
-        let responder = value & 0x8000 != 0;
-        let value = value & 0x7FFF;
-        let protocol = P::from_number(value).ok_or(value)?;
-
-        Ok(Self {
-            server_sent: responder,
-            protocol,
-        })
-    }
-}
-
-impl<P> From<ProtocolNumber<P>> for u16
-where
-    P: Protocol,
-{
-    fn from(value: ProtocolNumber<P>) -> Self {
-        let responder = if value.server_sent { 0x8000 } else { 0 };
-        let protocol: u16 = value.protocol.number();
-
-        responder | protocol
+    pub fn server_sent(&self) -> bool {
+        self.0 & 0x8000 != 0
     }
 }

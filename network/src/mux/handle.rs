@@ -1,171 +1,108 @@
 use crate::{
-    Encoded,
-    mux::{Egress, Ingress, header::Timestamp},
-    traits::{
-        message::{LazyDecode, Message, encode_message},
-        mini_protocol::{self, MiniProtocol},
-        protocol::Protocol,
-        state::{self, Agency, State},
-    },
-    typefu::{
-        FuncOnce,
-        coproduct::{CoprodInjector, CoprodUninjector},
-        map::{CMap, TypeMap},
-    },
+    Agency, Message, State,
+    agency::{Client, Server},
+    mux::{Egress, Ingress, header::ProtocolNumber, task},
+    state::InitialState,
 };
-use tinycbor::{Decoder, Encode};
-use tokio::sync::mpsc::{Receiver, Sender};
+use bytes::{Bytes, BytesMut};
+use std::marker::PhantomData;
+use tinycbor::Encode;
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
-pub struct Client<P, S> {
-    sender: Sender<Egress<P>>,
-    send_back: Sender<Ingress>,
-    receiver: Receiver<Ingress>,
-    _state: S,
+// TODO:
+// - implement timeouts and size limits.
+
+pub(crate) fn components<S: InitialState>(
+    sender: mpsc::Sender<Egress>,
+) -> (Handle<Client, S>, Handle<Server, S>, task::State) {
+    let (client_send_back, receiver) = mpsc::channel(S::INGRESS_BUFFER_SIZE);
+    let client_handle = Handle {
+        sender: sender.clone(),
+        buffer: BytesMut::new(),
+        receiver,
+        protocol_id: S::PROTOCOL_ID,
+        _phantom: PhantomData,
+    };
+
+    let (server_send_back, receiver) = mpsc::channel(S::INGRESS_BUFFER_SIZE);
+    let server_handle = Handle {
+        sender,
+        buffer: BytesMut::new(),
+        receiver,
+        protocol_id: S::PROTOCOL_ID,
+        _phantom: PhantomData,
+    };
+
+    let state = task::State {
+        read_buffer: BytesMut::new(),
+        read_state: tinycbor::stream::Any::default(),
+        server_send_back,
+        client_send_back,
+    };
+
+    (client_handle, server_handle, state)
 }
 
-impl<P, S> Client<P, S>
-where
-    P: Protocol,
-    S: State<Agency = state::Client>,
-{
-    pub async fn send<M, IM>(self, message: &M) -> Option<Client<P, M::ToState>>
-    where
-        M: Message + Encode,
-        S::Message: CoprodInjector<M, IM>,
-    {
-        // If the agency goes to the server, send a response_sender along to receive responses.
-        let send_back =
-            <<M::ToState as State>::Agency as Agency>::SERVER.then(|| self.send_back.clone());
-        // TODO: Buffer pool.
-        let mut encoded_message = Vec::new();
-        encode_message(message, &mut encoded_message);
+pub struct Handle<A, S> {
+    sender: Sender<Egress>,
+    receiver: Receiver<Ingress>,
+    buffer: BytesMut,
+    protocol_id: u16,
+    _phantom: PhantomData<(S, A)>,
+}
 
-        self.sender
-            .send(Egress {
-                message: encoded_message,
-                protocol: todo!(), // We need to store the protocol value for this somewhere, or derive
-                // it from the mini-protocol (in which case we need MP type param).
-                send_back,
-            })
-            .await
-            .ok()?;
-
-        Some(Client {
+impl<A, S> Handle<A, S> {
+    pub(crate) fn transition<NS>(self) -> Handle<A, NS> {
+        Handle {
             sender: self.sender,
-            send_back: self.send_back,
             receiver: self.receiver,
-            _state: M::ToState::default(),
-        })
+            buffer: self.buffer,
+            protocol_id: self.protocol_id,
+            _phantom: PhantomData,
+        }
     }
 }
 
-#[allow(private_bounds)]
-impl<P, S> Client<P, S>
+impl<A, S> Handle<A, S>
 where
-    P: Protocol,
-    S: State<Agency = state::Server, Message: LazyDecode>,
-    // From `Coproduct<M, ...>` to `Coproduct<Encoded<M>, ...>`.
-    CMap<WrapEncoded>: TypeMap<<S as State>::Message>,
-    // Decode `Coproduct<Encoded<M>, ...>`.
-    <CMap<WrapEncoded> as TypeMap<<S as State>::Message>>::Output: LazyDecode,
-    // From `Coproduct<Encoded<M>, ...>` to `Coproduct<(Encoded<M>, Client<P, M::ToState>), ...>`.
-    CMap<MessageClientPair<P, S>>: FuncOnce<<S as State>::Message>,
+    A: Agency,
+    S: State<Agency = A>,
 {
-    pub async fn receive<IS>(mut self) -> Result<Payload<P, S>, Error> {
+    pub async fn send<M, IM>(mut self, message: &M) -> Option<Handle<A, M::ToState>>
+    where
+        M: Message + Encode,
+    {
+        self.sender
+            .send(Egress::new(
+                message,
+                &mut self.buffer,
+                ProtocolNumber::new(self.protocol_id, A::SERVER),
+            ))
+            .await
+            .ok()?;
+
+        Some(self.transition())
+    }
+}
+
+impl<A, S> Handle<A, S>
+where
+    A: Agency,
+    S: State<Agency = A::Inverse>,
+    S::Message: TryFrom<(u64, Bytes, Self)>,
+{
+    pub async fn receive<IS>(mut self) -> Result<S::Message, Error> {
         let Ingress { message, timestamp } = self.receiver.recv().await.ok_or(Error::Closed)?;
-
-        let mut decoder = Decoder(&message);
-        let mut visitor = decoder.array_visitor().map_err(|_| Error::Malformed)?;
-        let tag: u64 = visitor
-            .visit()
-            .ok_or(Error::Malformed)?
-            .map_err(|_| Error::Malformed)?;
-        if !visitor.definite() {
-            decoder.0 = decoder
-                .0
-                .split_last()
-                .expect(
-                    "message is guaranteed to be valid CBOR as received \
-                    - if the array is indefinite, there is a break byte at the end",
-                )
-                .1
-        }
-        let message = message.slice_ref(decoder.0);
-        let message_coproduct = LazyDecode::lazy_decode(message, tag).ok_or(Error::InvalidTag)?;
-
-        Ok(Payload {
-            timestamp,
-            message: CMap(MessageClientPair { client: self }).call_once(message_coproduct),
-        })
+        // TODO: get tag from message.
+        let tag = todo!();
+        S::Message::try_from((tag, message, self)).map_err(|_| Error::InvalidTag)
     }
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]
 pub enum Error {
-    /// message is valid CBOR but doesn't match the expected structure
-    Malformed,
     /// the tag of the message is invalid
     InvalidTag,
     /// worker has been shut down
     Closed,
-}
-
-#[allow(private_bounds)]
-pub struct Payload<P, S: State>
-where
-    CMap<MessageClientPair<P, S>>: TypeMap<<S as State>::Message>,
-{
-    pub timestamp: Timestamp,
-    #[allow(private_interfaces)]
-    pub message: NextClient<P, S>,
-}
-
-type NextClient<P, S> = <CMap<MessageClientPair<P, S>> as TypeMap<<S as State>::Message>>::Output;
-
-/// Wrap a something into `Encoded` type.
-enum WrapEncoded {}
-impl<T> TypeMap<T> for WrapEncoded {
-    type Output = Encoded<T>;
-}
-
-
-struct MessageClientPair<P, S>
-where
-    S: State,
-{
-    client: Client<P, S>,
-}
-impl<P, S, M> TypeMap<Encoded<M>> for MessageClientPair<P, S>
-where
-    M: Message,
-    S: State,
-{
-    type Output = (Encoded<M>, Client<P, M::ToState>);
-}
-impl<P, S, M> FuncOnce<Encoded<M>> for MessageClientPair<P, S>
-where
-    M: Message,
-    S: State,
-{
-    fn call_once(self, input: Encoded<M>) -> Self::Output {
-        let MessageClientPair {
-            client:
-                Client {
-                    receiver: response_receiver,
-                    send_back: response_sender,
-                    sender: request_sender,
-                    ..
-                },
-        } = self;
-
-        (
-            input,
-            Client {
-                send_back: response_sender,
-                receiver: response_receiver,
-                sender: request_sender,
-                _state: M::ToState::default(),
-            },
-        )
-    }
 }

@@ -1,4 +1,4 @@
-use tinycbor::{CborLen, Decode, Encode};
+use tinycbor::{CborLen, Decode, Encode, container::{self, bounded}};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::point::Point;
@@ -23,7 +23,7 @@ pub enum Tip {
 }
 
 impl Tip {
-    fn to_codec(&self) -> Codec {
+    fn to_codec(self) -> Codec {
         match self {
             Tip::Genesis => Codec {
                 block_number: 0,
@@ -34,10 +34,10 @@ impl Tip {
                 hash,
                 block_number,
             } => Codec {
-                block_number: *block_number,
+                block_number,
                 point: Point::Block {
-                    slot: *slot,
-                    hash: *hash,
+                    slot,
+                    hash,
                 },
             },
         }
@@ -51,7 +51,7 @@ impl Encode for Tip {
 }
 
 impl<'a> Decode<'a> for Tip {
-    type Error = <Codec as Decode<'a>>::Error;
+    type Error = container::Error<bounded::Error<Error>>;
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         // We don't ensure that the `block_number` of  `Genesis` is `0`.

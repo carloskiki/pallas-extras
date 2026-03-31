@@ -19,6 +19,13 @@ not support partial cost models for cek machine steps.
 
 ## Available Optimizations
 
+### Major
+
+Make `Instructions` a fieldless enum. The number of instructions processed determines the
+index inside the buffer that contains the contants/offsets required for the processing.
+
+### Minor
+
 - Check where inline could help `builtins`, `cost::Function`.
 - For `case` and `construct`, store the indices of the terms instead of storing the length.
     This removes `skip_terms` entirely.

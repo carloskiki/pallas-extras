@@ -5,17 +5,17 @@ version = "0.1.0"
 
 [dependencies]
 cbor-util = { workspace = true }
+embedded-io = { workspace = true }
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
 zerocopy = { workspace = true }
 
-hybrid-array = { workspace = true }
-tokio = { version = "1.50.0", features = ["sync", "io-util", "macros"] }
-tokio-stream = "0.1.18"
 bytes = "1.11.1"
+displaydoc = { workspace = true }
 ledger = { path = "../ledger" }
 thiserror = { workspace = true }
-displaydoc = { workspace = true }
+tokio = { workspace = true, features = ["sync", "io-util", "macros"] }
+tokio-stream = { workspace = true }
 
 [[test]]
 name = "mux"

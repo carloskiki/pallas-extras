@@ -1,14 +1,11 @@
 use crate::{
+    Protocol,
     mux::{
         Egress, Ingress, MuxError,
-        header::{Header, ProtocolNumber},
+        header::{Header, Timestamp},
     },
-    traits::protocol::Protocol,
-    typefu::array::Index,
 };
 use bytes::{BufMut, BytesMut};
-use hybrid_array::Array;
-use std::collections::VecDeque;
 use tinycbor::Decoder;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
@@ -18,15 +15,16 @@ use tokio::{
 
 pub(super) async fn task<P>(
     mut bearer: impl AsyncRead + AsyncWrite + Unpin,
-    mut receiver: Receiver<Egress<P>>,
-    mut state: Array<MiniProtocolState, P::Length>,
-) -> MuxError<P>
+    mut receiver: Receiver<Egress>,
+    mut state: P::State,
+) -> MuxError
 where
-    P: Protocol + Index,
+    P: Protocol,
 {
     let time = std::time::Instant::now();
-    let mut reader_task = ReaderTask {
-        header: Err(([0; _], 0)),
+    let mut reader_task = ReadTask {
+        header: [0; _],
+        remaining: 8,
     };
 
     loop {
@@ -36,16 +34,15 @@ where
                     return MuxError::Closed;
                 };
 
-                if let Err(e) = writer_task(
+                if let Err(e) = writer_task::<P>(
                     &mut bearer,
                     request,
                     &time,
-                    &mut state,
                 ).await {
                     return e;
                 }
             },
-            result = reader_task.read_message(&mut bearer, &mut state) => {
+            result = reader_task.read_message::<P>(&mut bearer, &mut state) => {
                 if let Err(e) = result {
                     return e;
                 }
@@ -54,90 +51,65 @@ where
     }
 }
 
-async fn writer_task<P: Protocol + Index>(
+async fn writer_task<P: Protocol>(
     writer: &mut (impl AsyncWrite + Unpin),
-    Egress {
-        mut message,
-        protocol,
-        send_back,
-    }: Egress<P>,
+    message: Egress,
     time: &std::time::Instant,
-    state: &mut Array<MiniProtocolState, P::Length>,
-) -> Result<(), MuxError<P>> {
-    // Write the timestamp to the header. TODO: this should be a wrapper struct over the buffer to
-    // better document the behavior and ensure correctness.
-    message.copy_from_slice(&(time.elapsed().as_micros() as u32).to_be_bytes());
-    // 1. Send the bytes
-    // TODO: buffer pool. It needs to maintain space for the timestamp in the header.
-    writer.write_all(&message).await?;
-    // 2. Add write back to state.
-    if let Some(client_send_back) = send_back {
-        let task_state = &mut state[protocol.index()];
-        task_state.client_send_backs.push_back(client_send_back);
-    }
-
-    Ok(())
+) -> Result<(), MuxError> {
+    let message = message.finalize(Timestamp::elapsed(time));
+    writer.write_all(&message).await.map_err(MuxError::Io)
 }
 
-struct MiniProtocolState {
-    read_buffer: BytesMut,
-    read_state: tinycbor::stream::Any,
-    server_send_back: Sender<Ingress>,
-    client_send_backs: VecDeque<Sender<Ingress>>,
+pub struct State {
+    pub read_buffer: BytesMut,
+    pub read_state: tinycbor::stream::Any,
+    pub server_send_back: Sender<Ingress>,
+    pub client_send_back: Sender<Ingress>,
 }
 
-struct ReaderTask<P: Protocol + Index> {
-    header: Result<Header<P>, ([u8; 8], u8)>,
+struct ReadTask {
+    header: [u8; 8],
+    remaining: u8,
 }
 
-impl<P: Protocol + Index> ReaderTask<P> {
-    /// Read a message from the reader and return it.
+impl ReadTask {
+    /// Read messages from the bearer, and send them to the appropriate handle.
     ///
     /// The future returned by this method is cancel safe.
-    async fn read_message(
+    async fn read_message<P: Protocol>(
         &mut self,
         reader: &mut (impl AsyncRead + Unpin),
-        state: &mut Array<MiniProtocolState, P::Length>,
-    ) -> Result<(), MuxError<P>> {
-        let Header {
-            timestamp,
-            protocol:
-                ProtocolNumber {
-                    protocol,
-                    server_sent,
-                },
-            payload_len: remaining,
-        } = match &mut self.header {
-            Ok(header) => header,
-            Err((buffer, cursor)) => {
-                while *cursor != 8 {
-                    let read = reader.read(&mut buffer[(*cursor as usize)..]).await?;
-                    if read == 0 {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::UnexpectedEof,
-                            "while reading data frame header",
-                        )
-                        .into());
-                    }
-                    *cursor += read as u8;
-                }
-                let header = Header::try_from(*buffer)?;
-                self.header = Ok(header);
-                self.header.as_mut().expect("set to OK above")
+        state: &mut P::State,
+    ) -> Result<(), MuxError> {
+        if self.remaining != 0 {
+            let read = reader
+                .read(&mut self.header[8 - self.remaining as usize..])
+                .await?;
+            if read == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "while reading data frame header",
+                )
+                .into());
             }
-        };
+            self.remaining -= read as u8;
+        }
+        let header: &mut Header = zerocopy::transmute_mut!(&mut self.header);
+        let remaining = &mut header.payload_len;
+        let protocol = header.protocol;
+        let timestamp = header.timestamp;
 
-        let MiniProtocolState {
+        let State {
             read_buffer,
             read_state,
-            server_send_back: send_back,
-            client_send_backs,
-        } = &mut state[protocol.index()];
-        read_buffer.reserve(*remaining as usize);
+            server_send_back,
+            client_send_back,
+        } = P::get_state(protocol, state).ok_or(MuxError::UnknownProtocol(protocol))?;
+        read_buffer.reserve(remaining.get() as usize);
         let mut initial_position = read_buffer.len();
 
         while let read @ 1.. = reader
-            .read_buf(&mut read_buffer.limit(*remaining as usize))
+            .read_buf(&mut read_buffer.limit(remaining.get() as usize))
             .await?
         {
             *remaining -= read as u16;
@@ -152,47 +124,34 @@ impl<P: Protocol + Index> ReaderTask<P> {
 
         while initial_position != read_buffer.len() {
             let mut decoder = Decoder(&read_buffer[initial_position..]);
-            match read_state.feed(&mut decoder) {
+            let feed_result = read_state.feed(&mut decoder);
+            let message = read_buffer
+                .split_to(read_buffer.len() - decoder.0.len())
+                .freeze();
+            match feed_result {
                 Err(tinycbor::container::Error::Malformed(
                     tinycbor::primitive::Error::EndOfInput,
                 )) => break,
                 Err(_) => {
-                    return Err(MuxError::Malformed(
-                        read_buffer
-                            .split_to(read_buffer.len() - decoder.0.len())
-                            .freeze(),
-                    ));
+                    return Err(MuxError::Malformed(message));
                 }
                 Ok(()) => {}
             }
 
-            let message = read_buffer
-                .split_to(read_buffer.len() - decoder.0.len())
-                .freeze();
-            initial_position = 0;
-            let sender = if *server_sent {
-                client_send_backs
-                    .front_mut()
-                    .ok_or(MuxError::UnexpectedMessage(message.clone()))?
-                // TODO: figure out how to know if the server keeps the agency.
-                // Probably need to check the message against the state machine to know if the new
-                // state has server or client agency.
-                // client_send_backs.pop_front();
+            let send_back = if protocol.server_sent() {
+                &mut *server_send_back
             } else {
-                &mut *send_back
+                &mut *client_send_back
             };
-            if let Err(TrySendError::Full(_)) = sender.try_send(Ingress {
-                message,
-                timestamp: *timestamp,
-            }) {
-                return Err(MuxError::Full {
-                    protocol: *protocol,
-                    server: !*server_sent,
-                });
+            if let Err(TrySendError::Full(_)) = send_back.try_send(Ingress { message, timestamp }) {
+                return Err(MuxError::Full(protocol));
             }
+
+            initial_position = 0;
+            read_state.reset();
         }
 
-        self.header = Err(([0; 8], 0));
+        self.remaining = 8;
         Ok(())
     }
 }

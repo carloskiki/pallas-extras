@@ -1,5 +1,4 @@
 [workspace]
-resolver = "3"
 members = [
     "bip32",
     "bip39",
@@ -11,12 +10,18 @@ members = [
     #    "vrf",
     "plutus",
 ]
+resolver = "3"
 
 # TODO: Figure out features to enable for each dep.
 [workspace.dependencies]
 
+# Async
+tokio = "1.50.0"
+tokio-stream = { version = "0.1.18", default-features = false }
+
 # CBOR
 cbor-util = { path = "cbor-util" }
+embedded-io = "0.7.1"
 tinycbor = "0.11.2"
 tinycbor-derive = "0.15.1"
 

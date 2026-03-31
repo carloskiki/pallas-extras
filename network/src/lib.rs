@@ -4,23 +4,37 @@
 
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod mux;
-pub mod protocol;
-pub(crate) mod traits;
-pub(crate) mod typefu;
+pub mod agency;
+pub use agency::Agency;
 
-mod point;
-pub use point::Point;
-mod tip;
-pub use tip::Tip;
 mod encoded;
 pub use encoded::Encoded;
 
-#[doc(inline)]
-pub use mux::mux;
+pub mod handshake;
+
+mod message;
+pub use message::Message;
+
+pub mod mux;
+
+pub mod node_to_client;
+pub mod node_to_node;
+
+mod protocol;
+pub use protocol::Protocol;
+
+mod point;
+pub use point::Point;
+
+pub mod state;
+pub use state::State;
+pub(crate) use state::state;
+
+mod tip;
+pub use tip::Tip;
 
 #[repr(u32)]
-#[derive(Debug, Encode, Decode, CborLen)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
 pub enum NetworkMagic {
     #[n(1)]

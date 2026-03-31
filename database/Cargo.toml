@@ -5,4 +5,4 @@ version = "0.1.0"
 
 [dependencies]
 ledger = { path = "../ledger" }
-tokio = { version = "1.49.0", features = ["fs", "io-util"] }
+tokio-stream = { workspace = true }
