@@ -1,9 +1,10 @@
 use crate::{
-    Encoded,
     agency::{Client, Server},
     message::Contains,
     mux::Handle,
 };
+use bytes::Bytes;
+use tinycbor::encoded::Lazy;
 
 use super::request::{Ids, Transactions};
 use tinycbor::{Decode, Decoder};
@@ -20,15 +21,15 @@ impl crate::State for Idle {
 
 pub enum Message {
     Transactions(
-        Encoded<Transactions<'static>>,
+        Lazy<Bytes, Transactions<'static>>,
         Handle<Client, <Transactions<'static> as crate::Message>::ToState>,
     ),
     Ids(
-        Encoded<Ids<false>>,
+        Lazy<Bytes, Ids<false>>,
         Handle<Client, <Ids<false> as crate::Message>::ToState>,
     ),
     IdsBlocking(
-        Encoded<Ids<true>>,
+        Lazy<Bytes, Ids<true>>,
         Handle<Client, <Ids<true> as crate::Message>::ToState>,
     ),
 }
@@ -41,19 +42,16 @@ impl crate::message::FromParts<Client> for Message {
     fn from_parts<S>(tag: u64, bytes: ::bytes::Bytes, handle: Handle<Client, S>) -> Option<Self> {
         match tag {
             <Transactions<'static> as crate::Message>::TAG => Some(Message::Transactions(
-                Encoded::new(bytes),
+                Lazy::from(bytes),
                 handle.transition(),
             )),
             <Ids<true> as crate::Message>::TAG
                 if bool::decode(&mut Decoder(&bytes)) == Ok(true) =>
             {
-                Some(Message::IdsBlocking(
-                    Encoded::new(bytes),
-                    handle.transition(),
-                ))
+                Some(Message::IdsBlocking(Lazy::from(bytes), handle.transition()))
             }
             <Ids<false> as crate::Message>::TAG => {
-                Some(Message::Ids(Encoded::new(bytes), handle.transition()))
+                Some(Message::Ids(Lazy::from(bytes), handle.transition()))
             }
             _ => None,
         }

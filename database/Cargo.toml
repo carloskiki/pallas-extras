@@ -4,5 +4,10 @@ name = "database"
 version = "0.1.0"
 
 [dependencies]
+tinycbor = { workspace = true }
+zerocopy = { workspace = true }
 ledger = { path = "../ledger" }
 tokio-stream = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
+bytes = { workspace = true }
+crc32fast = { workspace = true }

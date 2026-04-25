@@ -9,8 +9,8 @@ embedded-io = { workspace = true }
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
 zerocopy = { workspace = true }
+bytes = { workspace = true }
 
-bytes = "1.11.1"
 displaydoc = { workspace = true }
 ledger = { path = "../ledger" }
 thiserror = { workspace = true }

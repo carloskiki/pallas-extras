@@ -61,12 +61,12 @@ macro_rules! state {
         $crate::state!(@message <$agency as $crate::Agency>::Inverse | $($message)+);
     };
     (@message $agency:ty | $ty:ty) => {
-        type Message = (crate::Encoded<$ty>, crate::mux::Handle<$agency, <$ty as $crate::Message>::ToState>);
+        type Message = $crate::message::Single<$agency, $ty>;
     };
     (@message $agency:ty | $($message:ident$(<$($args:tt),*>)?),+) => {
         pub enum Message {
             $($message(
-                $crate::Encoded<$message$(<$($args),*>)?>,
+                ::tinycbor::encoded::Lazy<::bytes::Bytes, $message$(<$($args),*>)?>,
                 $crate::mux::Handle<
                     $agency,
                     <$message$(<$($args),*>)? as $crate::Message>::ToState
@@ -87,7 +87,7 @@ macro_rules! state {
                 match tag {
                     $(
                         <$message$(<$($args),*>)? as $crate::Message>::TAG => Some(Message::$message(
-                            $crate::Encoded::new(bytes),
+                            From::from(bytes),
                             handle.transition()
                         )),
                     )+

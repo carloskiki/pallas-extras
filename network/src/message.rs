@@ -1,4 +1,6 @@
 use crate::State;
+use bytes::Bytes;
+use tinycbor::encoded::Lazy;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 /// Trait implemented by messages that can be sent between peers.
@@ -31,7 +33,7 @@ pub trait FromParts<A>: Sized {
 }
 
 pub(crate) type Single<A, M> = (
-    crate::Encoded<M>,
+    Lazy<Bytes, M>,
     crate::mux::Handle<A, <M as Message>::ToState>,
 );
 impl<A, M: Message> Contains<M> for Single<A, M> {}
@@ -43,10 +45,7 @@ impl<A, M: Message> FromParts<A> for Single<A, M> {
     ) -> Option<Self> {
         if tag == M::TAG {
             Some((
-                crate::Encoded {
-                    bytes,
-                    _phantom: core::marker::PhantomData,
-                },
+                Lazy::from(bytes),
                 handle.transition(),
             ))
         } else {

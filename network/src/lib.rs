@@ -7,9 +7,6 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 pub mod agency;
 pub use agency::Agency;
 
-mod encoded;
-pub use encoded::Encoded;
-
 pub mod handshake;
 
 mod message;

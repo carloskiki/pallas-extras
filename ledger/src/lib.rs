@@ -34,3 +34,53 @@ pub mod byron;
 pub mod conway;
 pub mod mary;
 pub mod shelley;
+
+/// Match on an era-independent enum and run one body for all era variants.
+///
+/// ### Examples
+///
+/// ```ignore
+/// era_independent!(tx: Transaction, |t| {
+///     t.do_stuff()
+/// })
+/// ```
+///
+/// For [`Block`], add a second closure that only handles EBB:
+///
+/// ```ignore
+/// era_independent!(
+///     block: Block,
+///     |b| {
+///         b.do_stuff()
+///     },
+///     |ebb| {
+///         ebb.do_ebb_stuff()
+///     }
+/// )
+/// ```
+#[macro_export]
+macro_rules! era_independent {
+	($value:ident : Block, |$b:ident| $body:block, |$ebb:ident| $ebb_body:block) => {
+		match $value {
+			$crate::Block::Boundary($ebb) => $ebb_body,
+			$crate::Block::Byron($b) => $body,
+			$crate::Block::Shelley($b) => $body,
+			$crate::Block::Allegra($b) => $body,
+			$crate::Block::Mary($b) => $body,
+			$crate::Block::Alonzo($b) => $body,
+			$crate::Block::Babbage($b) => $body,
+			$crate::Block::Conway($b) => $body,
+		}
+	};
+	($value:ident : $enum:path, |$b:ident| $body:block) => {
+		match $value {
+			$enum::Byron($b) => $body,
+			$enum::Shelley($b) => $body,
+			$enum::Allegra($b) => $body,
+			$enum::Mary($b) => $body,
+			$enum::Alonzo($b) => $body,
+			$enum::Babbage($b) => $body,
+			$enum::Conway($b) => $body,
+		}
+	};
+}
