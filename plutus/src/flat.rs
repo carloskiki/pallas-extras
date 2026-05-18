@@ -646,6 +646,10 @@ pub fn decode_program<'a>(
     let minor = u64::decode(reader)?;
     let patch = u64::decode(reader)?;
 
+    if major != 1 || minor > 2 || patch != 0 {
+        return None;
+    }
+
     enum Frame {
         /// Frame for tracking `case` and `construct` instructions which have a size.
         Sized {
@@ -722,7 +726,7 @@ pub fn decode_program<'a>(
                 instructions.push(Instruction::Builtin(Builtin::from_repr(builtin)?));
                 decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
             }
-            8 => {
+            8 if minor == 1 => {
                 let discriminant_value = u64::decode(reader)?;
                 let index = instructions.len() as u32;
                 let discriminant = ConstantIndex(constants.len() as u32);
@@ -737,7 +741,7 @@ pub fn decode_program<'a>(
                 stack.push(Frame::Sized { index, length: 0 });
                 decrement(&mut stack, reader, &mut instructions, &mut variable_count)?;
             }
-            9 => {
+            9 if minor == 1 => {
                 let index = instructions.len() as u32;
                 instructions.push(Instruction::Case {
                     count: 0,

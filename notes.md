@@ -2,6 +2,25 @@
 
 A Dependabot system that checks for upstream updates of slightly modified crates we rework in-tree.
 
+# Database
+
+EBBs are an issue because we can't differentiate the chunk zero EBB and slot 0 block.
+
+What this affects:
+- Backfilling the primary file.
+- reading metadata from the secondary file.
+
+If we adopt relative slots in the metadata, we can easily backfill, but it is harder
+to read metadata file (chunk 0 irregularity).
+
+If we keep absolute slots, it is very hard to backfill correctly. To do that we need to:
+
+We don't make any guarantees if the initial db is malformed, we just need to maintain the valid db.
+
+Normal slots are a bit easier to deal with.
+Check the primary file for the backfill count!!
+
+
 # Network
 
 Queries needed:

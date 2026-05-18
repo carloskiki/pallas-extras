@@ -1,78 +1,100 @@
-use core::range::RangeInclusive;
+use bytes::BytesMut;
+use crossbeam_utils::CachePadded;
+use core::sync::atomic;
+use ledger::slot;
+use once_cell::sync::OnceCell;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 use std::{
-    cell::{Cell, UnsafeCell},
-    fs::File,
-    future::Future,
+    cell::UnsafeCell,
+    fs::{File, OpenOptions},
     io,
     mem::MaybeUninit,
-    ops::{Range, RangeBounds},
     os::unix::fs::FileExt,
-    path::PathBuf,
-    pin::{Pin, pin},
-    sync::{
-        Arc, RwLock,
-        atomic::{self, AtomicU32, AtomicU64, AtomicUsize},
-    },
-    task::{Poll, ready},
-    vec::IntoIter,
+    sync::{Arc, RwLock, atomic::AtomicU64},
 };
-
-use bytes::{Bytes, BytesMut};
-use ledger::{Block, slot};
-use tinycbor::encoded::{Lazy, With};
-use tokio_stream::Stream;
-use zerocopy::IntoBytes;
 
 // We can provide Windows support by using `seek_read`/`seek_write`.
 //
 // This is simply not a priority.
 #[cfg(not(unix))]
-compile_error!("This library is only supported on Unix-like systems");
+compile_error!("This library only supports on Unix-like systems");
 
-mod chunk;
-mod primary;
+mod reader;
 mod secondary;
+#[cfg(test)]
+mod tests;
+mod writer;
 
-/// Reader for blocks from the database.
-pub struct Reader<const N: usize> {
-    state: State<N>,
-    range: Range<slot::Number>,
-}
+pub use reader::Reader;
+pub use writer::Writer;
 
-/// State of the reader.
-enum State<const N: usize> {
-    /// Reading blocks from a chunk file.
-    Pending {
-        /// Handle to the reading task.
-        handle: tokio::task::JoinHandle<io::Result<Blocks<N>>>,
-        /// Whether the reading task has been cancelled.
-        ///
-        /// This happens if the `Reader` stops being polled and its block range is changed. In this
-        /// case the current reading task is no longer relevant.
-        cancelled: bool,
-    },
-    /// The blocks are ready to be returned by the stream.
-    Ready(Blocks<N>),
-}
+const CHUNK_SIZE: slot::Number = 21_600;
 
-struct Blocks<const N: usize> {
-    /// The shared data.
-    ///
-    /// This is always `Some`. `None` simply allows `shared` to be `std::mem::take`n in the reading
-    /// task, without needing to clone the `Arc`.
-    shared: Option<Arc<Shared<N>>>,
-    /// Buffer used to reading from files.
-    buffer: BytesMut,
-    /// Blocks read that have not yet been returned by the stream.
-    ///
-    /// They are stored in reverse order, and popped from the back.
-    blocks: Vec<Lazy<Bytes, Block<'static>>>,
-}
+pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, Writer<N>)> {
+    let mut chunk_number = 0;
+    let dir = dir.into();
+    let dir_iter = std::fs::read_dir(&dir)?;
+    let file_name_err = |file_name: &std::ffi::OsString| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid file name in database directory: {file_name:?}"),
+        )
+    };
+    for entry in dir_iter {
+        let file_name = entry?.file_name();
+        let bytes = &file_name.as_encoded_bytes()[..5];
+        let num = std::str::from_utf8(bytes)
+            .map_err(|_| file_name_err(&file_name))?
+            .parse::<u32>()
+            .map_err(|_| file_name_err(&file_name))?;
+        chunk_number = chunk_number.max(num);
+    }
 
-struct Shared<const N: usize> {
-    // FIXME: Use `std::fs::Dir` API when stable.
-    directory: PathBuf,
-    cache: RwLock<Cache<N>>,
+    let (chunk_file, primary_file, secondary_file) = open_or_create(&dir, chunk_number)?;
+    let primary_count = (primary_file.metadata()?.len() as usize - 1) / 4;
+    let data = secondary::read(&mut BytesMut::new(), &secondary_file)?;
+    let len = data.len();
+    let size = chunk_file.metadata()?.len();
+
+    // This large struct is potentially stored on the stack before being moved to the heap,
+    // especially in debug mode. This is < 512KB, so it should be fine, but could be avoided still.
+    let mut shared = Arc::new(RwLock::new(Cache {
+        directory: dir,
+        chunk_file,
+        primary_file,
+        secondary_file,
+        chunk_number,
+        entries: UnsafeCell::new([MaybeUninit::uninit(); CHUNK_SIZE as usize + 1]),
+        len_size: CachePadded::from(AtomicU64::from(0)),
+        completed: [const { OnceCell::new() }; N],
+        pointer: 0,
+    }));
+    let cache_mut = Arc::get_mut(&mut shared)
+        .expect("no other references to shared exist")
+        .get_mut()
+        .expect("cache is not poisoned");
+    cache_mut
+        .entries
+        .get_mut()
+        .iter_mut()
+        .zip(data)
+        .for_each(|(entry, block_info)| {
+            entry.write(block_info);
+        });
+    *cache_mut.len_size.get_mut() = (size << 32) | (len as u64);
+
+    Ok((
+        Reader {
+            shared: shared.clone(),
+            buffer: BytesMut::default(),
+            range: 0..0,
+        },
+        Writer {
+            shared,
+            primary_count,
+        },
+    ))
 }
 
 /// Cache maintaining metadata about the current chunk and `N` most recently filled chunks.
@@ -87,173 +109,117 @@ struct Shared<const N: usize> {
 /// With cache: `read(chunk)`.
 /// ```
 /// Note: These syscalls do not happen per block, but per chunk.
-pub struct Cache<const N: usize> {
-    chunks: [Option<chunk::Data>; N],
+struct Cache<const N: usize> {
+    // FIXME: Use `std::fs::Dir` API when stable.
+    directory: PathBuf,
+    /// Metadata about previous chunks.
+    // FIXME: use `std::sync::OnceLock` when `get_or_try_init` is stable.
+    completed: [OnceCell<ChunkData>; N],
+    /// points to the oldest chunk in `completed`.
     pointer: usize,
-    current: Current,
+    /// We can have up to `CHUNK_SIZE` regular blocks, plus one EBB.
+    entries: UnsafeCell<[MaybeUninit<BlockInfo>; CHUNK_SIZE as usize + 1]>,
+    /// The chunk number.
+    chunk_number: u32,
+    /// The lower 32 bits encode the number of entries in `entries`, and the upper 32 bits encode
+    /// the total size of the chunk file.
+    len_size: CachePadded<AtomicU64>,
+    /// The chunk file is opened in read and write mode.
+    chunk_file: File,
+    /// The primary file is opened in write mode.
+    primary_file: File,
+    /// The secondary file is opened in read and write mode.
+    secondary_file: File,
 }
 
 impl<const N: usize> Cache<N> {
-    pub fn from_slot(dir: impl Into<PathBuf>, slot: slot::Number) -> Self {
-        todo!()
+    fn len_size(&self, ordering: atomic::Ordering) -> (usize, u32) {
+        let len_size = self.len_size.load(ordering);
+        ((len_size & 0xFFFF_FFFF) as usize, (len_size >> 32) as u32)
     }
 
-    pub fn new(dir: impl Into<PathBuf>) -> io::Result<Self> {
-        let mut last_chunk = 0;
-        let dir = dir.into();
-        let dir_iter = std::fs::read_dir(&dir)?;
-        let file_name_err = |file_name: &std::ffi::OsString| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("invalid file name in database directory: {file_name:?}"),
-            )
+    /// Get chunk data for the given chunk number.
+    ///
+    /// Unspecified behavior if the chunk number is greater than the current.
+    #[allow(clippy::type_complexity)]
+    fn chunk_data<'a>(
+        &'a self,
+        chunk_number: u32,
+        buffer: &mut BytesMut,
+    ) -> io::Result<(Cow<'a, [BlockInfo]>, u32, Result<File, &'a File>)> {
+        let mut read_chunk = || -> io::Result<ChunkData> {
+            let path = path_prefix(&self.directory, chunk_number);
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).create(true);
+            let chunk_file = options.open(path.with_extension("chunk"))?;
+            let secondary_file = options.open(path.with_extension("secondary"))?;
+            let size = chunk_file.metadata()?.len() as u32;
+            let mut block_info = secondary::read(buffer, &secondary_file)?;
+            if let Some(first) = block_info.first_mut() && first.slot == chunk_number as u64 {
+                first.slot *= CHUNK_SIZE;
+            }
+            
+            Ok(ChunkData {
+                block_info,
+                size,
+                file: chunk_file,
+            })
         };
-        for entry in dir_iter {
-            let file_name = entry?.file_name();
-            let bytes = &file_name.as_encoded_bytes()[..5];
-            let num = std::str::from_utf8(bytes)
-                .map_err(|_| file_name_err(&file_name))?
-                .parse::<u32>()
-                .map_err(|_| file_name_err(&file_name))?;
-            last_chunk = last_chunk.max(num);
-        }
 
-        todo!();
+        Ok(if chunk_number == self.chunk_number {
+            // Syncrhonize with the `Release` store of the writer.
+            let (len, size) = self.len_size(atomic::Ordering::Acquire);
+            // Safety: `len` is the number of initialized entries in `entries`. These are
+            // never modified after initialization.
+            let block_info = unsafe {
+                std::slice::from_raw_parts::<'a, _>(self.entries.get() as *const BlockInfo, len)
+            };
+
+            (Cow::Borrowed(block_info), size, Err(&self.chunk_file))
+        } else {
+            let diff = (self.chunk_number - chunk_number) as usize;
+            if diff > N {
+                // The chunk is too old to be in cache.
+                let ChunkData {
+                    block_info,
+                    size,
+                    file,
+                } = read_chunk()?;
+                (block_info.into_vec().into(), size, Ok(file))
+            } else {
+                let (mut index, underflow) = self.pointer.overflowing_sub(diff);
+                if underflow {
+                    index = index.wrapping_add(N);
+                }
+                let chunk = self.completed[index].get_or_try_init(|| {
+                    // Chunk not loaded yet.
+                    read_chunk()
+                })?;
+                (
+                    Cow::Borrowed(&chunk.block_info),
+                    chunk.size,
+                    Err(&chunk.file),
+                )
+            }
+        })
     }
 }
 
-// Database architecture:
-// - Streaming interface for blocks from the DB. Index for
-//   get(index) that returns a stream starting at the provided index.
-// - Write interface to append blocks to the DB.
-//   The write should be done first, and at the very end the primary/secondary file should be
-//   updated to have the block indicated as present. If the program crashes at any point while
-//   writing, the database should not be corrupted, and the block should simply not appear in the
-//   database.
-// - Get the tip index.
+/// # Safety
+///
+/// The only `!Sync` field is `entries`. It is handled safely:
+/// - The unique writer only modifies `entries[len]`, and then monotonically increases `len` before
+///   `Release`.
+/// - The readers `Acquire` `len` and only read `entries[..len]`.
+///
+/// => There are no data races.
+unsafe impl<const N: usize> Sync for Cache<N> {}
 
-const CHUNK_SIZE: slot::Number = 21_600;
-
-// Procedure to read:
-// - For each chunk that overlap with the range:
-// - Get the primary file from path.
-// - Get primary file size.
-// - Get start and end offsets.
-// - Read the start and end from the primary file.
-// - Read block metadata from the secondary file.
-// - Read blocks from the chunk file.
-// - 6 syscalls per chunk file.
-
-// TODO:
-// - Lock the database (this could be ensured with a lock on the volatile db)
-
-pub struct Writer<const N: usize>(Arc<Shared<N>>);
-
-impl<const N: usize> Stream for Reader<N> {
-    type Item = io::Result<Lazy<Bytes, Block<'static>>>;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let self_ = self.get_mut();
-        match &mut self_.state {
-            State::Ready(Blocks {
-                blocks,
-                buffer,
-                shared,
-            }) => {
-                if let Some(block) = blocks.pop() {
-                    return Poll::Ready(Some(Ok(block)));
-                }
-
-                if self_.range.is_empty() {
-                    return Poll::Ready(None);
-                }
-
-                let Some(shared) = shared.take() else {
-                    unreachable!();
-                };
-                let mut buffer = std::mem::take(buffer);
-                let blocks = std::mem::take(blocks);
-                let range = self_.range.clone();
-                let chunk_number = (range.start / CHUNK_SIZE) as u32;
-                let join_handle = tokio::task::spawn_blocking(move || -> io::Result<Blocks<N>> {
-                    let cache = shared
-                        .cache
-                        .read()
-                        .expect("writer should not panic while holding the cache lock");
-                     if chunk_number > cache.current.chunk_number {
-                        // The chunk does not exist yet.
-                        drop(cache);
-                        return Ok(Blocks {
-                            shared: Some(shared),
-                            buffer,
-                            blocks,
-                        });
-                    }
-                    
-                    let (block_info, size, file) = if chunk_number == cache.current.chunk_number {
-                        // Syncrhonize with the `Release` store of the writer.
-                        let len_size = cache.current.len_size.load(atomic::Ordering::Acquire);
-                        let len = (len_size & 0xFFFF_FFFF) as usize;
-                        let size = (len_size >> 32) as u32;
-                        // Safety: `len` is the number of initialized entries in `entries`. These are
-                        // never modified after initialization, so we can safely read them.
-                        let block_info = unsafe {
-                            std::slice::from_raw_parts(
-                                cache.current.entries.get() as *const BlockInfo,
-                                len,
-                            )
-                        };
-
-                        (block_info, size, &cache.current.chunk_file)
-                    } else {
-                        let (mut index, underflow) = cache.pointer.overflowing_sub(
-                            (cache.current.chunk_number - chunk_number) as usize,
-                        );
-                        if underflow {
-                            index = index.wrapping_add(N);
-                        }
-                        cache.chunks.get_mut(index).and_then(|c| c.as_ref()).ok_or_else(|| {
-                            io::Error::new(
-                                io::ErrorKind::NotFound,
-                                format!("chunk file for chunk {chunk_number} not found in cache"),
-                            )
-                        })?
-                        
-                        && let Some(chunk::Data {
-                            block_info,
-                            size,
-                            file,
-                        }) = {
-                            cache.chunks.get(index).and_then(|c| c.as_ref())
-                        }
-                    }
-                    
-                    todo!()
-                        
-                });
-
-                // Spawn the task and change the state.
-                todo!()
-
-                    
-            }
-            State::Pending { handle, cancelled } => {
-                let mut new_blocks = ready!(Pin::new(handle).poll(cx))??;
-                if *cancelled {
-                    std::hint::cold_path();
-                    new_blocks.blocks.clear();
-                } else {
-                    self_.state = State::Ready(new_blocks);
-                    self_.range.start =
-                        (self_.range.start + CHUNK_SIZE - 1) / CHUNK_SIZE * CHUNK_SIZE;
-                }
-            }
-        }
-        Pin::new(self_).poll_next(cx)
-    }
+/// Data for a chunk, read from the `secondary` file.
+pub struct ChunkData {
+    pub block_info: Box<[BlockInfo]>,
+    pub size: u32,
+    pub file: File,
 }
 
 /// Entry for a chunk in the cache.
@@ -264,86 +230,28 @@ pub struct BlockInfo {
     crc: u32,
 }
 
-// TODO: restructure and ensure this is true.
-// SAFETY: `Current` is `Sync` because the only method that internally mutates `Current` is
-// `append`, and the safety contract ensures that there are no concurrent calls to `append`.
-unsafe impl Sync for Current {}
-
-struct Current {
-    /// We can have up to `CHUNK_SIZE` regular blocks, plus one EBB.
-    entries: UnsafeCell<[MaybeUninit<BlockInfo>; CHUNK_SIZE as usize + 1]>,
-    /// The chunk number.
-    chunk_number: u32,
-    /// The lower 32 bits encode the number of entries in `entries`, and the upper 32 bits encode
-    /// the total size of the chunk file.
-    len_size: AtomicU64,
-    /// The chunk file is opened in read and write mode.
-    chunk_file: File,
-    /// The primary file is opened in write mode.
-    primary_file: File,
-    /// The secondary file is opened in read and write mode.
-    secondary_file: File,
+fn path_prefix(path: &Path, chunk_number: u32) -> PathBuf {
+    path.join(format!("{chunk_number:05}"))
 }
 
-impl Current {
-    /// Get the last slot in the current chunk.
-    ///
-    /// This panic if the current chunk is empty. The current chunk should never be empty, unless
-    fn current_slot(&self) -> slot::Number {
-        let Some(last) = self.len.load(atomic::Ordering::Acquire).checked_sub(1) else {};
-
-        // Safety: `len` is the number of initialized entries in `entries`, so `entries[last]`
-        // is initialized.
-        let last_entry = unsafe { (&*self.entries.get())[last].assume_init() };
-        last_entry.slot + 1
-    }
-
-    /// Append a block to the current chunk.
-    ///
-    /// This function does not enforce the slot number of the block to fit within this chunk.
-    ///
-    /// ### Safety
-    ///
-    /// This function internally mutates `Self`. This allows concurrent reads to the cache,
-    /// making things much faster.
-    ///
-    /// As such, `append` must not be called concurrently with itself. The caller
-    /// must ensure that calls to this function are syncrhonized externally, for example by
-    /// enforcing a single writer, or by using a mutex.
-    unsafe fn append(
-        &self,
-        block: &[u8],
-        last_relative_slot: u64,
-        back_fill_count: usize,
-        entry: secondary::Entry,
-    ) -> io::Result<()> {
-        self.chunk_file.write_all_at(block, entry.offset.get())?;
-
-        let len_size = self.len_size.load(atomic::Ordering::Relaxed);
-        let len = (len_size & 0xFFFF_FFFF) as usize;
-
-        let secondary_offset = (len * std::mem::size_of::<secondary::Entry>()) as u32;
-        let offsets = secondary_offset.to_be_bytes().repeat(back_fill_count);
-        self.secondary_file
-            .write_all_at(&offsets, last_relative_slot * 4)?;
-
-        self.secondary_file
-            .write_all_at(entry.as_bytes(), secondary_offset as u64)?;
-
-        // Safety:
-        // - `append` is the only function that accesses `entries` at `len`.
-        // - The caller ensures that there are no concurrent calls to `append`.
-        //   => We have exclusive access to `entries[len]`.
-        unsafe { (&mut *self.entries.get())[len].write(entry.block_info()) };
-
-        // `Release` so that readers see the new entry if they see the new `len_size`.
-        let new_len_size = len_size + 1 + ((block.len() as u64) << 32);
-        self.len_size.store(new_len_size, atomic::Ordering::Release);
-
-        Ok(())
-    }
+/// Returns the chunk file, primary file, and secondary file for the given chunk number.
+///
+/// Creates the files if they do not exist.
+fn open_or_create(path: &Path, chunk_number: u32) -> io::Result<(File, File, File)> {
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    let mut path = path_prefix(path, chunk_number).with_extension("chunk");
+    let chunk_file = options.open(&path)?;
+    path.set_extension("secondary");
+    let secondary_file = options.open(&path)?;
+    path.set_extension("primary");
+    options.read(false);
+    let primary_file = options.open(&path)?;
+    primary_file.write_all_at(&[1], 0)?;
+    Ok((chunk_file, primary_file, secondary_file))
 }
 
+/// Reads a chunk from the given file into the buffer.
 fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io::Result<()> {
     buffer.clear();
     buffer.reserve(size);
@@ -353,17 +261,10 @@ fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io:
     // practice.
     // FIXME: once `File::read_exact_buf` is stabilized, we can avoid unsafe. Copied directly
     // from the `tokio` implementation in the meantime.
-    let buf: &mut [u8] = unsafe { buffer.spare_capacity_mut()[..size].assume_init_mut() };
-    file.read_exact_at(buf, offset)?;
-    // Safety: The buffer is initilized up to `size` after the read.
-    unsafe { buffer.set_len(size) };
-    Ok(())
-}
-
-/// Drop guard that aborts the process when dropped.
-struct AbortOnDrop;
-impl Drop for AbortOnDrop {
-    fn drop(&mut self) {
-        std::process::abort();
+    unsafe {
+        let buf: &mut [u8] = buffer.spare_capacity_mut()[..size].assume_init_mut();
+        file.read_exact_at(buf, offset)?;
+        buffer.set_len(size);
     }
+    Ok(())
 }

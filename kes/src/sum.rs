@@ -11,12 +11,11 @@ use digest::{
     Digest, Key, KeyInit, Output, OutputSizeUser,
     array::{Array, ArraySize},
     common::{Generate, KeySizeUser, TryKeyInit},
-    typenum::{IsLessOrEqual, True, Unsigned},
+    typenum::{IsLessOrEqual, True},
 };
 use either::Either::{self, Left, Right};
 use signature::{Keypair, KeypairRef, SignatureEncoding, Signer, Verifier};
 use std::{
-    array::TryFromSliceError,
     error::Error,
     fmt::{Debug, Display},
     hash::Hash,
@@ -349,7 +348,7 @@ where
 /// right parts of the sum.
 #[derive(FromBytes, IntoBytes, Immutable, Unaligned, KnownLayout)]
 #[repr(transparent)]
-pub struct VerifyingKey<H: OutputSizeUser>(Output<H>);
+pub struct VerifyingKey<H: OutputSizeUser>(pub Output<H>);
 
 impl<H> Copy for VerifyingKey<H>
 where
@@ -367,22 +366,6 @@ impl<H: OutputSizeUser> Clone for VerifyingKey<H> {
 impl<H: OutputSizeUser> AsRef<[u8]> for VerifyingKey<H> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
-    }
-}
-
-impl<H: OutputSizeUser> TryFrom<&[u8]> for VerifyingKey<H>
-where
-    H: OutputSizeUser,
-{
-    type Error = TryFromSliceError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() != H::OutputSize::to_usize() {
-            let _ = <[u8; 1] as TryFrom<&[u8]>>::try_from(&[])?;
-            unreachable!()
-        } else {
-            Output::<H>::try_from(value).map(VerifyingKey)
-        }
     }
 }
 

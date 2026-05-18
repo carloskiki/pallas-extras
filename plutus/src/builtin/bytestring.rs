@@ -108,19 +108,19 @@ pub fn shift(mut x: Vec<u8>, by: &Integer) -> Vec<u8> {
         return x;
     }
     let byte_shift = by.unsigned_abs() / 8;
-    let bit_shift = by.unsigned_abs() % 8;
+    let bit_shift = (by.unsigned_abs() % 8) as u32;
     let len = x.len();
 
     if by > 0 {
         for i in byte_shift..len {
             x[i - byte_shift] = x[i] << bit_shift;
-            x[i - byte_shift] |= x.get(i + 1).unwrap_or(&0) >> (8 - bit_shift);
+            x[i - byte_shift] |= x.get(i + 1).unwrap_or(&0).unbounded_shr(8 - bit_shift);
         }
         x[len.saturating_sub(byte_shift)..].fill(0);
     } else {
         for i in (0..len.saturating_sub(byte_shift)).rev() {
             x[i + byte_shift] = x[i] >> bit_shift;
-            x[i + byte_shift] |= x.get(i.wrapping_sub(1)).unwrap_or(&0) << (8 - bit_shift);
+            x[i + byte_shift] |= x.get(i.wrapping_sub(1)).unwrap_or(&0).unbounded_shl(8 - bit_shift);
         }
         x[..byte_shift.min(len)].fill(0);
     }

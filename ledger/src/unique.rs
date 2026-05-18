@@ -27,11 +27,18 @@ pub enum Error<E> {
 ///
 /// For `Vec<(K, V)>`, this ensures uniqueness of `K`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct Unique<T, const STRICT: bool>(pub(crate) T);
 
 impl<T, const STRICT: bool> Unique<T, STRICT> {
     pub fn inner(self) -> T {
         self.0
+    }
+}
+
+impl<T, const STRICT: bool> Unique<Vec<T>, STRICT> {
+    pub const fn new() -> Self {
+        Unique(Vec::new())
     }
 }
 
@@ -146,38 +153,6 @@ pub(crate) fn decode_dedup_by_key<T, E, K: Hash + Eq, const STRICT: bool>(
 
     Ok((removed, Unique(v)))
 }
-
-// fn dedup<T: Hash + Eq>(v: &mut Vec<T>) -> bool {
-//     use hashbrown::{HashTable, hash_table::Entry};
-//
-//     let mut set = HashTable::new();
-//     let random_state = RandomState::new();
-//     let make_hash = |s: &T| random_state.hash_one(s);
-//
-//     let len = v.len();
-//     let mut del = 0;
-//     for i in 0..len {
-//         let current = &v[i];
-//         let hash = make_hash(current);
-//         match set.entry(hash, |&j| &v[j] == current, |&j| make_hash(&v[j])) {
-//             Entry::Occupied(_) => {
-//                 del += 1;
-//             }
-//             Entry::Vacant(entry) => {
-//                 if del > 0 {
-//                     v.swap(i - del, i);
-//                 }
-//                 entry.insert(i - del);
-//             }
-//         }
-//     }
-//     if del > 0 {
-//         v.truncate(len - del);
-//         true
-//     } else {
-//         false
-//     }
-// }
 
 pub(crate) mod codec {
     use mitsein::vec1::Vec1;
