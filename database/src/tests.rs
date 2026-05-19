@@ -81,12 +81,12 @@ fn skipped() {
 }
 
 fn suite(setup: impl Fn(&Path)) {
-    // let temp_dir = tempfile::tempdir().unwrap();
-    // setup(temp_dir.path());
-    // round_trip::<0>(temp_dir.path());
-    // let temp_dir = tempfile::tempdir().unwrap();
-    // setup(temp_dir.path());
-    // round_trip::<1>(temp_dir.path());
+    let temp_dir = tempfile::tempdir().unwrap();
+    setup(temp_dir.path());
+    round_trip::<0>(temp_dir.path());
+    let temp_dir = tempfile::tempdir().unwrap();
+    setup(temp_dir.path());
+    round_trip::<1>(temp_dir.path());
     let temp_dir = tempfile::tempdir().unwrap();
     setup(temp_dir.path());
     round_trip::<2>(temp_dir.path());
@@ -135,7 +135,7 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
     let new_block = block(new_tip, &mut new_block_buffer);
     writer.append(&new_block).unwrap();
 
-    reader.range = 0..(new_tip + 1000);
+    reader.range = 0..(new_tip + 1);
     while !reader.range.is_empty() {
         blocks.clear();
         reader.read_chunk(&mut blocks).unwrap();
