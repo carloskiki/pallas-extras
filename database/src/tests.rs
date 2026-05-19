@@ -120,9 +120,9 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
     }
 
     let new_tip = reader.tip().unwrap().map(|t| t + 1).unwrap_or(0);
-    if new_tip > 0 {
+    if new_tip > 1 {
         writer
-            .append(&block(new_tip - 1, &mut Vec::new()))
+            .append(&block(new_tip - 2, &mut Vec::new()))
             .unwrap_err();
     }
     if new_tip >= crate::CHUNK_SIZE {

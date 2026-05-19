@@ -37,6 +37,7 @@ impl<const N: usize> Reader<N> {
         let chunk_number = (self.range.start / CHUNK_SIZE) as u32;
         let cache = self.shared.read().expect("cache should not be poisoned");
         if self.range.is_empty() || chunk_number > cache.chunk_number {
+            self.range.start = self.range.end;
             return Ok(());
         }
 

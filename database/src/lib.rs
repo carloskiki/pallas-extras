@@ -53,7 +53,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
 
     let (chunk_file, primary_file, secondary_file) = open_or_create(&dir, chunk_number)?;
     let primary_count = (primary_file.metadata()?.len() as usize - 1) / 4;
-    let data = secondary::read(&mut BytesMut::new(), &secondary_file)?;
+    let data = secondary::read(&mut BytesMut::new(), &secondary_file, chunk_number)?;
     let len = data.len();
     let size = chunk_file.metadata()?.len();
 
@@ -154,10 +154,7 @@ impl<const N: usize> Cache<N> {
             let chunk_file = options.open(path.with_extension("chunk"))?;
             let secondary_file = options.open(path.with_extension("secondary"))?;
             let size = chunk_file.metadata()?.len() as u32;
-            let mut block_info = secondary::read(buffer, &secondary_file)?;
-            if let Some(first) = block_info.first_mut() && first.slot == chunk_number as u64 {
-                first.slot *= CHUNK_SIZE;
-            }
+            let block_info = secondary::read(buffer, &secondary_file, chunk_number)?;
             
             Ok(ChunkData {
                 block_info,
