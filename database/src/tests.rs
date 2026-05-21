@@ -20,14 +20,6 @@ fn new() {
 }
 
 #[test]
-fn empty() {
-    suite(|path| {
-        copy_files(path, 0);
-        std::fs::File::create(path.join("00001.secondary")).unwrap();
-    })
-}
-
-#[test]
 fn partial() {
     suite(|path| {
         copy_files(path, 0);

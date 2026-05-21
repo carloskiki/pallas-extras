@@ -1,6 +1,16 @@
+//! Immutable database implementation.
+//!
+//! This implementation matches the database format used by the `IntersectMBO` implementation.
+//! It allows multiple readers and a single writer to operate concurrently.
+//!
+//! The design is deliberately very simple and low level, to reduce code size and maximize
+//! performance. Readers and the writer never block each other, except when appending at
+//! chunk boundaries, which currently happens every 21,600 slots. All operations are syncrhonous
+//! (blocking). Functions return `std::io::Error` as almost all errors arise from the file system.
+//! Panics should never occur, and are considered implementation bugs.
 use bytes::BytesMut;
-use crossbeam_utils::CachePadded;
 use core::sync::atomic;
+use crossbeam_utils::CachePadded;
 use ledger::slot;
 use once_cell::sync::OnceCell;
 use std::borrow::Cow;
@@ -31,6 +41,14 @@ pub use writer::Writer;
 
 const CHUNK_SIZE: slot::Number = 21_600;
 
+/// Open a database at the given directory, returning a [`Reader`] and [`Writer`].
+///
+/// Failure to provide a well-formed database (e.g. missing files, corrupted files) results in
+/// unspecified behavior.
+///
+/// The `N` parameter specifies the number of chunks to cache in memory. A chunk is approximately
+/// 16KB-20KB depending on the number of blocks it contains. The `IntersectMBO` implementation uses
+/// `N = 500`.
 pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, Writer<N>)> {
     let mut chunk_number = 0;
     let dir = dir.into();
@@ -38,7 +56,10 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     let file_name_err = |file_name: &std::ffi::OsString| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("invalid file name in database directory: {file_name:?}"),
+            format!(
+                "invalid file name in database directory: {}",
+                file_name.display()
+            ),
         )
     };
     for entry in dir_iter {
@@ -46,7 +67,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
         let bytes = &file_name.as_encoded_bytes()[..5];
         let num = std::str::from_utf8(bytes)
             .map_err(|_| file_name_err(&file_name))?
-            .parse::<u32>()
+            .parse::<u64>()
             .map_err(|_| file_name_err(&file_name))?;
         chunk_number = chunk_number.max(num);
     }
@@ -120,7 +141,7 @@ struct Cache<const N: usize> {
     /// We can have up to `CHUNK_SIZE` regular blocks, plus one EBB.
     entries: UnsafeCell<[MaybeUninit<BlockInfo>; CHUNK_SIZE as usize + 1]>,
     /// The chunk number.
-    chunk_number: u32,
+    chunk_number: u64,
     /// The lower 32 bits encode the number of entries in `entries`, and the upper 32 bits encode
     /// the total size of the chunk file.
     len_size: CachePadded<AtomicU64>,
@@ -138,13 +159,24 @@ impl<const N: usize> Cache<N> {
         ((len_size & 0xFFFF_FFFF) as usize, (len_size >> 32) as u32)
     }
 
+    fn current_chunk_data<'a>(&'a self) -> (&'a [BlockInfo], u32, &'a File) {
+        // Syncrhonize with the `Release` store of the writer.
+        let (len, size) = self.len_size(atomic::Ordering::Acquire);
+        // Safety: `len` is the number of initialized entries in `entries`. These are
+        // never modified after initialization.
+        let block_info = unsafe {
+            std::slice::from_raw_parts::<'a, _>(self.entries.get() as *const BlockInfo, len)
+        };
+        (block_info, size, &self.chunk_file)
+    }
+
     /// Get chunk data for the given chunk number.
     ///
     /// Unspecified behavior if the chunk number is greater than the current.
     #[allow(clippy::type_complexity)]
     fn chunk_data<'a>(
         &'a self,
-        chunk_number: u32,
+        chunk_number: u64,
         buffer: &mut BytesMut,
     ) -> io::Result<(Cow<'a, [BlockInfo]>, u32, Result<File, &'a File>)> {
         let mut read_chunk = || -> io::Result<ChunkData> {
@@ -155,7 +187,7 @@ impl<const N: usize> Cache<N> {
             let secondary_file = options.open(path.with_extension("secondary"))?;
             let size = chunk_file.metadata()?.len() as u32;
             let block_info = secondary::read(buffer, &secondary_file, chunk_number)?;
-            
+
             Ok(ChunkData {
                 block_info,
                 size,
@@ -164,15 +196,8 @@ impl<const N: usize> Cache<N> {
         };
 
         Ok(if chunk_number == self.chunk_number {
-            // Syncrhonize with the `Release` store of the writer.
-            let (len, size) = self.len_size(atomic::Ordering::Acquire);
-            // Safety: `len` is the number of initialized entries in `entries`. These are
-            // never modified after initialization.
-            let block_info = unsafe {
-                std::slice::from_raw_parts::<'a, _>(self.entries.get() as *const BlockInfo, len)
-            };
-
-            (Cow::Borrowed(block_info), size, Err(&self.chunk_file))
+            let (block_info, size, file) = self.current_chunk_data();
+            (Cow::Borrowed(block_info), size, Err(file))
         } else {
             let diff = (self.chunk_number - chunk_number) as usize;
             if diff > N {
@@ -213,7 +238,7 @@ impl<const N: usize> Cache<N> {
 unsafe impl<const N: usize> Sync for Cache<N> {}
 
 /// Data for a chunk, read from the `secondary` file.
-pub struct ChunkData {
+struct ChunkData {
     pub block_info: Box<[BlockInfo]>,
     pub size: u32,
     pub file: File,
@@ -221,20 +246,20 @@ pub struct ChunkData {
 
 /// Entry for a chunk in the cache.
 #[derive(Clone, Copy)]
-pub struct BlockInfo {
+struct BlockInfo {
     slot: slot::Number,
     offset: u32,
     crc: u32,
 }
 
-fn path_prefix(path: &Path, chunk_number: u32) -> PathBuf {
+fn path_prefix(path: &Path, chunk_number: u64) -> PathBuf {
     path.join(format!("{chunk_number:05}"))
 }
 
 /// Returns the chunk file, primary file, and secondary file for the given chunk number.
 ///
 /// Creates the files if they do not exist.
-fn open_or_create(path: &Path, chunk_number: u32) -> io::Result<(File, File, File)> {
+fn open_or_create(path: &Path, chunk_number: u64) -> io::Result<(File, File, File)> {
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true);
     let mut path = path_prefix(path, chunk_number).with_extension("chunk");

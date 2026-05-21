@@ -14,6 +14,7 @@ use std::{
 use tinycbor::{CborLen, encoded::With};
 use zerocopy::IntoBytes;
 
+/// Database writer.
 pub struct Writer<const N: usize> {
     /// Shared data.
     pub(crate) shared: Arc<RwLock<Cache<N>>>,
@@ -31,11 +32,14 @@ pub struct Writer<const N: usize> {
 impl<const N: usize> Writer<N> {
     /// Append a block to the database.
     ///
-    /// If an error occurs the database is not corrupted and the write is not applied.
+    /// ## Errors
+    ///
+    /// Returns an error on file system errors, or if the block's slot is less than the tip of the
+    /// database.
     pub fn append(&mut self, block: &With<'_, Block>) -> io::Result<()> {
+        const HEADER_OFFSET: usize = 3;
         let mut hasher = Blake2b256::new();
         let bytes: &[u8] = block.as_ref();
-        const HEADER_OFFSET: usize = 3;
         macro_rules! shelley_data {
             ($block:ident, $bytes:ident) => {
                 (
@@ -79,7 +83,7 @@ impl<const N: usize> Writer<N> {
         } else {
             (slot_or_ebb, slot_or_ebb % CHUNK_SIZE + 1)
         };
-        let chunk_number = (slot / CHUNK_SIZE) as u32;
+        let chunk_number = slot / CHUNK_SIZE;
         let mut cache = self.shared.read().expect("cache should not be poisoned");
         let primary_file_offset = (1 + self.primary_count * std::mem::size_of::<u32>()) as u64;
         // Only the writer updates `len_size`, so `Relaxed` is OK.
@@ -112,6 +116,12 @@ impl<const N: usize> Writer<N> {
             let (new_chunk_file, new_primary_file, new_secondary_file) =
                 open_or_create(&cache.directory, chunk_number)?;
 
+            // Safety: `len` is the number of initialized entries in `entries`, so `entries[0..len]`
+            // are all initialized.
+            let block_info: Box<[_]> = unsafe {
+                std::slice::from_raw_parts(cache.entries.get().cast::<BlockInfo>(), len).into()
+            };
+
             drop(cache);
             let mut cache_mut = self.shared.write().expect("cache should not be poisoned");
             let old_chunk_file = std::mem::replace(&mut cache_mut.chunk_file, new_chunk_file);
@@ -120,17 +130,7 @@ impl<const N: usize> Writer<N> {
             self.primary_count = 0;
             if N > 0 {
                 let chunk = ChunkData {
-                    block_info: cache_mut
-                        .entries
-                        .get_mut()
-                        .iter()
-                        .take(len)
-                        .map(|entry| {
-                            // Safety: `len` is the number of initialized entries in `entries`. These are
-                            // never modified after initialization, so we can safely read them.
-                            unsafe { (*entry).assume_init() }
-                        })
-                        .collect(),
+                    block_info,
                     size,
                     file: old_chunk_file,
                 };
@@ -142,6 +142,7 @@ impl<const N: usize> Writer<N> {
             cache_mut.chunk_number = chunk_number;
             len = 0;
             size = 0;
+            *cache_mut.len_size.get_mut() = 0;
             drop(cache_mut);
             cache = self.shared.read().expect("cache should not be poisoned");
         } else if chunk_number != cache.chunk_number
@@ -165,7 +166,7 @@ impl<const N: usize> Writer<N> {
         cache.chunk_file.write_all_at(bytes, size as u64)?;
         let crc = crc32fast::hash(bytes);
         let entry = secondary::Entry {
-            offset: (size as u64).into(),
+            offset: u64::from(size).into(),
             header_offset: (HEADER_OFFSET as u16).into(),
             header_size: (header_size as u16).into(),
             crc: crc.into(),
@@ -174,7 +175,7 @@ impl<const N: usize> Writer<N> {
         };
         cache
             .secondary_file
-            .write_all_at(entry.as_bytes(), secondary_offset as u64)?;
+            .write_all_at(entry.as_bytes(), u64::from(secondary_offset))?;
 
         // All failable operations are done, we can update the cache.
 
