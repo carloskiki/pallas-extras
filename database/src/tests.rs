@@ -68,7 +68,7 @@ fn skipped() {
     suite(|path| {
         copy_files(path, 0);
         copy_files(path, 1);
-        copy_files(path, 4555);
+        copy_files(path, 7600);
     });
 }
 
@@ -111,7 +111,7 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
         block.decode().unwrap();
     }
 
-    let new_tip = reader.tip().unwrap().map(|t| t + 1).unwrap_or(0);
+    let new_tip = reader.tip().map(|t| t + 1).unwrap_or(0);
     if new_tip > 1 {
         writer
             .append(&block(new_tip - 2, &mut Vec::new()))
