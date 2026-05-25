@@ -23,11 +23,14 @@ rug = { workspace = true }
 blake2 = { workspace = true }
 crc32fast = { workspace = true }
 sha3 = { workspace = true }
+sha2 = { workspace = true }
 
 # Public Key Cryptography
+signature = { workspace = true }
 bip32 = { path = "../bip32" }
 ed25519-dalek = { workspace = true, features = ["digest", "pkcs8"] }
-# TODO: remove once https://github.com/RustCrypto/signatures/pull/1134 is merged
+curve25519-dalek = { workspace = true }
+# TODO: remove once ed25519-dalek has a zerocopy feature flag is merged
 ed25519 = { workspace = true }
 kes = { path = "../kes" }
 

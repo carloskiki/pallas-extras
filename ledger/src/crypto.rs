@@ -5,6 +5,8 @@ use digest::{
     consts::{U28, U32},
 };
 
+pub mod vrf;
+
 pub use blake2;
 pub use ed25519_dalek;
 pub use bip32;
