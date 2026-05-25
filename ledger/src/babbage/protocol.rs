@@ -10,7 +10,7 @@ pub use version::Version;
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct, Encode, Decode, CborLen,
 )]
-#[struct_name = "Parameters"]
+#[sparse_name = "Parameters"]
 #[struct_derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cbor(naked)]
 pub enum Parameter {

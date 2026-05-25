@@ -3,8 +3,3 @@ error: cannot find derive macro `SparseStruct` in this scope
   |
 1 | #[derive(SparseStruct)]
   |          ^^^^^^^^^^^^
-  |
-help: consider importing this derive macro
-  |
-1 + use sparse_struct::SparseStruct;
-  |

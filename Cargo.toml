@@ -21,7 +21,7 @@ tokio-stream = { version = "0.1.18", default-features = false }
 # CBOR
 cbor-util = { path = "cbor-util" }
 embedded-io = "0.7.1"
-tinycbor = "0.12.1"
+tinycbor = "0.12.2"
 tinycbor-derive = "0.15.2"
 
 # Crypto Traits

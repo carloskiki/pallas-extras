@@ -14,6 +14,8 @@ pub mod delegation;
 
 pub mod protocol;
 
+pub mod state;
+
 pub mod transaction;
 pub use transaction::Transaction;
 

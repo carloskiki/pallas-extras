@@ -1,11 +1,23 @@
-error: The `struct_name` attribute must be in the form `#[struct_name = "Name"]`.
+error: The `sparse_name` attribute must be in the form `#[struct_name = "Name"]`.
  --> tests/ui/wrong-attribute.rs:4:1
   |
-4 | #[struct_name(Hello)]
+4 | #[sparse_name(Hello)]
   | ^
 
-error: `struct_name` should be specified on the enum, not on its variants.
-  --> tests/ui/wrong-attribute.rs:12:5
+error: The `full_name` attribute must be in the form `#[full_name = "Name"]`.
+  --> tests/ui/wrong-attribute.rs:11:1
    |
-12 |     #[struct_name = "Hello"]
+11 | #[full_name(Hello)]
+   | ^
+
+error: `sparse_name` should be specified on the enum, not on its variants.
+  --> tests/ui/wrong-attribute.rs:19:5
+   |
+19 |     #[sparse_name = "Hello"]
+   |     ^
+
+error: `full_name` should be specified on the enum, not on its variants.
+  --> tests/ui/wrong-attribute.rs:26:5
+   |
+26 |     #[full_name = "Hello"]
    |     ^

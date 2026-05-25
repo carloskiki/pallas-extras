@@ -1,4 +1,5 @@
 use crate::{allegra, shelley::transaction::Index};
+use tinycbor::encoded::With;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod header;
@@ -6,7 +7,7 @@ pub use header::Header;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Block<'a> {
-    pub header: Header<'a>,
+    pub header: With<'a, Header<'a>>,
     pub transaction_bodies: Vec<super::transaction::Body<'a>>,
     pub transaction_witness_sets: Vec<allegra::transaction::witness::Set<'a>>,
     pub transaction_data: crate::Unique<Vec<(Index, allegra::transaction::Data<'a>)>, false>,

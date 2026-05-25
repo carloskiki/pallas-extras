@@ -11,21 +11,23 @@ error: expected unsuffixed literal, found `[`
    |                 ^
 
 error: `struct_derive` should be specified on the enum, not on its variants.
-  --> tests/ui/wrong-derive.rs:45:5
+  --> tests/ui/wrong-derive.rs:46:5
    |
-45 |     #[struct_derive(Clone)]
+46 |     #[struct_derive(Clone)]
    |     ^
 
 error: cannot find derive macro `NotInScope` in this scope
-  --> tests/ui/wrong-derive.rs:34:17
+  --> tests/ui/wrong-derive.rs:35:17
    |
-34 | #[struct_derive(NotInScope)]
+35 | #[struct_derive(NotInScope)]
    |                 ^^^^^^^^^^
 
-error[E0204]: the trait `std::marker::Copy` cannot be implemented for this type
- --> tests/ui/wrong-derive.rs:5:17
+error[E0204]: the trait `Copy` cannot be implemented for this type
+ --> tests/ui/wrong-derive.rs:6:6
   |
 4 | #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
-  |                                                                    ------------ this field does not implement `std::marker::Copy`
+  |                                                                    ------------ this field does not implement `Copy`
 5 | #[struct_derive(Copy)]
-  |                 ^^^^
+  |                 ---- in this derive macro expansion
+6 | enum Enum1 {
+  |      ^^^^^

@@ -31,6 +31,7 @@ enum Enum3 {
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
+#[full_name = "Enum4Full"]
 #[struct_derive(NotInScope)]
 enum Enum4 {
     VariantA(i32),

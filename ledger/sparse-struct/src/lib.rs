@@ -11,7 +11,8 @@
 //!
 //! #[derive(Debug, Clone, PartialEq, sparse_struct::SparseStruct)]
 //! #[struct_derive(Debug, Clone, PartialEq)]
-//! #[struct_name = "Person"]
+//! #[sparse_name = "Person"]
+//! #[full_name = "PersonFull"]
 //! enum Attribute {
 //!     Age(u8),
 //!     Name(String),
@@ -54,7 +55,8 @@
 //! ```
 //!
 //! This generates a `Person` struct with a few helpful methods and trait implementations to access
-//! attributes, and modify them.
+//! attributes, and modify them. When `#[full_name = "..."]` is provided, it also generates a struct
+//! with a field per variant.
 
 use heck::ToSnakeCase;
 use proc_macro2::{Span, TokenStream};
@@ -64,7 +66,7 @@ use syn::{
     token::Struct,
 };
 
-#[proc_macro_derive(SparseStruct, attributes(struct_name, struct_derive))]
+#[proc_macro_derive(SparseStruct, attributes(sparse_name, struct_derive, full_name))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     expand(parse_macro_input!(input as DeriveInput))
         .unwrap_or_else(syn::Error::into_compile_error)
@@ -103,10 +105,8 @@ fn expand(
         ));
     }
 
-    let (methods, index_arms) = variants
-        .iter()
-        .enumerate()
-        .map(|(i, variant)| {
+    let mut full_struct_fields = Vec::new();
+    let (methods, index_arms) = variants.iter().enumerate().map(|(i, variant)| {
             let span = variant.span();
             let field = match &variant.fields {
                 Fields::Unnamed(fields) if fields.unnamed.len() == 1 => &fields.unnamed[0].ty,
@@ -118,7 +118,9 @@ fn expand(
                 }
             };
             if let Some(err) = variant.attrs.iter().find_map(|attr| {
-                ["struct_name", "struct_derive"].iter().find_map(|attr_name| {
+                ["sparse_name", "struct_derive", "full_name"]
+                    .iter()
+                    .find_map(|attr_name| {
                     attr.path().is_ident(attr_name).then_some(syn::Error::new(
                         span,
                         format!("`{attr_name}` should be specified on the enum, not on its variants."),
@@ -152,6 +154,9 @@ fn expand(
                 &variant.ident.to_string().to_snake_case(),
                 Span::call_site(),
             );
+            full_struct_fields.push(quote! {
+                pub #fn_ident: #field,
+            });
             let fn_ident_mut = Ident::new(&format!("{fn_ident}_mut"), Span::call_site());
             let set_ident = Ident::new(&format!("set_{fn_ident}"), Span::call_site());
             let remove_ident = Ident::new(&format!("remove_{fn_ident}"), Span::call_site());
@@ -201,9 +206,10 @@ fn expand(
 
     let mut struct_ident: Ident = format_ident!("{}Set", enum_ident);
     let mut struct_derives = quote! {};
+    let mut full_struct_ident: Option<Ident> = None;
 
     for attr in attrs {
-        if attr.path().is_ident("struct_name") {
+        if attr.path().is_ident("sparse_name") {
             match &attr.meta {
                 syn::Meta::NameValue(syn::MetaNameValue {
                     value:
@@ -216,7 +222,24 @@ fn expand(
                 _ => {
                     return Err(syn::Error::new(
                         attr.span(),
-                        "The `struct_name` attribute must be in the form `#[struct_name = \"Name\"]`.",
+                        "The `sparse_name` attribute must be in the form `#[struct_name = \"Name\"]`.",
+                    ));
+                }
+            }
+        } else if attr.path().is_ident("full_name") {
+            match &attr.meta {
+                syn::Meta::NameValue(syn::MetaNameValue {
+                    value:
+                        syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(lit_str),
+                            ..
+                        }),
+                    ..
+                }) => full_struct_ident = Some(format_ident!("{}", lit_str.value())),
+                _ => {
+                    return Err(syn::Error::new(
+                        attr.span(),
+                        "The `full_name` attribute must be in the form `#[full_name = \"Name\"]`.",
                     ));
                 }
             }
@@ -225,7 +248,21 @@ fn expand(
         }
     }
 
+    let full_struct = full_struct_ident
+        .map(|full_ident| {
+            let full_struct_fields = &full_struct_fields;
+            quote! {
+                #[derive(#struct_derives)]
+                #vis struct #full_ident #generics {
+                    #(#full_struct_fields)*
+                }
+            }
+        })
+        .unwrap_or_else(TokenStream::new);
+
     Ok(quote! {
+        #full_struct
+
         #[derive(#struct_derives)]
         #vis struct #struct_ident #generics {
             data: ::alloc::vec::Vec<#enum_ident #generics>,

@@ -18,11 +18,11 @@ pub use fee_policy::FeePolicy;
 pub mod soft_fork;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
-#[struct_name = "Parameters"]
+#[sparse_name = "Parameters"]
 #[struct_derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Parameter {
     ScriptVersion(u16),
-    SlotDuration(u64), // Try u64, and fallback to bigint if needed (also try u32 if it works..).
+    SlotDuration(u64),
     MaxBlockSize(u64),
     MaxHeaderSize(u64),
     MaxTransactionSize(u64),
