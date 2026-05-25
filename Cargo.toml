@@ -7,7 +7,6 @@ members = [
     "kes",
     "ledger",
     "network",
-    "vrf",
     "plutus",
 ]
 resolver = "3"
