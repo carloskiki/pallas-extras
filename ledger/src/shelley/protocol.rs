@@ -1,4 +1,4 @@
-use crate::{epoch, interval, shelley::transaction::Coin};
+use crate::{epoch, interval, Coin};
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
 

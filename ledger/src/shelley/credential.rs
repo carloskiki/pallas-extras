@@ -27,9 +27,9 @@ pub enum Delegation<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct ChainPointer {
-    pub slot: u64,
-    pub tx_index: u64,
-    pub cert_index: u64,
+    pub slot: u32,
+    pub tx_index: u32,
+    pub cert_index: u32,
 }
 
 impl ChainPointer {
@@ -44,7 +44,7 @@ impl ChainPointer {
         for num in numbers {
             bytes_iter.peek()?;
             for byte in bytes_iter.by_ref() {
-                *num = (*num << 7) | (byte & 0x7f) as u64;
+                *num = num.checked_shl(7).unwrap() | (byte & 0x7f) as u32;
                 if byte & 0x80 == 0 {
                     break;
                 }
@@ -77,9 +77,9 @@ enum State {
 }
 
 pub struct ChainPointerIter {
-    slot: u64,
-    tx_index: u64,
-    cert_index: u64,
+    slot: u32,
+    tx_index: u32,
+    cert_index: u32,
     state: State,
 }
 
@@ -94,7 +94,7 @@ impl Iterator for ChainPointerIter {
             State::Done => return None,
         };
 
-        let bit_count = u64::BITS - num.leading_zeros();
+        let bit_count = u32::BITS - num.leading_zeros();
         // Get the first 7 bits in the correct window.
         // We do (- 1) because if there is a multiple of 7 bits, we don't want to shift by the
         // bitcount.

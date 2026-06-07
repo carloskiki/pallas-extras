@@ -13,9 +13,10 @@ use crate::{
     shelley::{
         Network,
         address::Account,
-        transaction::{Coin, Input},
+        transaction::Input,
     },
     slot, unique,
+    Coin,
 };
 use mitsein::vec1::Vec1;
 use sparse_struct::SparseStruct;

@@ -1,4 +1,5 @@
 use tinycbor_derive::{CborLen, Decode, Encode};
+use crate::{slot, byron::protocol};
 
 pub mod vote;
 pub use vote::Vote;
@@ -14,4 +15,11 @@ pub struct Update<'a> {
     #[cbor(with = "cbor_util::option::Array<Proposal<'a>, false>")]
     pub proposal: Option<Proposal<'a>>,
     pub votes: Vec<Vote<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Candidate {
+    slot: slot::Number,
+    version: protocol::Version,
+    parameters: protocol::Parameters,
 }

@@ -6,10 +6,6 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 mod payload;
 pub use payload::Payload;
 
-// TODO: Do we remove this?
-mod distribution;
-pub use distribution::Distribution;
-
 mod attributes;
 pub use attributes::Attributes;
 
@@ -26,11 +22,19 @@ pub struct Address<'a> {
 
 impl<'a> Address<'a> {
     pub fn new(payload: Payload<'a>) -> Self {
-        // We know this cannot error because of Vec.
         let cbor_payload = tinycbor::to_vec(&payload);
         let checksum = crc32fast::hash(&cbor_payload);
         Self { payload, checksum }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
+#[cbor(naked)]
+pub enum Type {
+    #[n(0)]
+    PublicKey,
+    #[n(2)]
+    Redeem,
 }
 
 #[cfg(test)]

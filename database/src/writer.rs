@@ -124,6 +124,7 @@ impl<const N: usize> Writer<N> {
 
             drop(cache);
             let mut cache_mut = self.shared.write().expect("cache should not be poisoned");
+            // TODO: do all of this at the end?
             let old_chunk_file = std::mem::replace(&mut cache_mut.chunk_file, new_chunk_file);
             cache_mut.secondary_file = new_secondary_file;
             cache_mut.primary_file = new_primary_file;

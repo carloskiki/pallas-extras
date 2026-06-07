@@ -2,7 +2,8 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::{
     conway::governance::{Action, Anchor},
-    shelley::{address::Account, transaction::Coin},
+    shelley::{address::Account},
+    Coin
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]

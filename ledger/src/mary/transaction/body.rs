@@ -8,8 +8,9 @@ use crate::{
     shelley::{
         Certificate,
         address::Account,
-        transaction::{Coin, Input},
+        transaction::Input,
     },
+    Coin,
     slot, unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};

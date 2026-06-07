@@ -17,14 +17,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     files_ordered.sort_by_key(|dir_entry| dir_entry.file_name());
     println!("Found {} files", files_ordered.len());
 
-    let mut era = 0;
     for file in files_ordered {
         let file_name_os_str = file.file_name();
         let file_name = file_name_os_str.to_str().ok_or("invalid file name")?;
-        if !file_name.ends_with(".chunk") || file_name < "06188.chunk" {
+        if !file_name.ends_with(".chunk") {
             continue;
         }
-        if file_name.split('.').next().unwrap().parse::<u32>()? % 50 == 0 {
+        if file_name.split('.').next().unwrap().parse::<u32>()? % 100 == 0 {
             println!("Processing file {file_name}");
         }
 
@@ -38,52 +37,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                 break;
             };
 
-            match ledger::Block::decode(&mut decoder) {
-                Ok(b) => match b {
-                    ledger::Block::Shelley(_) if era != 1 => {
-                        era = 1;
-                        println!("Entered Shelley era at file {file_name}");
-                    }
-                    ledger::Block::Allegra(_) if era != 2 => {
-                        era = 2;
-                        println!("Entered Allegra era at file {file_name}");
-                    }
-                    ledger::Block::Mary(_) if era != 3 => {
-                        era = 3;
-                        println!("Entered Mary era at file {file_name}");
-                    }
-                    ledger::Block::Alonzo(_) => {
-                        if era != 4 {
-                            era = 4;
-                            println!("Entered Alonzo era at file {file_name}");
-                        }
-                    }
-                    ledger::Block::Babbage(_) => {
-                        if era != 5 {
-                            era = 5;
-                            println!("Entered Babbage era at file {file_name}");
-                        }
-                    }
-                    ledger::Block::Conway(_) => {
-                        if era != 6 {
-                            era = 6;
-                            println!("Entered Conway era at file {file_name}");
-                        }
-                    }
-                    _ => {}
-                },
-                Err(e) => {
-                    let decoder_pos = bytes.len() - decoder.0.len();
+            if let Err(e) = ledger::Block::decode(&mut decoder) {
+                let decoder_pos = bytes.len() - decoder.0.len();
 
-                    let next_item = tinycbor::Any::decode(&mut Decoder(&bytes[decoder_pos - 1..]))?;
-                    for token in Decoder(next_item.as_ref()) {
-                        let token = token?;
-                        println!("{token}");
-                    }
-
-                    panic!("{:?}", anyhow::anyhow!(e));
+                let next_item = tinycbor::Any::decode(&mut Decoder(&bytes[decoder_pos - 1..]))?;
+                for token in Decoder(next_item.as_ref()) {
+                    let token = token?;
+                    println!("{token}");
                 }
-            };
+
+                panic!("{:?}", anyhow::anyhow!(e));
+            }
         }
 
         buffer.clear();

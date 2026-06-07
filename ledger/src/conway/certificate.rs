@@ -1,18 +1,17 @@
-use tinycbor::{
-    CborLen, Decode, Decoder, Encode,
-    container::{self, bounded},
-    tag,
-};
-
 use crate::{
-    Unique,
+    Coin, Unique,
     conway::{
         governance::{self, Anchor},
         pool,
     },
     crypto::{Blake2b224Digest, Blake2b256Digest},
     epoch, interval,
-    shelley::{self, Credential, address::Account, transaction::Coin},
+    shelley::{self, Credential, address::Account},
+};
+use tinycbor::{
+    CborLen, Decode, Decoder, Encode,
+    container::{self, bounded},
+    tag,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -99,7 +98,10 @@ pub enum Error {
     /// while decoding field `account` in variant `PoolRegistration`
     PoolRegistrationAccount(#[source] <Account<'static> as Decode<'static>>::Error),
     /// while decoding field `owners` in variant `PoolRegistration`
-    PoolRegistrationOwners(#[source] <crate::unique::codec::Tagged<&'static Blake2b224Digest> as Decode<'static>>::Error),
+    PoolRegistrationOwners(
+        #[source]
+        <crate::unique::codec::Tagged<&'static Blake2b224Digest> as Decode<'static>>::Error,
+    ),
     /// while decoding field `relays` in variant `PoolRegistration`
     PoolRegistrationRelays(#[source] <Vec<pool::Relay<'static>> as Decode<'static>>::Error),
     /// while decoding field `metadata` in variant `PoolRegistration`

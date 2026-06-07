@@ -7,7 +7,7 @@ use tinycbor::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Input<'a> {
     id: &'a super::Id,
-    index: u32,
+    index: u16, // TODO: check if this can be u16, and if so, `Shelley::input == Byron::input`.
 }
 
 impl Encode for Input<'_> {
@@ -45,7 +45,7 @@ mod codec {
     #[derive(Encode, Decode, CborLen)]
     pub(super) struct Inner<'a> {
         pub id: &'a transaction::Id,
-        pub index: u32,
+        pub index: u16,
     }
 
     #[derive(Encode, Decode, CborLen)]
@@ -62,4 +62,9 @@ mod codec {
             })
         }
     }
+}
+
+pub struct Owned {
+    pub id: super::Id,
+    pub index: u32,
 }

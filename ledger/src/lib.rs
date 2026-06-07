@@ -12,6 +12,8 @@ pub mod epoch;
 pub mod interval;
 pub mod slot;
 
+pub type Coin = u64;
+
 mod address;
 pub use address::Address;
 

@@ -1,9 +1,9 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     conway::{governance::Constitution, protocol},
     crypto::Blake2b224Digest,
     epoch, interval,
-    shelley::{Credential, address::Account, transaction::Coin},
+    shelley::{Credential, address::Account},
     unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};

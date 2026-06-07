@@ -1,31 +1,33 @@
+use std::mem::MaybeUninit;
+
 use sha3::{Digest, Sha3_256};
 use tinycbor::{Encode, Encoder};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::{
-    byron::address::attributes::Attributes,
+    byron::address::{attributes::Attributes, Type},
     crypto::{Blake2b224, Blake2b224Digest},
 };
 
-// TODO: Check which fields are actually used here on mainnet.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Payload<'a> {
-    pub root_digest: Blake2b224Digest,
+    pub root_digest: &'a Blake2b224Digest,
     pub attributes: Attributes<'a>,
-    pub address_type: u32, // TODO: This should only be 0 or 2, make sure of that.
+    pub address_type: Type,
 }
 
 impl<'a> Payload<'a> {
     pub fn new(
+        root_digest: &'a mut MaybeUninit<Blake2b224Digest>,
         spending_data: super::Data,
         attributes: super::Attributes<'a>,
-        address_type: u32,
+        address_type: Type,
     ) -> Self {
         #[derive(Encode)]
         struct Root<'a, 'b> {
-            address_type: u32,
+            address_type: Type,
             spending_data: super::Data<'a>,
-            attributes: super::Attributes<'b>,
+            attributes: Attributes<'b>,
         }
 
         // Arbitrary size that should fit most encodings without resizing
@@ -38,9 +40,10 @@ impl<'a> Payload<'a> {
         };
         root.encode(&mut encoder);
 
-        let root_digest: Blake2b224Digest = Blake2b224::digest(Sha3_256::digest(&encoder.0)).into();
+        root_digest.write(Blake2b224::digest(Sha3_256::digest(&encoder.0)).into());
         Payload {
-            root_digest,
+            // SAFETY: We wrote to `root_digest`, so it is now initialized.
+            root_digest: unsafe { root_digest.assume_init_ref() },
             attributes: root.attributes,
             address_type,
         }

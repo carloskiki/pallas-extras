@@ -9,7 +9,7 @@ pub type Id = crypto::Blake2b256Digest;
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Proposal<'a> {
     pub protocol_version: protocol::Version,
-    pub modifications: protocol::Parameters,
+    pub modifications: protocol::parameter::Update,
     pub software_version: protocol::version::Software<'a>,
     pub data: Vec<(&'a str, super::Data<'a>)>,
     pub attributes: Attributes<'a>,
@@ -17,4 +17,10 @@ pub struct Proposal<'a> {
     pub issuer: &'a crypto::ExtendedVerifyingKey,
     #[cbor(with = "cbor_util::Signature<'a>")]
     pub signature: &'a crypto::Signature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Registration {
+    pub version: protocol::Version,
+    pub parameters: protocol::Parameters,
 }

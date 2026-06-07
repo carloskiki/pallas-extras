@@ -1,6 +1,6 @@
 use crate::{
     mary::asset::{self, Asset},
-    shelley::transaction::Coin,
+    Coin,
 };
 use tinycbor::{
     CborLen, Decode, Encode,

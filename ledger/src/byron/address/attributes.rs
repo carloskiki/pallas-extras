@@ -5,8 +5,6 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(map)]
 pub struct Attributes<'a> {
-    #[cbor(n(0), optional)]
-    distribution: Option<&'a [u8]>,
     #[cbor(n(1), optional)]
     key_derivation_path: Option<&'a [u8]>,
     #[cbor(n(2), with = "NetworkMagic", optional)]
@@ -24,7 +22,7 @@ impl From<NetworkMagic> for Option<u32> {
 
 impl From<&Option<u32>> for &NetworkMagic {
     fn from(opt: &Option<u32>) -> Self {
-        // This is safe because NetworkMagic is #[repr(transparent)]
+        // Safety: This is safe because NetworkMagic is #[repr(transparent)]
         unsafe { &*(opt as *const Option<u32> as *const NetworkMagic) }
     }
 }

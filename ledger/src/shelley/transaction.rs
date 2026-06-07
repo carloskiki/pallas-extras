@@ -17,7 +17,6 @@ use crate::Unique;
 pub mod witness;
 
 pub type Index = u16;
-pub type Coin = u64;
 pub type Data<'a> = Unique<Vec<(metadatum::Label, Metadatum<'a>)>, false>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

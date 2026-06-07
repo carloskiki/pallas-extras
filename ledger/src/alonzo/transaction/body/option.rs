@@ -6,9 +6,10 @@ use crate::{
     shelley::{
         Certificate, Network,
         address::Account,
-        transaction::{Coin, Input},
+        transaction::Input,
     },
     slot, unique,
+    Coin
 };
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
