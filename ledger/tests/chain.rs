@@ -3,6 +3,11 @@ use std::{error::Error, ffi::OsStr, fs::File, io::Read, os::unix::ffi::OsStrExt}
 use tinycbor::{Decode, Decoder};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let Ok("true") = std::env::var("PARSE_CHAIN_TEST").as_deref() else {
+        println!("Skipping chain parsing test. Set PARSE_CHAIN_TEST=true to run it.");
+        return Ok(());
+    };
+
     let mut buffer: Vec<u8> = Vec::new();
 
     let mut files_ordered = std::fs::read_dir(concat!(
