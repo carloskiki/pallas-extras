@@ -1,5 +1,4 @@
 use crate::byron::Attributes;
-use tinycbor::encoded::With;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod body;
@@ -24,7 +23,7 @@ pub type Difficulty = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Block<'a> {
-    pub header: With<'a, Box<Header<'a>>>,
+    pub header: Box<Header<'a>>,
     pub body: Body<'a>,
     pub extra: [Attributes<'a>; 1],
 }
