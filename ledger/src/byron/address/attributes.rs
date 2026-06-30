@@ -8,7 +8,7 @@ pub struct Attributes<'a> {
     #[cbor(n(1), optional)]
     key_derivation_path: Option<&'a [u8]>,
     #[cbor(n(2), with = "NetworkMagic", optional)]
-    network_magic: Option<u32>,
+    network_magic: Option<u32>, // TODO: This can probably be much smaller than u32, likely an enum.
 }
 
 #[repr(transparent)]
