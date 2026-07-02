@@ -1,65 +1,21 @@
-# Things we could have
+# Project Wide
 
-A Dependabot system that checks for upstream updates of slightly modified crates we rework in-tree.
+- A Dependabot system that checks for upstream updates of slightly modified crates we rework in-tree.
 
-# Database
+# Ledger
 
-EBBs are an issue because we can't differentiate the chunk zero EBB and slot 0 block.
+- Switch from `Vec<T>` to `Box<[T]>`, for that we need `mitsein::BoxSlice1: Clone`, which needs `CloneToUninit`/`CloneUnsized`.
 
-What this affects:
-- Backfilling the primary file.
-- reading metadata from the secondary file.
+We need a "move bytes" trait to move the allocations of some of the types, such as `Output`.
 
-If we adopt relative slots in the metadata, we can easily backfill, but it is harder
-to read metadata file (chunk 0 irregularity).
+UTxO set validation:
+- Need bytes for tx body for hash calculation.
+- To realloc outputs when inserted into the utxo set. 
 
-If we keep absolute slots, it is very hard to backfill correctly. To do that we need to:
+# CBOR
 
-We don't make any guarantees if the initial db is malformed, we just need to maintain the valid db.
-
-Normal slots are a bit easier to deal with.
-Check the primary file for the backfill count!!
-
+- Anonymous error types when `impl Trait` in associated type is stable.
 
 # Network
 
-Queries needed:
-- Given (protocol #, message ID), what was the agency of the peer, and what is the next ageny?
-
-## message
-
-Enum of messages, each message is its own type.
-If encoded with indef array, messages don't need to know their size
-
-Size limits should be declared on the state directly (or the state's message enum).
-
-Bounds for send:
-
-## The enum
-
-This is the only enum that gets generated.
-
-`Message`: Enum (`Lazy<message>`, `handle<message::to_state>`).
-
-- Traits for send:
-    - `From<(M, Handle<M::ToState>)>` where M is the message type.
-
-- Traits for receive:
-    - `TryFrom<Tag, Bytes>`: Create a message from the tag received and the bytes.
-
-- Traits for task:
-    - `AgencyInfo`: Given (message ID) return Option<(agency, next_agency)>.
-
-
-possibilities:
-- Each state also knows its mp. This is not nice because you have to specify mp <-> state twice (in mp and in state).
-- The client stores the mp ID at runtime. This is just weird, there should not be a runtime value for something known at compile time.
-
-Both of these weird for the user of the handle to not have it identified for a specific mp.
-
-- The message specifies the mp in the macro to create the message. We ahve to specify message -> mp, which is not nice.
-
-# Buffer pools
-
-A good allocator mostly neglects the benefits of complex buffer pooling, until it has been proven that the workflow
-is allocator bound.
+- Make some clients bufferable by having an async mutex handle that is held since the message was sent.
