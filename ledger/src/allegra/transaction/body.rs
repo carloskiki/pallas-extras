@@ -1,10 +1,11 @@
 use crate::{
+    transaction::Input,
     Unique,
     allegra::Update,
     shelley::{
         Certificate,
         address::Account,
-        transaction::{Input, Output},
+        transaction::Output,
     },
     slot, unique,
     Coin,

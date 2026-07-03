@@ -1,6 +1,6 @@
 use crate::{
     Unique,
-    shelley::transaction::Input,
+    transaction::Input,
     Coin
 };
 use displaydoc::Display;

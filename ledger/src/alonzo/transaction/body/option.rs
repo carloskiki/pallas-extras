@@ -1,15 +1,12 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     alonzo::Update,
     crypto::{Blake2b224Digest, Blake2b256Digest},
     mary::{Asset, asset},
-    shelley::{
-        Certificate, Network,
-        address::Account,
-        transaction::Input,
-    },
-    slot, unique,
-    Coin
+    shelley::{Certificate, Network, address::Account},
+    slot,
+    transaction::Input,
+    unique,
 };
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};

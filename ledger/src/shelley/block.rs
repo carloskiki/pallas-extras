@@ -14,5 +14,5 @@ pub struct Block<'a> {
     pub header: With<'a, Header<'a>>,
     pub transaction_bodies: Vec<transaction::Body<'a>>,
     pub transaction_witness_sets: Vec<transaction::witness::Set<'a>>,
-    pub transaction_data: Unique<Vec<(transaction::Index, transaction::Data<'a>)>, false>,
+    pub transaction_data: Unique<Vec<(crate::transaction::Index, transaction::Data<'a>)>, false>,
 }

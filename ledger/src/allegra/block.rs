@@ -1,4 +1,4 @@
-use crate::{allegra, shelley::transaction::Index};
+use crate::{allegra, transaction::Index};
 use tinycbor::encoded::With;
 use tinycbor_derive::{CborLen, Decode, Encode};
 

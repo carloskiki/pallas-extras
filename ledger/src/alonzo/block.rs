@@ -1,5 +1,5 @@
 use super::transaction;
-use crate::{Unique, shelley::transaction::Index};
+use crate::{Unique, transaction::Index};
 use tinycbor::encoded::With;
 use tinycbor_derive::{CborLen, Decode, Encode};
 

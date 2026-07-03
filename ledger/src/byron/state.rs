@@ -1,8 +1,9 @@
 use crate::{
     Coin, Unique,
-    byron::{block, protocol, transaction, update},
+    byron::{block, protocol, update},
     crypto::Blake2b224Digest,
     epoch, slot,
+    transaction,
 };
 use std::collections::HashMap;
 

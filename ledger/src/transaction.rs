@@ -1,9 +1,12 @@
-use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
+use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley, crypto};
 use tinycbor::Encoded;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-mod id;
-pub use id::Id;
+pub mod input;
+pub use input::Input;
+
+pub type Index = u16;
+pub type Id = crypto::Blake2b256Digest;
 
 /// Era-independent transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

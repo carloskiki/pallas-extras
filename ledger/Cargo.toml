@@ -43,6 +43,7 @@ ref-cast = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
 thiserror = { workspace = true }
 zerocopy = { workspace = true }
+yoke = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1"

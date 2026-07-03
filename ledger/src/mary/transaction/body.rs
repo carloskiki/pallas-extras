@@ -1,17 +1,14 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     mary::{
         Update,
         asset::{self, Asset},
         transaction::output::Output,
     },
-    shelley::{
-        Certificate,
-        address::Account,
-        transaction::Input,
-    },
-    Coin,
-    slot, unique,
+    shelley::{Certificate, address::Account},
+    slot,
+    transaction::Input,
+    unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 

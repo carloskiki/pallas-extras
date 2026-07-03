@@ -1,8 +1,7 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     conway::{
-        Certificate,
-        Asset, asset,
+        Asset, Certificate, asset,
         governance::{
             proposal,
             voting::{self},
@@ -10,13 +9,10 @@ use crate::{
         transaction::Output,
     },
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    shelley::{
-        Network,
-        address::Account,
-        transaction::Input,
-    },
-    slot, unique,
-    Coin,
+    shelley::{Network, address::Account},
+    slot,
+    transaction::Input,
+    unique,
 };
 use mitsein::vec1::Vec1;
 use sparse_struct::SparseStruct;
@@ -78,7 +74,7 @@ pub enum Option<'a> {
     #[n(20)]
     ProposalProcedures(
         #[cbor(with = "unique::codec::NonEmpty<proposal::Procedure<'a>>")]
-        Unique<Vec1<proposal::Procedure<'a>>, false>
+        Unique<Vec1<proposal::Procedure<'a>>, false>,
     ),
     #[n(21)]
     CurrentTreasury(Coin),
