@@ -6,6 +6,7 @@ version = "0.1.0"
 [dependencies]
 # CBOR
 cbor-util = { workspace = true }
+embedded-io = { workspace = true }
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
 
@@ -13,9 +14,7 @@ tinycbor-derive = { workspace = true }
 digest = { workspace = true }
 
 # Data types
-hashbrown = { version = "0.16", default-features = false, features = [
-    "inline-more",
-] }
+hashbrown = { workspace = true }
 mitsein = { workspace = true }
 rug = { workspace = true }
 
@@ -43,7 +42,6 @@ ref-cast = { workspace = true }
 sparse-struct = { path = "sparse-struct" }
 thiserror = { workspace = true }
 zerocopy = { workspace = true }
-yoke = { workspace = true }
 
 [dev-dependencies]
 anyhow = "1"

@@ -99,6 +99,7 @@ In concrete for byron: `With` around tx body + `With` around witnesses in payloa
 
 - Anonymous error types when `impl Trait` in associated type is stable. When this is possible, functions/modules instead of types
     will be soooo much nicer for attributes.
+- rename the `encoded` module to `memoized` or `memo`.
 - should use `u64` correctly instead of `usize` for lengths.
 
 # Network

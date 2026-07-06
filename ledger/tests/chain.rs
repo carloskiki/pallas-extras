@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 panic!("{:?}", anyhow::anyhow!(e));
             }
+            // TODO: re-encode + compare with cbor_len()
         }
 
         buffer.clear();

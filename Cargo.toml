@@ -8,6 +8,7 @@ members = [
     "ledger",
     "network",
     "plutus",
+    "state",
 ]
 resolver = "3"
 
@@ -29,6 +30,9 @@ digest = { version = "0.11.0", default-features = false }
 signature = { version = "3.0.0", default-features = false }
 
 # Data types
+hashbrown = { version = "0.17", default-features = false, features = [
+    "inline-more",
+] }
 mitsein = "0.9"
 rug = { version = "1.28.0", default-features = false, features = [
     "integer",

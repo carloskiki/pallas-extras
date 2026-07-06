@@ -1,0 +1,11 @@
+[package]
+edition = "2024"
+name = "state"
+version = "0.1.0"
+
+[dependencies]
+thiserror = { workspace = true }
+hashbrown = { workspace = true, features = ["equivalent", "default-hasher"] }
+ledger = { path = "../ledger" }
+yoke = { workspace = true }
+tinycbor = { workspace = true }
