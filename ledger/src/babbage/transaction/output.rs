@@ -12,7 +12,7 @@ use tinycbor_derive::{CborLen, Encode};
 #[cbor(map)]
 pub struct Output<'a> {
     #[n(0)]
-    pub address: Address<'a>,
+    pub address: Address,
     #[n(1)]
     pub value: Value<'a>,
     #[cbor(n(2), optional)]
@@ -80,7 +80,7 @@ mod codec {
     #[cbor(map)]
     pub struct Codec<'a> {
         #[n(0)]
-        pub address: Address<'a>,
+        pub address: Address,
         #[n(1)]
         pub value: Value<'a>,
         #[cbor(n(2), optional, decode_with = "Datum<'a>")]
@@ -111,7 +111,7 @@ mod alonzo_style {
     };
 
     pub struct Output<'a> {
-        pub address: crate::Address<'a>,
+        pub address: crate::Address,
         pub value: Value<'a>,
         pub datum_hash: Option<&'a crate::crypto::Blake2b256Digest>,
     }
@@ -119,7 +119,7 @@ mod alonzo_style {
     #[derive(Debug, thiserror::Error, displaydoc::Display)]
     pub enum Error {
         /// in field `address`
-        Address(#[from] <crate::Address<'static> as Decode<'static>>::Error),
+        Address(#[from] <crate::Address as Decode<'static>>::Error),
         /// in field `value`
         Value(#[from] <Value<'static> as Decode<'static>>::Error),
         /// in field `datum_hash`

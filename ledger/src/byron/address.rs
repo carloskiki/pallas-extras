@@ -1,6 +1,7 @@
 //! Address.
 
-use tinycbor::Encoded;
+use crate::crypto::{Blake2b224, Blake2b224Digest, DigestWriter, digest::Digest};
+use tinycbor::{Encode, Encoded, Encoder};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 mod payload;
@@ -14,25 +15,48 @@ pub use data::Data;
 
 /// Byron Era address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct Address<'a> {
-    #[cbor(with = "Encoded<Payload<'a>>")]
-    pub payload: Payload<'a>,
+pub struct Address {
+    #[cbor(with = "Encoded<Payload>")]
+    pub payload: Payload,
     pub checksum: u32,
 }
 
-impl<'a> Address<'a> {
-    pub fn new(payload: Payload<'a>) -> Self {
+impl Address {
+    pub fn new(payload: Payload) -> Self {
         let cbor_payload = tinycbor::to_vec(&payload);
         let checksum = crc32fast::hash(&cbor_payload);
         Self { payload, checksum }
     }
 }
 
+pub fn root_digest(
+    address_type: Type,
+    data: Data<'_>,
+    attributes: &Attributes,
+) -> Blake2b224Digest {
+    #[derive(Encode)]
+    struct Root<'a> {
+        address_type: Type,
+        data: Data<'a>,
+        attributes: &'a Attributes,
+    }
+
+    let mut encoder = Encoder(DigestWriter(Blake2b224::default()));
+    Root {
+        address_type,
+        data,
+        attributes,
+    }
+    .encode(&mut encoder);
+
+    encoder.0.0.finalize().into()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
 pub enum Type {
     #[n(0)]
-    PublicKey,
+    VerifyingKey,
     #[n(2)]
     Redeem,
 }

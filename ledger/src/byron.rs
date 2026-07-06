@@ -21,3 +21,5 @@ pub use transaction::Transaction;
 
 pub mod update;
 pub use update::Update;
+
+pub type NetworkMagic = u32;

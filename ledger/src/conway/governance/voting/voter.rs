@@ -9,11 +9,11 @@ use tinycbor::{
 use crate::{crypto::Blake2b224Digest, shelley::Credential};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Voter<'a> {
-    ConstitutionalCommittee(Credential<'a>),
-    DelegateRepresentative(Credential<'a>),
+pub enum Voter {
+    ConstitutionalCommittee(Credential),
+    DelegateRepresentative(Credential),
     StakePool {
-        verifying_key_hash: &'a Blake2b224Digest,
+        verifying_key_hash: Blake2b224Digest,
     },
 }
 
@@ -27,7 +27,7 @@ pub enum Error {
     StakePool(#[from] container::Error<bounded::Error<Infallible>>),
 }
 
-impl Encode for Voter<'_> {
+impl Encode for Voter {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         e.array(2)?;
         let (index, k) = match self {
@@ -44,16 +44,16 @@ impl Encode for Voter<'_> {
     }
 }
 
-impl CborLen for Voter<'_> {
+impl CborLen for Voter {
     fn cbor_len(&self) -> usize {
         1 + 1 + Blake2b224Digest::default().cbor_len()
     }
 }
 
-impl<'a, 'b: 'a> Decode<'b> for Voter<'a> {
+impl Decode<'_> for Voter {
     type Error = container::Error<bounded::Error<tag::Error<Error>>>;
 
-    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         use crate::shelley::credential::Error as CredError;
         macro_rules! wrap {
             ($key:ident, $voter:ident, $cred:ident) => {
@@ -69,7 +69,7 @@ impl<'a, 'b: 'a> Decode<'b> for Voter<'a> {
             .ok_or(bounded::Error::Missing)?
             .map_err(|e| bounded::Error::Content(tag::Error::Malformed(e)))?;
         let key = visitor
-            .visit::<&'b Blake2b224Digest>()
+            .visit::<Blake2b224Digest>()
             .ok_or(bounded::Error::Missing)?;
         match index {
             0 => wrap!(key, ConstitutionalCommittee, VerificationKey),

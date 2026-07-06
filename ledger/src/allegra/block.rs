@@ -1,5 +1,4 @@
 use crate::{allegra, transaction::Index};
-use tinycbor::encoded::With;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod header;

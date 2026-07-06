@@ -23,7 +23,7 @@ pub enum Option<'a> {
     #[n(4)]
     Certificates(Vec<Certificate<'a>>),
     #[n(5)]
-    Withdrawals(Unique<Vec<(Account<'a>, Coin)>, false>),
+    Withdrawals(Unique<Vec<(Account, Coin)>, false>),
     #[n(6)]
     Update(Update<'a>),
     #[n(7)]
@@ -36,7 +36,7 @@ pub enum Option<'a> {
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
     Collateral(
-        #[cbor(decode_with = "unique::codec::Set<Input<'a>>")] Unique<Vec<Input<'a>>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Input>")] Unique<Vec<Input>, false>,
     ),
     #[n(14)]
     RequiredSigners(
@@ -51,6 +51,6 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(decode_with = "unique::codec::Set<Input<'a>>")] Unique<Vec<Input<'a>>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Input>")] Unique<Vec<Input>, false>,
     ),
 }

@@ -18,12 +18,12 @@ pub use vrf::Vrf;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub enum Certificate<'a> {
     #[n(0)]
-    AccountRegistration { account: Credential<'a> },
+    AccountRegistration { account: Credential },
     #[n(1)]
-    AccountUnregistration { account: Credential<'a> },
+    AccountUnregistration { account: Credential },
     #[n(2)]
     Delegation {
-        account: Credential<'a>,
+        account: Credential,
         pool: &'a pool::Id,
     },
     #[n(3)]
@@ -33,7 +33,7 @@ pub enum Certificate<'a> {
         pledge: Coin,
         cost: Coin,
         margin: interval::Unit,
-        account: Account<'a>,
+        account: Account,
         #[cbor(decode_with = "unique::codec::Set<&'a Blake2b224Digest>")]
         owners: Unique<Vec<&'a Blake2b224Digest>, false>,
         relays: Vec<pool::Relay<'a>>,
@@ -51,5 +51,5 @@ pub enum Certificate<'a> {
         vrf_keyhash: &'a Blake2b256Digest,
     },
     #[n(6)]
-    MoveRewards(MoveRewards<'a>),
+    MoveRewards(MoveRewards),
 }

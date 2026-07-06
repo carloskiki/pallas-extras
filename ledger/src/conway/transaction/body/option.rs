@@ -36,10 +36,10 @@ pub enum Option<'a> {
     #[n(5)]
     Withdrawals(
         #[cbor(
-            encode_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>",
-            len_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>"
+            encode_with = "unique::codec::NonEmpty<(Account, Coin)>",
+            len_with = "unique::codec::NonEmpty<(Account, Coin)>"
         )]
-        Unique<Vec1<(Account<'a>, Coin)>, false>,
+        Unique<Vec1<(Account, Coin)>, false>,
     ),
     #[n(7)]
     AuxiliaryDataHash(&'a Blake2b256Digest),
@@ -50,7 +50,7 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(#[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>),
+    Collateral(#[cbor(with = "unique::codec::NonEmpty<Input>")] Unique<Vec1<Input>, false>),
     #[n(14)]
     RequiredSigners(
         #[cbor(with = "unique::codec::NonEmpty<&'a Blake2b224Digest>")]
@@ -64,7 +64,7 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>,
+        #[cbor(with = "unique::codec::NonEmpty<Input>")] Unique<Vec1<Input>, false>,
     ),
     #[n(19)]
     VotingProcedures(

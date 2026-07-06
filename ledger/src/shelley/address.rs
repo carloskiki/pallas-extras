@@ -18,13 +18,13 @@ use crate::shelley::{
 const HASH_SIZE: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Address<'a> {
-    pub payment: Credential<'a>,
-    pub stake: Option<Delegation<'a>>,
+pub struct Address {
+    pub payment: Credential,
+    pub stake: Option<Delegation>,
     pub network: Network,
 }
 
-impl<'a> Address<'a> {
+impl Address {
     fn header(&self) -> u8 {
         match (self.payment, self.stake) {
             (Credential::VerificationKey(_), Some(Delegation::StakeKey(_))) => 0b0000,
@@ -39,7 +39,7 @@ impl<'a> Address<'a> {
     }
 }
 
-impl Display for Address<'_> {
+impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let hrp = Hrp::parse_unchecked(match self.network {
             Network::Main => "addr",
@@ -53,7 +53,7 @@ impl Display for Address<'_> {
 
         match self.stake {
             Some(Delegation::Script(hash) | Delegation::StakeKey(hash)) => iter
-                .chain(*hash)
+                .chain(hash)
                 .bytes_to_fes()
                 .with_checksum::<Bech32>(&hrp)
                 .chars()
@@ -73,20 +73,20 @@ impl Display for Address<'_> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Address<'a> {
+impl TryFrom<&[u8]> for Address {
     type Error = bounded::Error<InvalidType>;
 
-    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Address::from_bytes::<true>(value)
     }
 }
 
-impl<'a> Address<'a> {
+impl Address {
     /// Same as `TryFrom<&[u8]>`, but with an option to allow surplus bytes.
     ///
     /// This is needed for [`crate::address::truncating`].
     pub(crate) fn from_bytes<const STRICT: bool>(
-        mut bytes: &'a [u8],
+        mut bytes: &[u8],
     ) -> Result<Self, bounded::Error<InvalidType>> {
         let first_byte = bytes.first().ok_or(bounded::Error::Missing)?;
         bytes = &bytes[1..];
@@ -98,19 +98,12 @@ impl<'a> Address<'a> {
             _ => Network::Test,
         };
 
-        let first_hash: &Blake2b224Digest = bytes
-            .get(..HASH_SIZE)
-            .ok_or(bounded::Error::Missing)?
-            .try_into()
-            .expect("slice has correct length");
-        bytes = &bytes[HASH_SIZE..];
+        let (&first_hash, bytes): (&Blake2b224Digest, _) =
+            bytes.split_first_chunk().ok_or(bounded::Error::Missing)?;
 
         if header < 0b0100 {
-            let second_hash: &Blake2b224Digest = bytes
-                .get(..HASH_SIZE)
-                .ok_or(bounded::Error::Missing)?
-                .try_into()
-                .expect("slice has correct length");
+            let (&second_hash, bytes): (&Blake2b224Digest, _) =
+                bytes.split_first_chunk().ok_or(bounded::Error::Missing)?;
             if STRICT && bytes.len() > HASH_SIZE {
                 return Err(bounded::Error::Surplus);
             }
@@ -180,7 +173,7 @@ impl<'a> Address<'a> {
     }
 }
 
-impl CborLen for Address<'_> {
+impl CborLen for Address {
     fn cbor_len(&self) -> usize {
         let mut len = 1 + HASH_SIZE; // first byte + payment credential
 
@@ -197,7 +190,7 @@ impl CborLen for Address<'_> {
     }
 }
 
-impl Encode for Address<'_> {
+impl Encode for Address {
     fn encode<W: Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         // `24 < cbor_len < 256` because pointer encoding can't exceed 30 bytes.
         e.0.write_all(&[0x58, self.cbor_len() as u8])?;
@@ -209,7 +202,7 @@ impl Encode for Address<'_> {
 
         match self.stake {
             Some(Delegation::StakeKey(hash) | Delegation::Script(hash)) => {
-                e.0.write_all(hash)?;
+                e.0.write_all(&hash)?;
             }
             Some(Delegation::Pointer(pointer)) => {
                 for b in pointer {
@@ -223,22 +216,22 @@ impl Encode for Address<'_> {
     }
 }
 
-impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
+impl Decode<'_> for Address {
     type Error = container::Error<bounded::Error<InvalidType>>;
 
-    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
         let data: &[u8] = Decode::decode(d)?;
         Address::try_from(data).map_err(container::Error::Content)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Account<'a> {
-    pub credential: Credential<'a>,
+pub struct Account {
+    pub credential: Credential,
     pub network: Network,
 }
 
-impl Account<'_> {
+impl Account {
     fn header(&self) -> u8 {
         let header = match self.credential {
             Credential::VerificationKey(_) => 0b1110,
@@ -249,7 +242,7 @@ impl Account<'_> {
     }
 }
 
-impl Display for Account<'_> {
+impl Display for Account {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let hrp = Hrp::parse_unchecked(match self.network {
             Network::Main => "stake",
@@ -265,10 +258,10 @@ impl Display for Account<'_> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Account<'a> {
+impl TryFrom<&[u8]> for Account {
     type Error = bounded::Error<super::address::InvalidType>;
 
-    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let first_byte = bytes.first().ok_or(bounded::Error::Missing)?;
         let header = first_byte >> 4;
         let network_magic = first_byte & 0b0000_1111;
@@ -277,14 +270,10 @@ impl<'a> TryFrom<&'a [u8]> for Account<'a> {
             _ => Network::Test,
         };
 
-        let hash: &Blake2b224Digest = bytes
-            .get(1..29)
-            .ok_or(bounded::Error::Missing)?
-            .try_into()
-            .expect("slice has correct length");
         if bytes.len() > 29 {
             return Err(bounded::Error::Surplus);
         }
+        let hash: Blake2b224Digest = bytes[1..].try_into().map_err(|_| bounded::Error::Missing)?;
 
         let credential = if header == 0b1110 {
             Credential::VerificationKey(hash)
@@ -301,10 +290,10 @@ impl<'a> TryFrom<&'a [u8]> for Account<'a> {
     }
 }
 
-impl<'a, 'b: 'a> Decode<'b> for Account<'a> {
+impl Decode<'_> for Account {
     type Error = container::Error<bounded::Error<super::address::InvalidType>>;
 
-    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
         let data: &[u8] = Decode::decode(d)?;
         Account::try_from(data).map_err(container::Error::Content)
     }
@@ -312,13 +301,13 @@ impl<'a, 'b: 'a> Decode<'b> for Account<'a> {
 
 const LEN: usize = 29;
 
-impl CborLen for Account<'_> {
+impl CborLen for Account {
     fn cbor_len(&self) -> usize {
         LEN.cbor_len() + LEN
     }
 }
 
-impl Encode for Account<'_> {
+impl Encode for Account {
     fn encode<W: Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         // CBOR bytestring length 29 header.
         e.0.write_all(&[0x40, LEN as u8])?;
@@ -336,15 +325,15 @@ mod tests {
     //! All tests are coming from CIP 19
     use super::*;
 
-    const VK: &Blake2b224Digest = &[
+    const VK: Blake2b224Digest = [
         148, 147, 49, 92, 217, 46, 181, 216, 196, 48, 78, 103, 183, 225, 106, 227, 109, 97, 211,
         69, 2, 105, 70, 87, 129, 26, 44, 142,
     ];
-    const STAKE_VK: &Blake2b224Digest = &[
+    const STAKE_VK: Blake2b224Digest = [
         51, 123, 98, 207, 255, 100, 3, 160, 106, 58, 203, 195, 79, 140, 70, 0, 60, 105, 254, 121,
         163, 98, 140, 239, 169, 196, 114, 81,
     ];
-    const SCRIPT_HASH: &Blake2b224Digest = &[
+    const SCRIPT_HASH: Blake2b224Digest = [
         195, 123, 27, 93, 192, 102, 159, 29, 60, 97, 166, 253, 219, 46, 143, 222, 150, 190, 135,
         184, 129, 198, 11, 206, 142, 141, 84, 47,
     ];

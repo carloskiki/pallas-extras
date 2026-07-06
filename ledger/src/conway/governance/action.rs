@@ -26,7 +26,7 @@ pub enum Action<'a> {
     },
     #[n(2)]
     TreasuryWithdrawals {
-        withdrawals: Unique<Vec<(Account<'a>, Coin)>, false>,
+        withdrawals: Unique<Vec<(Account, Coin)>, false>,
         policy_hash: Option<&'a Blake2b224Digest>,
     },
     #[n(3)]
@@ -34,9 +34,9 @@ pub enum Action<'a> {
     #[n(4)]
     UpdateCommittee {
         id: Option<Id<'a>>,
-        #[cbor(decode_with = "unique::codec::Tagged<Credential<'a>>")]
-        remove: Unique<Vec<Credential<'a>>, false>,
-        add: Unique<Vec<(Credential<'a>, epoch::Number)>, false>,
+        #[cbor(decode_with = "unique::codec::Tagged<Credential>")]
+        remove: Unique<Vec<Credential>, false>,
+        add: Unique<Vec<(Credential, epoch::Number)>, false>,
         signature_threshold: interval::Unit,
     },
     #[n(5)]

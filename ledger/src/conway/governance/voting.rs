@@ -30,7 +30,7 @@ pub enum Vote {
 
 pub type Procedures<'a> = Unique<
     Vec1<(
-        Voter<'a>,
+        Voter,
         Unique<Vec1<(action::Id<'a>, Procedure<'a>)>, false>,
     )>,
     false,

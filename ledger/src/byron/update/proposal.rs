@@ -12,7 +12,7 @@ pub struct Proposal<'a> {
     pub modifications: protocol::parameter::Update,
     pub software_version: protocol::version::Software<'a>,
     pub data: Vec<(&'a str, super::Data<'a>)>,
-    pub attributes: Attributes<'a>,
+    pub attributes: Attributes,
     #[cbor(with = "cbor_util::ExtendedVerifyingKey<'a>")]
     pub issuer: &'a crypto::ExtendedVerifyingKey,
     #[cbor(with = "cbor_util::Signature<'a>")]

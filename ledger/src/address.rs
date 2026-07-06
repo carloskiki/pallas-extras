@@ -4,21 +4,21 @@ use tinycbor::{CborLen, Decode, Decoder, Encode, Encoder, Write, container};
 
 /// A blockchain address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Address<'a> {
-    Shelley(crate::shelley::Address<'a>),
-    Byron(crate::byron::Address<'a>),
+pub enum Address {
+    Shelley(crate::shelley::Address),
+    Byron(crate::byron::Address),
 }
 
 #[derive(Debug, Error, Display)]
 /// An error occurred while decoding an address.
 pub enum Error {
     /// while decoding a Shelley era address
-    Shelley(#[from] <crate::shelley::Address<'static> as TryFrom<&'static [u8]>>::Error),
+    Shelley(#[from] <crate::shelley::Address as TryFrom<&'static [u8]>>::Error),
     /// while decoding a Byron era address
-    Byron(#[from] <crate::byron::Address<'static> as Decode<'static>>::Error),
+    Byron(#[from] <crate::byron::Address as Decode<'static>>::Error),
 }
 
-impl Encode for Address<'_> {
+impl Encode for Address {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         match self {
             Address::Shelley(address) => address.encode(e),
@@ -27,11 +27,11 @@ impl Encode for Address<'_> {
     }
 }
 
-impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
+impl Decode<'_> for Address {
     type Error = container::Error<Error>;
 
-    fn decode(d: &mut Decoder<'b>) -> Result<Self, Self::Error> {
-        let bytes: &'b [u8] = Decode::decode(d)?;
+    fn decode(d: &mut Decoder<'_>) -> Result<Self, Self::Error> {
+        let bytes: &[u8] = Decode::decode(d)?;
         if let Some(first) = bytes.first()
             && (first >> 4) == 0b1000
         {
@@ -46,7 +46,7 @@ impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
     }
 }
 
-impl CborLen for Address<'_> {
+impl CborLen for Address {
     fn cbor_len(&self) -> usize {
         match self {
             Address::Shelley(address) => address.cbor_len(),
@@ -66,19 +66,19 @@ impl CborLen for Address<'_> {
 pub(crate) mod truncating {
     use tinycbor::{Decode, Decoder, container};
 
-    pub struct Address<'a>(pub super::Address<'a>);
+    pub struct Address(pub super::Address);
 
-    impl<'a> From<Address<'a>> for super::Address<'a> {
-        fn from(a: Address<'a>) -> Self {
+    impl<'a> From<Address> for super::Address {
+        fn from(a: Address) -> Self {
             a.0
         }
     }
 
-    impl<'a, 'b: 'a> Decode<'b> for Address<'a> {
+    impl Decode<'_> for Address {
         type Error = container::Error<super::Error>;
 
-        fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
-            let bytes = <&'b [u8]>::decode(d)?;
+        fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
+            let bytes = <&[u8]>::decode(d)?;
             if let Some(first) = bytes.first()
                 && (first >> 4) == 0b1000
             {

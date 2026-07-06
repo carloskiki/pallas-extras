@@ -25,5 +25,5 @@ pub type Difficulty = u64;
 pub struct Block<'a> {
     pub header: Box<Header<'a>>,
     pub body: Body<'a>,
-    pub extra: [Attributes<'a>; 1],
+    pub extra: [Attributes; 1],
 }

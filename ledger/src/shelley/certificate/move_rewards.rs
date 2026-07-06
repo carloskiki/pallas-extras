@@ -4,9 +4,9 @@ pub use target::Target;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
-pub struct MoveRewards<'a> {
+pub struct MoveRewards {
     pub source: Source,
-    pub target: Target<'a>,
+    pub target: Target,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
