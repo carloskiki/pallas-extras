@@ -1,7 +1,5 @@
 pub mod byron;
 
-pub mod transaction;
-
 pub trait State {
     type Environment;
     type Signal<'a>;

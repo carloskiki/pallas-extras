@@ -16,19 +16,41 @@ pub use data::Data;
 /// Byron Era address.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub struct Address {
+    /// The payload of the address.
     #[cbor(with = "Encoded<Payload>")]
     pub payload: Payload,
+    /// A crc32 checksum of the CBOR-encoded payload.
     pub checksum: u32,
 }
 
 impl Address {
     pub fn new(payload: Payload) -> Self {
-        let cbor_payload = tinycbor::to_vec(&payload);
-        let checksum = crc32fast::hash(&cbor_payload);
-        Self { payload, checksum }
+        struct Crc32Writer(crc32fast::Hasher);
+        impl embedded_io::ErrorType for Crc32Writer {
+            type Error = core::convert::Infallible;
+        }
+
+        impl tinycbor::Write for Crc32Writer {
+            fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+                self.0.update(buf);
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+
+        let mut encoder = Encoder(Crc32Writer(crc32fast::Hasher::new()));
+        payload.encode(&mut encoder);
+        Self {
+            payload,
+            checksum: encoder.0.0.finalize(),
+        }
     }
 }
 
+/// Compute a root digest from the components of an address.
 pub fn root_digest(
     address_type: Type,
     data: Data<'_>,
@@ -48,15 +70,20 @@ pub fn root_digest(
         attributes,
     }
     .encode(&mut encoder);
-
     encoder.0.0.finalize().into()
 }
 
+/// The type of an address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
 pub enum Type {
+    /// The address is a verifying key address.
     #[n(0)]
     VerifyingKey,
+    /// The address is a redeem address.
+    ///
+    /// These were distributed to pre-sale Ada buyers from the Ada Voucher Vending Machine (AVVM)
+    /// program.
     #[n(2)]
     Redeem,
 }

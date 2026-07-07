@@ -5,7 +5,7 @@ use crate::{
     mary::{Asset, asset},
     shelley::{Certificate, Network, address::Account},
     slot,
-    transaction::Input,
+    transaction::Reference,
     unique,
 };
 use sparse_struct::SparseStruct;
@@ -36,7 +36,7 @@ pub enum Option<'a> {
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
     Collateral(
-        #[cbor(decode_with = "unique::codec::Set<Input>")] Unique<Vec<Input>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
     ),
     #[n(14)]
     RequiredSigners(
@@ -51,6 +51,6 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(decode_with = "unique::codec::Set<Input>")] Unique<Vec<Input>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
     ),
 }

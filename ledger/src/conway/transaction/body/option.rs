@@ -11,7 +11,7 @@ use crate::{
     crypto::{Blake2b224Digest, Blake2b256Digest},
     shelley::{Network, address::Account},
     slot,
-    transaction::Input,
+    transaction::Reference,
     unique,
 };
 use mitsein::vec1::Vec1;
@@ -50,7 +50,7 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(#[cbor(with = "unique::codec::NonEmpty<Input>")] Unique<Vec1<Input>, false>),
+    Collateral(#[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>),
     #[n(14)]
     RequiredSigners(
         #[cbor(with = "unique::codec::NonEmpty<&'a Blake2b224Digest>")]
@@ -64,7 +64,7 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(with = "unique::codec::NonEmpty<Input>")] Unique<Vec1<Input>, false>,
+        #[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>,
     ),
     #[n(19)]
     VotingProcedures(

@@ -1,6 +1,6 @@
 use crate::{
     Unique,
-    transaction::Input,
+    transaction::Reference,
     Coin
 };
 use displaydoc::Display;
@@ -12,7 +12,7 @@ pub use option::Options;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Body<'a> {
-    pub inputs: Unique<Vec<Input>, false>,
+    pub inputs: Unique<Vec<Reference>, false>,
     pub outputs: Vec<super::output::Output<'a>>,
     pub fee: Coin,
     pub options: Options<'a>,
@@ -23,7 +23,7 @@ pub struct Body<'a> {
 /// while decoding `Transaction`
 pub enum Error {
     /// in field `inputs`
-    Inputs(#[from] <super::SetCodec<Input> as Decode<'static>>::Error),
+    Inputs(#[from] <super::SetCodec<Reference> as Decode<'static>>::Error),
     /// in field `outputs`
     Outputs(#[from] container::Error<<super::Output<'static> as Decode<'static>>::Error>),
     /// in field `fee`
