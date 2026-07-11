@@ -21,7 +21,6 @@ pub type Blake2b256Digest = [u8; 32];
 
 pub type VerifyingKey = ed25519_dalek::pkcs8::PublicKeyBytes;
 pub type Signature = ed25519_dalek::Signature;
-pub type ExtendedVerifyingKey = bip32::ExtendedVerifyingKey;
 
 /// Pair of serialized secret and verifying keys.
 #[derive(Clone, Debug, PartialEq, Eq)]

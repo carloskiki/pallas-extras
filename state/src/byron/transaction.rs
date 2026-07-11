@@ -1,10 +1,9 @@
-use std::collections::HashMap;
 use ledger::{
     Coin,
     byron::{
         self, address,
         protocol::FeePolicy,
-        transaction::{Witness, witness::data, Output},
+        transaction::{Output, Witness, witness::data},
     },
     crypto::{
         self,
@@ -12,6 +11,7 @@ use ledger::{
     },
     transaction::Reference,
 };
+use std::collections::HashMap;
 
 pub type State = HashMap<Reference, Output>;
 
@@ -35,21 +35,21 @@ pub struct Signal<'a> {
 pub enum Error<'a> {
     #[error("transaction input missing from state")]
     MissingInput(&'a ledger::transaction::Reference),
-    #[error("witness is invalid {0}")]
-    InvalidWitness(#[from] ed25519_dalek::SignatureError),
-    #[error("witness does not belong to the address")]
-    AddressMismatch,
-    #[error("transaction size {size} exceeds maximum allowed {max_size}")]
-    OversizedTransaction { size: u64, max_size: u64 },
-    #[error("transaction attributes size {size} exceeds maximum allowed")]
-    OversizedAttributes { size: usize },
+    #[error("witness at index {index} is invalid")]
+    InvalidWitness {
+        index: usize,
+        #[source]
+        error: ed25519_dalek::SignatureError,
+    },
+    #[error("witness at index {0} does not belong to the address")]
+    AddressMismatch(usize),
+    #[error("transaction size exceeds maximum allowed")]
+    OversizedTransaction,
     #[error("paid fee {calculated_fee} is less than minimum required {minimum_fee}")]
     InsufficientFee {
         minimum_fee: Coin,
         calculated_fee: Coin,
     },
-    #[error("network magic {actual} does not match expected {expected}")]
-    InvalidNetworkMagic { expected: u32, actual: u32 },
 }
 
 pub fn transition<'a>(
@@ -66,10 +66,7 @@ pub fn transition<'a>(
 
     // 1. Validate transaction size
     if *size > env.max_transaction_size {
-        return Err(Error::OversizedTransaction {
-            size: *size,
-            max_size: env.max_transaction_size,
-        });
+        return Err(Error::OversizedTransaction);
     }
 
     // 2. Validate witnesses against addresses, and calculate total input value, storing whether
@@ -79,7 +76,8 @@ pub fn transition<'a>(
         .inputs
         .iter()
         .zip(witnesses.iter())
-        .map(|(input, witness)| -> Result<Coin, Error> {
+        .enumerate()
+        .map(|(index, (input, witness))| -> Result<Coin, Error> {
             let input_utxo = &state.get(input).ok_or(Error::MissingInput(input))?;
 
             let (verifying_key, signature, witness_type, address_data) = match witness {
@@ -96,19 +94,22 @@ pub fn transition<'a>(
                     address::Data::Redeem(key),
                 ),
             };
-            let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(&verifying_key)?;
-            verifying_key.multipart_verify(
-                &[
-                    &[match witness_type {
-                        address::Type::VerifyingKey => 1,
-                        address::Type::Redeem => 2,
-                    }],
-                    &env.network_magic,
-                    HASH_DELIMITER,
-                    transaction_hash,
-                ],
-                signature,
-            )?;
+            let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(&verifying_key)
+                .map_err(|error| Error::InvalidWitness { index, error })?;
+            verifying_key
+                .multipart_verify(
+                    &[
+                        &[match witness_type {
+                            address::Type::VerifyingKey => 1,
+                            address::Type::Redeem => 2,
+                        }],
+                        &env.network_magic,
+                        HASH_DELIMITER,
+                        transaction_hash,
+                    ],
+                    signature,
+                )
+                .map_err(|error| Error::InvalidWitness { index, error })?;
 
             let address::Payload {
                 address_type,
@@ -123,7 +124,7 @@ pub fn transition<'a>(
                         attributes,
                     )
             {
-                return Err(Error::AddressMismatch);
+                return Err(Error::AddressMismatch(index));
             }
             redeem &= *address_type == address::Type::Redeem;
 

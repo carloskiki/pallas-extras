@@ -1,6 +1,7 @@
 //! Address.
 
 use crate::crypto::{Blake2b224, Blake2b224Digest, DigestWriter, digest::Digest};
+use sha3::Sha3_256;
 use tinycbor::{Encode, Encoded, Encoder};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -63,14 +64,14 @@ pub fn root_digest(
         attributes: &'a Attributes,
     }
 
-    let mut encoder = Encoder(DigestWriter(Blake2b224::default()));
+    let mut encoder = Encoder(DigestWriter(Sha3_256::default()));
     Root {
         address_type,
         data,
         attributes,
     }
     .encode(&mut encoder);
-    encoder.0.0.finalize().into()
+    Blake2b224::digest(encoder.0.0.finalize()).into()
 }
 
 /// The type of an address.

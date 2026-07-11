@@ -1,7 +1,7 @@
 use crate::crypto;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod body;
+mod body;
 pub use body::Body;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

@@ -1,10 +1,5 @@
 use super::super::super::protocol;
-use crate::{
-    babbage::certificate,
-    crypto,
-    shelley::{self, block},
-    slot,
-};
+use crate::{babbage::certificate, block, crypto, shelley, slot};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

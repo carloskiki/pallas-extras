@@ -2,15 +2,16 @@
 use super::super::super::protocol;
 use crate::{
     crypto,
-    shelley::{block, certificate},
+    shelley::certificate,
     slot,
+    block,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Body<'a> {
     pub number: block::Number,
-    pub slot: slot::Number,
+    pub slot: slot::Number, // yes
     pub previous: Option<&'a block::Id>,
     #[cbor(with = "cbor_util::VerifyingKey<'a>")]
     pub issuer: &'a crypto::VerifyingKey,

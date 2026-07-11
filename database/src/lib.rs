@@ -73,8 +73,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     }
 
     let (chunk_file, primary_file, secondary_file) = open_or_create(&dir, chunk_number)?;
-    let primary_count = (primary_file.metadata()?.len() as usize - 1) / 4;
-    let data = secondary::read(&mut BytesMut::new(), &secondary_file, chunk_number)?;
+    let data = secondary::read(&mut BytesMut::new(), &secondary_file)?;
     let len = data.len();
     let size = chunk_file.metadata()?.len();
 
@@ -83,7 +82,6 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     let mut shared = Arc::new(RwLock::new(Cache {
         directory: dir,
         chunk_file,
-        primary_file,
         secondary_file,
         chunk_number,
         entries: UnsafeCell::new([MaybeUninit::uninit(); CHUNK_SIZE as usize + 1]),
@@ -106,15 +104,8 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     *cache_mut.len_size.get_mut() = (size << 32) | (len as u64);
 
     Ok((
-        Reader {
-            shared: shared.clone(),
-            buffer: BytesMut::default(),
-            range: 0..0,
-        },
-        Writer {
-            shared,
-            primary_count,
-        },
+        Reader(shared.clone()),
+        Writer(shared),
     ))
 }
 
@@ -147,8 +138,6 @@ struct Cache<const N: usize> {
     len_size: CachePadded<AtomicU64>,
     /// The chunk file is opened in read and write mode.
     chunk_file: File,
-    /// The primary file is opened in write mode.
-    primary_file: File,
     /// The secondary file is opened in read and write mode.
     secondary_file: File,
 }
@@ -169,62 +158,6 @@ impl<const N: usize> Cache<N> {
         };
         (block_info, size, &self.chunk_file)
     }
-
-    /// Get chunk data for the given chunk number.
-    ///
-    /// Unspecified behavior if the chunk number is greater than the current.
-    #[allow(clippy::type_complexity)]
-    fn chunk_data<'a>(
-        &'a self,
-        chunk_number: u64,
-        buffer: &mut BytesMut,
-    ) -> io::Result<(Cow<'a, [BlockInfo]>, u32, Result<File, &'a File>)> {
-        let mut read_chunk = || -> io::Result<ChunkData> {
-            let path = path_prefix(&self.directory, chunk_number);
-            let mut options = OpenOptions::new();
-            options.read(true).write(true).create(true);
-            let chunk_file = options.open(path.with_extension("chunk"))?;
-            let secondary_file = options.open(path.with_extension("secondary"))?;
-            let size = chunk_file.metadata()?.len() as u32;
-            let block_info = secondary::read(buffer, &secondary_file, chunk_number)?;
-
-            Ok(ChunkData {
-                block_info,
-                size,
-                file: chunk_file,
-            })
-        };
-
-        Ok(if chunk_number == self.chunk_number {
-            let (block_info, size, file) = self.current_chunk_data();
-            (Cow::Borrowed(block_info), size, Err(file))
-        } else {
-            let diff = (self.chunk_number - chunk_number) as usize;
-            if diff > N {
-                // The chunk is too old to be in cache.
-                let ChunkData {
-                    block_info,
-                    size,
-                    file,
-                } = read_chunk()?;
-                (block_info.into_vec().into(), size, Ok(file))
-            } else {
-                let (mut index, underflow) = self.pointer.overflowing_sub(diff);
-                if underflow {
-                    index = index.wrapping_add(N);
-                }
-                let chunk = self.completed[index].get_or_try_init(|| {
-                    // Chunk not loaded yet.
-                    read_chunk()
-                })?;
-                (
-                    Cow::Borrowed(&chunk.block_info),
-                    chunk.size,
-                    Err(&chunk.file),
-                )
-            }
-        })
-    }
 }
 
 /// # Safety
@@ -244,7 +177,7 @@ struct ChunkData {
     pub file: File,
 }
 
-/// Entry for a chunk in the cache.
+/// Entry for a block in the cache.
 #[derive(Clone, Copy)]
 struct BlockInfo {
     slot: slot::Number,
