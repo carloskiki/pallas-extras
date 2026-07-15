@@ -13,7 +13,6 @@ use core::sync::atomic;
 use crossbeam_utils::CachePadded;
 use ledger::slot;
 use once_cell::sync::OnceCell;
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::{
     cell::UnsafeCell,
@@ -72,7 +71,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
         chunk_number = chunk_number.max(num);
     }
 
-    let (chunk_file, primary_file, secondary_file) = open_or_create(&dir, chunk_number)?;
+    let (chunk_file, secondary_file) = open_or_create(&dir, chunk_number)?;
     let data = secondary::read(&mut BytesMut::new(), &secondary_file)?;
     let len = data.len();
     let size = chunk_file.metadata()?.len();
@@ -103,10 +102,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
         });
     *cache_mut.len_size.get_mut() = (size << 32) | (len as u64);
 
-    Ok((
-        Reader(shared.clone()),
-        Writer(shared),
-    ))
+    Ok((Reader(shared.clone()), Writer(shared)))
 }
 
 /// Cache maintaining metadata about the current chunk and `N` most recently filled chunks.
@@ -148,9 +144,12 @@ impl<const N: usize> Cache<N> {
         ((len_size & 0xFFFF_FFFF) as usize, (len_size >> 32) as u32)
     }
 
-    fn current_chunk_data<'a>(&'a self) -> (&'a [BlockInfo], u32, &'a File) {
+    fn current_chunk_data<'a>(
+        &'a self,
+        ordering: atomic::Ordering,
+    ) -> (&'a [BlockInfo], u32, &'a File) {
         // Syncrhonize with the `Release` store of the writer.
-        let (len, size) = self.len_size(atomic::Ordering::Acquire);
+        let (len, size) = self.len_size(ordering);
         // Safety: `len` is the number of initialized entries in `entries`. These are
         // never modified after initialization.
         let block_info = unsafe {
@@ -192,18 +191,14 @@ fn path_prefix(path: &Path, chunk_number: u64) -> PathBuf {
 /// Returns the chunk file, primary file, and secondary file for the given chunk number.
 ///
 /// Creates the files if they do not exist.
-fn open_or_create(path: &Path, chunk_number: u64) -> io::Result<(File, File, File)> {
+fn open_or_create(path: &Path, chunk_number: u64) -> io::Result<(File, File)> {
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true);
     let mut path = path_prefix(path, chunk_number).with_extension("chunk");
     let chunk_file = options.open(&path)?;
     path.set_extension("secondary");
     let secondary_file = options.open(&path)?;
-    path.set_extension("primary");
-    options.read(false);
-    let primary_file = options.open(&path)?;
-    primary_file.write_all_at(&[1], 0)?;
-    Ok((chunk_file, primary_file, secondary_file))
+    Ok((chunk_file, secondary_file))
 }
 
 /// Reads a chunk from the given file into the buffer.

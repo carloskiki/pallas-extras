@@ -1,12 +1,16 @@
-use crate::{CHUNK_SIZE, Cache, ChunkData, path_prefix, read_buf, secondary};
+use crate::{CHUNK_SIZE, Cache, ChunkData, read_buf, secondary};
 use bytes::{Bytes, BytesMut};
 use ledger::slot;
 use std::{
-    fs::OpenOptions,
+    borrow::Cow,
+    fs::File,
     io,
     ops::Range,
-    sync::{Arc, RwLock},
+    path::Path,
+    sync::{Arc, RwLock, RwLockReadGuard, atomic},
 };
+
+use super::open_or_create;
 
 pub struct Reader<const N: usize>(pub(super) Arc<RwLock<Cache<N>>>);
 
@@ -16,26 +20,31 @@ impl<const N: usize> Reader<N> {
         self.0
             .read()
             .expect("cache should not be poisoned")
-            .current_chunk_data()
+            .current_chunk_data(atomic::Ordering::Acquire)
             .0
             .last()
             .map(|info| info.slot)
     }
 
-    /// Reads a chunk of blocks from the database and appends them to the provided buffer, and
-    /// updating the slot `range`.
-    ///
-    /// The chunk constitutes a contiguous prefix of blocks of from the slot `range`. In rare cases,
-    /// the read may be empty, but it does not imply that there are no more blocks to read from the
-    /// slot `range`. Only `range.is_empty()` implies that there are no more blocks to read.
-    ///
-    /// ## Errors
-    ///
-    /// Returns an error on file system errors, or if the database is corrupted (e.g. crc mismatch).
-    pub fn read(
-        &self,
-        mut range: Range<slot::Number>,
-    ) -> impl Iterator<Item = io::Result<impl Iterator<Item = Bytes>>> {
+    /// Returns a streaming reader for chunks from the provided slot range.
+    pub fn read(&self, range: Range<slot::Number>) -> Read<'_, N> {
+        Read {
+            cache: self.0.read().expect("cache should not be poisoned"),
+            buffer: BytesMut::new(),
+            range,
+        }
+    }
+}
+
+/// Streaming reader that holds the cache lock and reuses its block buffer across chunks.
+pub struct Read<'a, const N: usize> {
+    cache: RwLockReadGuard<'a, Cache<N>>,
+    buffer: BytesMut,
+    range: Range<slot::Number>,
+}
+
+impl<const N: usize> Read<'_, N> {
+    pub fn next<'a>(&'a mut self) -> Option<io::Result<Blocks<'a>>> {
         // FIXME: When `try_blocks` is stable we won't need this...
         macro_rules! some_try {
             ($expr:expr) => {
@@ -46,83 +55,115 @@ impl<const N: usize> Reader<N> {
             };
         }
 
-        std::iter::from_fn(move || {
-            let chunk_number = range.start / CHUNK_SIZE;
-            let mut buffer = BytesMut::new();
-            let cache = self.0.read().expect("cache should not be poisoned");
-            if range.is_empty() || chunk_number > cache.chunk_number {
-                return None;
-            }
+        let chunk_number = self.range.start / CHUNK_SIZE;
+        if self.range.is_empty() || chunk_number > self.cache.chunk_number {
+            return None;
+        }
 
-            // Read the chunk data
-            let mut read_chunk = || -> io::Result<ChunkData> {
-                let path = path_prefix(&cache.directory, chunk_number);
-                let mut options = OpenOptions::new();
-                options.read(true).write(true).create(true);
-                let chunk_file = options.open(path.with_extension("chunk"))?;
-                let secondary_file = options.open(path.with_extension("secondary"))?;
-                let size = chunk_file.metadata()?.len() as u32;
-                let block_info = secondary::read(&mut buffer, &secondary_file)?;
-
-                Ok(ChunkData {
-                    block_info,
-                    size,
-                    file: chunk_file,
-                })
-            };
-            let chunk;
-            let (block_info, size, file) = if chunk_number == cache.chunk_number {
-                cache.current_chunk_data()
-            } else {
-                let diff = (cache.chunk_number - chunk_number) as usize;
+        let owned_file: File;
+        let (block_info, size, file) = if chunk_number == self.cache.chunk_number {
+            let (block_info, size, file) = self.cache.current_chunk_data(atomic::Ordering::Acquire);
+            (Cow::Borrowed(block_info), size, file)
+        } else {
+            let diff = (self.cache.chunk_number - chunk_number) as usize;
+            if diff > N {
+                // The chunk is too old to be in cache.
                 let ChunkData {
                     block_info,
                     size,
                     file,
-                } = if diff > N {
-                    // The chunk is too old to be in cache.
-                    chunk = some_try!(read_chunk());
-                    &chunk
-                } else {
-                    let (mut index, underflow) = cache.pointer.overflowing_sub(diff);
-                    if underflow {
-                        index = index.wrapping_add(N);
-                    }
-                    some_try!(cache.completed[index].get_or_try_init(|| {
-                        // Chunk not loaded yet.
-                        read_chunk()
-                    }))
-                };
-                (block_info.as_ref(), *size, file)
-            };
+                } = some_try!(read_chunk(
+                    &self.cache.directory,
+                    chunk_number,
+                    &mut self.buffer
+                ));
+                owned_file = file;
+                (Cow::Owned(block_info.into_vec()), size, &owned_file)
+            } else {
+                let mut index = self.cache.pointer.wrapping_sub(diff);
+                if index >= N {
+                    index = index.wrapping_add(N);
+                }
+                let chunk = some_try!(self.cache.completed[index].get_or_try_init(|| {
+                    // Chunk not loaded yet.
+                    read_chunk(&self.cache.directory, chunk_number, &mut self.buffer)
+                }));
+                (
+                    Cow::Borrowed(chunk.block_info.as_ref()),
+                    chunk.size,
+                    &chunk.file,
+                )
+            }
+        };
 
-            // TODO: if the first slot is == to chunk_number, then its an ebb, so mult by chunk
-            // number.
-            let start = block_info.partition_point(|info| info.slot < range.start);
-            let stop = block_info.partition_point(|info| info.slot < range.end);
+        let start = block_info.partition_point(|info| info.slot < self.range.start);
+        let stop = block_info.partition_point(|info| info.slot < self.range.end);
 
-            let read_start = block_info.get(start).map_or(size, |info| info.offset);
-            let read_stop = block_info.get(stop).map_or(size, |info| info.offset);
-            let read_size = (read_stop - read_start) as usize;
-            buffer.reserve(read_size);
-            some_try!(read_buf(file, &mut buffer, read_start as u64, read_size));
+        let read_start = block_info.get(start).map_or(size, |info| info.offset);
+        let read_stop = block_info.get(stop).map_or(size, |info| info.offset);
+        let read_size = (read_stop - read_start) as usize;
+        some_try!(read_buf(
+            file,
+            &mut self.buffer,
+            read_start as u64,
+            read_size
+        ));
 
-            range.start = ((chunk_number + 1) as slot::Number) * CHUNK_SIZE;
-            Some(Ok(block_info[start..stop].iter().enumerate().map(
-                move |(i, &info)| {
-                    let next = block_info
-                        .get(start + i + 1)
-                        .map_or(size, |info| info.offset);
-                    let block_size = (next - info.offset) as usize;
-                    // We don't do crc32 check because:
-                    // 1. If corruption happens, then the block will be invalid.
-                    // 2. If an attacker can modify the chunk file, they can also modify the crc32
-                    //    in the secondary file.
-                    // 3. Even if the check is cheap, there would also be potential
-                    //    errors on each block in the inner iterator (annoying).
-                    buffer.split_to(block_size).freeze()
-                },
-            )))
-        })
+        self.range.start = ((chunk_number + 1) as slot::Number) * CHUNK_SIZE;
+        Some(Ok(Blocks {
+            buffer: self.buffer.split_to(read_size),
+            block_info,
+            index: start,
+            stop,
+            size,
+        }))
+    }
+}
+
+fn read_chunk(directory: &Path, chunk_number: u64, buffer: &mut BytesMut) -> io::Result<ChunkData> {
+    let (chunk_file, secondary_file) = open_or_create(directory, chunk_number)?;
+    let size = chunk_file.metadata()?.len() as u32;
+    let block_info = secondary::read(buffer, &secondary_file)?;
+    Ok(ChunkData {
+        block_info,
+        size,
+        file: chunk_file,
+    })
+}
+
+pub struct Blocks<'a> {
+    buffer: BytesMut,
+    block_info: Cow<'a, [crate::BlockInfo]>,
+    size: u32,
+    index: usize,
+    stop: usize,
+}
+
+impl Iterator for Blocks<'_> {
+    type Item = Result<Bytes, Bytes>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index == self.stop {
+            return None;
+        }
+
+        let block_size = {
+            let info = self.block_info[self.index];
+            let next = self
+                .block_info
+                .get(self.index + 1)
+                .map_or(self.size, |info| info.offset);
+            (next - info.offset) as usize
+        };
+        self.index += 1;
+        
+        let bytes = self.buffer.split_to(block_size).freeze();
+        Some(
+            if crc32fast::hash(&bytes) == self.block_info[self.index - 1].crc {
+                Ok(bytes)
+            } else {
+                Err(bytes)
+            },
+        )
     }
 }
