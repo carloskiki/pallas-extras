@@ -3,8 +3,8 @@ use once_cell::sync::OnceCell;
 use std::{
     fs::File,
     io,
+    ops::Range,
     os::unix::fs::FileExt,
-    range::Range,
     sync::{
         Arc, RwLock,
         atomic::{self},
@@ -52,10 +52,19 @@ impl<const N: usize> Writer<N> {
         // Only the writer updates `len_size`, so `Relaxed` is OK.
         let (block_info, mut size, _) = cache.current_chunk_data(atomic::Ordering::Relaxed);
         let mut len = block_info.len();
-        let last_slot = block_info.last().map(|info| info.slot);
+        let last_slot = block_info.last().and_then(|info| {
+            if info.slot == cache.chunk_number && block_info.len() == 1 {
+                (info.slot * CHUNK_SIZE).checked_sub(1)
+            } else {
+                Some(info.slot)
+            }
+        });
 
-        if chunk_number > cache.chunk_number
-            || (slot_or_ebb == chunk_number + 1 && last_slot.is_none_or(|slot| slot_or_ebb < slot))
+        // FIXME: Here we only accept appending to the current chunk or next chunk. We don't allow
+        // appending to a chunk further ahead. This may cause issue if for example the blockchain
+        // goes down for a long time and then resumes at a slot much later.
+        if chunk_number == cache.chunk_number + 1
+            || (slot_or_ebb == chunk_number + 1 && last_slot.is_none_or(|slot| slot_or_ebb <= slot))
         {
             let block_info = block_info.into();
             let (new_chunk_file, new_secondary_file) =
@@ -89,7 +98,7 @@ impl<const N: usize> Writer<N> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "block slot {slot_or_ebb} is less than or equal to the tip of the database {last_slot:?}"
+                    "block slot {slot_or_ebb} does not follow the tip of the database {last_slot:?}",
                 ),
             ));
         }

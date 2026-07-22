@@ -12,18 +12,24 @@ use std::{
 
 use super::open_or_create;
 
+#[derive(Clone)]
 pub struct Reader<const N: usize>(pub(super) Arc<RwLock<Cache<N>>>);
 
 impl<const N: usize> Reader<N> {
     /// Obtain the slot of the last block in the database, if any.
     pub fn tip(&self) -> Option<slot::Number> {
-        self.0
-            .read()
-            .expect("cache should not be poisoned")
+        let cache = self.0.read().expect("cache should not be poisoned");
+        cache
             .current_chunk_data(atomic::Ordering::Acquire)
             .0
             .last()
-            .map(|info| info.slot)
+            .map(|info| {
+                if info.slot == cache.chunk_number {
+                    info.slot * CHUNK_SIZE
+                } else {
+                    info.slot
+                }
+            })
     }
 
     /// Returns a streaming reader for chunks from the provided slot range.
@@ -96,7 +102,14 @@ impl<const N: usize> Read<'_, N> {
             }
         };
 
-        let start = block_info.partition_point(|info| info.slot < self.range.start);
+        let start = if self.range.start.is_multiple_of(CHUNK_SIZE) {
+            // We skip partitioning if the start of the range includes the full chunk, since EBBs
+            // have `slot_or_ebb` which is less than the chunk's first slot. This ensures that we
+            // include EBBS.
+            0
+        } else {
+            block_info.partition_point(|info| info.slot < self.range.start)
+        };
         let stop = block_info.partition_point(|info| info.slot < self.range.end);
 
         let read_start = block_info.get(start).map_or(size, |info| info.offset);
@@ -156,7 +169,7 @@ impl Iterator for Blocks<'_> {
             (next - info.offset) as usize
         };
         self.index += 1;
-        
+
         let bytes = self.buffer.split_to(block_size).freeze();
         Some(
             if crc32fast::hash(&bytes) == self.block_info[self.index - 1].crc {

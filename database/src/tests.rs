@@ -1,18 +1,8 @@
-use crate::open;
-use ledger::{
-    Block, Unique,
-    babbage::certificate,
-    conway::{
-        self,
-        block::{self, header},
-        protocol,
-    },
-    crypto::ed25519_dalek::pkcs8::PublicKeyBytes,
-    shelley::certificate::Vrf,
-    slot,
-};
+use crate::{CHUNK_SIZE, open};
+use bytes::Bytes;
+use ledger::Block;
 use std::path::{Path, PathBuf};
-use tinycbor::{Encode, Encoder, encoded::With};
+use tinycbor::{Decode, Decoder};
 
 #[test]
 fn new() {
@@ -38,9 +28,10 @@ fn full() {
 
 #[test]
 fn ebb() {
-   suite(|path| {
+    suite(|path| {
         copy_files(path, 0);
         copy_files(path, 1);
+        copy_files(path, 2);
         copy_files(path, 3);
     });
 }
@@ -50,7 +41,9 @@ fn first_slot() {
     suite(|path| {
         copy_files(path, 0);
         copy_files(path, 1);
-        copy_files(path, 20);
+        copy_files(path, 2);
+        copy_files(path, 3);
+        copy_files(path, 4);
     });
 }
 
@@ -59,16 +52,10 @@ fn ebb_ambiguous() {
     suite(|path| {
         copy_files(path, 0);
         copy_files(path, 1);
-        copy_files(path, 21);
-    });
-}
-
-#[test]
-fn skipped() {
-    suite(|path| {
-        copy_files(path, 0);
-        copy_files(path, 1);
-        copy_files(path, 7600);
+        copy_files(path, 2);
+        copy_files(path, 3);
+        copy_files(path, 4);
+        copy_files(path, 5);
     });
 }
 
@@ -88,7 +75,7 @@ fn suite(setup: impl Fn(&Path)) {
 }
 
 fn copy_files(dir: &Path, chunk_number: u32) {
-    for file in ["chunk", "primary", "secondary"] {
+    for file in ["chunk", "secondary"] {
         let file_name = format!("{chunk_number:05}.{file}");
         let source: PathBuf =
             AsRef::<Path>::as_ref(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/"))
@@ -99,113 +86,61 @@ fn copy_files(dir: &Path, chunk_number: u32) {
 }
 
 fn round_trip<const N: usize>(path: &std::path::Path) {
-    let (mut reader, mut writer) = open::<N>(path).unwrap();
-    let mut blocks = Vec::new();
-
-    reader.read_chunk(&mut blocks).unwrap();
-    assert!(blocks.is_empty());
-
-    reader.range = 0..100;
-    reader.read_chunk(&mut blocks).unwrap();
-    for block in &blocks {
-        block.decode().unwrap();
-    }
-
+    let (reader, mut writer) = open::<N>(path).unwrap();
     let new_tip = reader.tip().map(|t| t + 1).unwrap_or(0);
-    if new_tip > 1 {
-        writer
-            .append(&block(new_tip - 2, &mut Vec::new()))
-            .unwrap_err();
-    }
-    if new_tip >= crate::CHUNK_SIZE {
-        writer
-            .append(&block(new_tip - crate::CHUNK_SIZE, &mut Vec::new()))
-            .unwrap_err();
-    }
+    const NEW_BLOCK: &[u8] = b"new block";
 
-    let mut new_block_buffer = Vec::new();
-    let new_block = block(new_tip, &mut new_block_buffer);
-    writer.append(&new_block).unwrap();
+    {
+        let mut read = reader.read(0..100);
+        while let Some(Ok(chunk)) = read.next() {
+            for block in chunk {
+                Block::decode(&mut Decoder(&block.unwrap())).unwrap();
+            }
+        }
 
-    reader.range = 0..(new_tip + 1);
-    while !reader.range.is_empty() {
-        blocks.clear();
-        reader.read_chunk(&mut blocks).unwrap();
-        for block in &blocks {
-            block.decode().unwrap();
+        if new_tip > 1 {
+            writer.append(&[], 0..0, [0; _], 0).unwrap_err();
+        }
+        if new_tip >= CHUNK_SIZE {
+            writer.append(&[], 0..0, [0; _], CHUNK_SIZE).unwrap_err();
         }
     }
-    assert_eq!(
-        &blocks.last().unwrap().decode().unwrap(),
-        new_block.as_ref()
-    );
-    blocks.clear();
 
-    new_block_buffer.clear();
-    let new_block = block(new_tip + crate::CHUNK_SIZE, &mut new_block_buffer);
-    writer.append(&new_block).unwrap();
+        writer.append(NEW_BLOCK, 0..2, [0; _], new_tip).unwrap();
 
-    reader.range = (new_tip)..(new_tip + crate::CHUNK_SIZE + 1);
-    reader.read_chunk(&mut blocks).unwrap();
-    assert!(blocks.len() == 1);
-    blocks.clear();
-
-    reader.read_chunk(&mut blocks).unwrap();
-    assert_eq!(&blocks[0].decode().unwrap(), new_block.as_ref());
-    assert!(blocks.len() == 1);
-    blocks.clear();
-
-    new_block_buffer.clear();
-    let new_block = block(new_tip + 10 * crate::CHUNK_SIZE, &mut new_block_buffer);
-    writer.append(&new_block).unwrap();
-
-    reader.range = (new_tip + 5 * crate::CHUNK_SIZE)..(new_tip + 15 * crate::CHUNK_SIZE);
-    for _ in 0..5 {
-        reader.read_chunk(&mut blocks).unwrap();
-        assert!(blocks.is_empty());
+    {
+        let mut read = reader.read(0..(new_tip + 1));
+        let mut last_block = Bytes::new();
+        while let Some(Ok(chunk)) = read.next() {
+            last_block = chunk
+                .inspect(|block| {
+                    if block.is_err() {
+                        panic!("block is invalid");
+                    }
+                })
+                .last()
+                .unwrap()
+                .unwrap();
+        }
+        assert_eq!(&last_block, NEW_BLOCK,);
     }
-    reader.read_chunk(&mut blocks).unwrap();
-    assert_eq!(&blocks[0].decode().unwrap(), new_block.as_ref());
-    assert!(blocks.len() == 1);
-}
 
-fn block<'a>(slot: slot::Number, buffer: &'a mut Vec<u8>) -> With<'a, Block<'a>> {
-    let block = Block::Conway(conway::Block {
-        header: block::Header {
-            body: header::Body {
-                number: 0,
-                slot,
-                previous: None,
-                issuer: &PublicKeyBytes([0; _]),
-                vrf: &PublicKeyBytes([0; _]),
-                vrf_result: Vrf {
-                    output: &[0; _],
-                    proof: &[0; _],
-                },
-                size: 0,
-                body_hash: &[0; _],
-                certificate: certificate::Operational {
-                    // Safety: byte arrays only.
-                    signer: &const { unsafe { std::mem::zeroed() } },
-                    sequence_number: 0,
-                    period: 0,
-                    // Safety: byte arrays only.
-                    signature: &const { unsafe { std::mem::zeroed() } },
-                },
-                version: protocol::Version {
-                    major: protocol::version::Fork::Chang,
-                    minor: 0,
-                },
-            },
-            // Safety: byte arrays only.
-            signature: &const { unsafe { std::mem::zeroed() } },
-        },
-        transaction_bodies: Vec::new(),
-        transaction_witness_sets: Vec::new(),
-        transaction_data: Unique::new(),
-        invalid_transactions: Vec::new(),
-    });
-    block.encode(&mut Encoder(&mut *buffer));
+    writer
+        .append(NEW_BLOCK, 0..2, [0; _], new_tip + CHUNK_SIZE)
+        .unwrap();
 
-    With::from((block, buffer.as_slice()))
+    {
+        let mut read = reader.read(new_tip..(new_tip + CHUNK_SIZE + 1));
+        let mut chunk = read.next().unwrap().unwrap();
+        let block = chunk.next().unwrap().unwrap();
+        assert_eq!(&block, NEW_BLOCK);
+        assert!(chunk.next().is_none());
+        let mut chunk = read.next().unwrap().unwrap();
+        let block = chunk.next().unwrap().unwrap();
+        assert_eq!(&block, NEW_BLOCK);
+        assert!(chunk.next().is_none());
+        assert!(read.next().is_none());
+    }
+
+    writer.append(NEW_BLOCK, 0..2, [0; _], new_tip + CHUNK_SIZE * 5).unwrap_err();
 }

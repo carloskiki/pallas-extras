@@ -52,23 +52,14 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     let mut chunk_number = 0;
     let dir = dir.into();
     let dir_iter = std::fs::read_dir(&dir)?;
-    let file_name_err = |file_name: &std::ffi::OsString| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "invalid file name in database directory: {}",
-                file_name.display()
-            ),
-        )
-    };
     for entry in dir_iter {
         let file_name = entry?.file_name();
-        let bytes = &file_name.as_encoded_bytes()[..5];
-        let num = std::str::from_utf8(bytes)
-            .map_err(|_| file_name_err(&file_name))?
-            .parse::<u64>()
-            .map_err(|_| file_name_err(&file_name))?;
-        chunk_number = chunk_number.max(num);
+        if let Some(bytes) = &file_name.as_encoded_bytes().get(..5)
+            && let Ok(num_str) = std::str::from_utf8(bytes)
+            && let Ok(num) = num_str.parse::<u64>()
+        {
+            chunk_number = chunk_number.max(num);
+        }
     }
 
     let (chunk_file, secondary_file) = open_or_create(&dir, chunk_number)?;
@@ -77,7 +68,7 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     let size = chunk_file.metadata()?.len();
 
     // This large struct is potentially stored on the stack before being moved to the heap,
-    // especially in debug mode. This is < 512KB, so it should be fine, but could be avoided still.
+    // especially in debug mode. This is < 512KB, so it should be fine, but could be avoided.
     let mut shared = Arc::new(RwLock::new(Cache {
         directory: dir,
         chunk_file,
