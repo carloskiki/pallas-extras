@@ -59,6 +59,16 @@ fn ebb_ambiguous() {
     });
 }
 
+#[test]
+fn truncate() {
+    truncate_round_trip::<0>();
+    truncate_round_trip::<1>();
+    truncate_round_trip::<2>();
+    truncate_preserves_cache();
+    truncate_to_empty();
+    truncate_to_ebb();
+}
+
 fn suite(setup: impl Fn(&Path)) {
     let temp_dir = tempfile::tempdir().unwrap();
     setup(temp_dir.path());
@@ -146,4 +156,149 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
     writer
         .append(NEW_BLOCK, 0..2, [0; _], new_tip + CHUNK_SIZE * 5)
         .unwrap_err();
+}
+
+fn truncate_round_trip<const N: usize>() {
+    const ZERO: &[u8] = b"zero";
+    const ONE: &[u8] = b"one";
+    const BOUNDARY: &[u8] = b"boundary";
+    const LATER: &[u8] = b"later";
+    const LAST_CHUNK: &[u8] = b"last chunk";
+    const REPLACEMENT: &[u8] = b"replacement";
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let (reader, mut writer) = open::<N>(temp_dir.path()).unwrap();
+    writer.append(ZERO, 0..0, [0; _], 0).unwrap();
+    writer.append(ONE, 0..0, [0; _], 1).unwrap();
+    writer.append(BOUNDARY, 0..0, [0; _], CHUNK_SIZE).unwrap();
+    writer.append(LATER, 0..0, [0; _], CHUNK_SIZE + 1).unwrap();
+    writer
+        .append(LAST_CHUNK, 0..0, [0; _], CHUNK_SIZE * 2)
+        .unwrap();
+
+    writer.truncate(CHUNK_SIZE).unwrap();
+    assert_eq!(reader.tip(), Some(CHUNK_SIZE));
+    assert_eq!(
+        read_blocks(&reader, 0..(CHUNK_SIZE + 1)),
+        [ZERO, ONE, BOUNDARY]
+    );
+    assert!(!temp_dir.path().join("00002.secondary").exists());
+    assert!(!temp_dir.path().join("00002.chunk").exists());
+
+    writer
+        .append(REPLACEMENT, 0..0, [0; _], CHUNK_SIZE + 1)
+        .unwrap();
+    writer.append(LATER, 0..0, [0; _], CHUNK_SIZE + 2).unwrap();
+    writer.truncate(CHUNK_SIZE + 1).unwrap();
+    writer.truncate(CHUNK_SIZE * 10).unwrap();
+    assert_eq!(reader.tip(), Some(CHUNK_SIZE + 1));
+    assert_eq!(
+        read_blocks(&reader, 0..(CHUNK_SIZE + 2)),
+        [ZERO, ONE, BOUNDARY, REPLACEMENT]
+    );
+
+    drop(writer);
+    drop(reader);
+    let (reader, mut writer) = open::<N>(temp_dir.path()).unwrap();
+    assert_eq!(reader.tip(), Some(CHUNK_SIZE + 1));
+    assert_eq!(
+        read_blocks(&reader, 0..(CHUNK_SIZE + 2)),
+        [ZERO, ONE, BOUNDARY, REPLACEMENT]
+    );
+
+    writer.truncate(0).unwrap();
+    assert_eq!(reader.tip(), Some(0));
+    assert_eq!(read_blocks(&reader, 0..1), [ZERO]);
+}
+
+fn truncate_to_empty() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let (reader, mut writer) = open::<0>(temp_dir.path()).unwrap();
+    writer.append(b"later", 0..0, [0; _], 10).unwrap();
+
+    writer.truncate(9).unwrap();
+    assert_eq!(reader.tip(), None);
+    assert_eq!(
+        std::fs::metadata(temp_dir.path().join("00000.chunk"))
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        std::fs::metadata(temp_dir.path().join("00000.secondary"))
+            .unwrap()
+            .len(),
+        0
+    );
+
+    writer.append(b"replacement", 0..0, [0; _], 9).unwrap();
+    assert_eq!(reader.tip(), Some(9));
+}
+
+fn truncate_preserves_cache() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let (reader, mut writer) = open::<3>(temp_dir.path()).unwrap();
+    for chunk_number in 0..=5 {
+        writer
+            .append(
+                &[chunk_number as u8],
+                0..0,
+                [0; _],
+                chunk_number * CHUNK_SIZE,
+            )
+            .unwrap();
+    }
+
+    writer.truncate(3 * CHUNK_SIZE).unwrap();
+    {
+        let cache = reader.0.read().unwrap();
+        assert_eq!(cache.pointer, 0);
+        assert_eq!(
+            cache
+                .completed
+                .each_ref()
+                .map(|entry| entry.get().is_some()),
+            [false, false, true]
+        );
+    }
+
+    // Chunk 2 comes from the preserved entry. Chunk 1 must be reloaded rather than resolving to
+    // the stale entry for the removed chunk 4.
+    assert_eq!(
+        read_blocks(&reader, CHUNK_SIZE..(3 * CHUNK_SIZE)),
+        [Bytes::from_static(&[1]), Bytes::from_static(&[2])]
+    );
+}
+
+fn truncate_to_ebb() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    for chunk_number in 0..=4 {
+        copy_files(temp_dir.path(), chunk_number);
+    }
+    let (reader, mut writer) = open::<2>(temp_dir.path()).unwrap();
+    let boundary = CHUNK_SIZE * 3;
+
+    writer.truncate(boundary).unwrap();
+    assert_eq!(reader.tip(), Some(boundary));
+    assert_eq!(read_blocks(&reader, boundary..(boundary + 1)).len(), 1);
+    assert!(!temp_dir.path().join("00004.secondary").exists());
+    assert!(!temp_dir.path().join("00004.chunk").exists());
+
+    writer
+        .append(b"first block after EBB", 0..0, [0; _], boundary)
+        .unwrap();
+    assert_eq!(reader.tip(), Some(boundary));
+    assert_eq!(read_blocks(&reader, boundary..(boundary + 1)).len(), 2);
+}
+
+fn read_blocks<const N: usize>(
+    reader: &crate::Reader<N>,
+    range: std::ops::Range<u64>,
+) -> Vec<Bytes> {
+    let mut read = reader.read(range);
+    let mut blocks = Vec::new();
+    while let Some(chunk) = read.next() {
+        blocks.extend(chunk.unwrap().map(Result::unwrap));
+    }
+    blocks
 }

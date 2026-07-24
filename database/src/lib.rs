@@ -6,9 +6,9 @@
 //! instance of the database is open at a time.
 //!
 //! The design is deliberately very simple and low level, to reduce code size and maximize
-//! performance. Readers and the writer almost never block each other, except when appending at
-//! chunk boundaries, which currently happens every 21,600 slots. All operations are syncrhonous
-//! (blocking).
+//! performance. Readers and the writer almost never block each other, except when truncating or
+//! appending at chunk boundaries, which currently happens every 21,600 slots. All operations are
+//! syncrhonous (blocking).
 
 // TODOs:
 // - Integer casts
@@ -165,6 +165,8 @@ impl<const N: usize> Cache<N> {
 /// - The unique writer only modifies `entries[len]`, and then monotonically increases `len` before
 ///   `Release`.
 /// - The readers `Acquire` `len` and only read `entries[..len]`.
+/// - Truncation modifies `entries` and decreases `len` only while holding the exclusive cache
+///   lock, so no reader or append can access them concurrently.
 unsafe impl<const N: usize> Sync for Cache<N> {}
 
 /// Data for a chunk, read from the `secondary` file.
