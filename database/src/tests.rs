@@ -92,8 +92,8 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
 
     {
         let mut read = reader.read(0..100);
-        while let Some(Ok(chunk)) = read.next() {
-            for block in chunk {
+        while let Some(chunk) = read.next() {
+            for block in chunk.unwrap() {
                 Block::decode(&mut Decoder(&block.unwrap())).unwrap();
             }
         }
@@ -106,13 +106,14 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
         }
     }
 
-        writer.append(NEW_BLOCK, 0..2, [0; _], new_tip).unwrap();
+    writer.append(NEW_BLOCK, 0..2, [0; _], new_tip).unwrap();
 
     {
         let mut read = reader.read(0..(new_tip + 1));
         let mut last_block = Bytes::new();
-        while let Some(Ok(chunk)) = read.next() {
+        while let Some(chunk) = read.next() {
             last_block = chunk
+                .unwrap()
                 .inspect(|block| {
                     if block.is_err() {
                         panic!("block is invalid");
@@ -142,5 +143,7 @@ fn round_trip<const N: usize>(path: &std::path::Path) {
         assert!(read.next().is_none());
     }
 
-    writer.append(NEW_BLOCK, 0..2, [0; _], new_tip + CHUNK_SIZE * 5).unwrap_err();
+    writer
+        .append(NEW_BLOCK, 0..2, [0; _], new_tip + CHUNK_SIZE * 5)
+        .unwrap_err();
 }

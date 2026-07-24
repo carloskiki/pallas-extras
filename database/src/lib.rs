@@ -1,13 +1,20 @@
 //! Immutable database implementation.
 //!
 //! This implementation matches the database format used by the `IntersectMBO` implementation.
-//! It allows multiple readers and a single writer to operate concurrently.
+//! It allows multiple readers and a single writer to operate concurrently. The database is not
+//! locked on the file system. It is expected that users of this library ensure that only one
+//! instance of the database is open at a time.
 //!
 //! The design is deliberately very simple and low level, to reduce code size and maximize
-//! performance. Readers and the writer never block each other, except when appending at
+//! performance. Readers and the writer almost never block each other, except when appending at
 //! chunk boundaries, which currently happens every 21,600 slots. All operations are syncrhonous
-//! (blocking). Functions return `std::io::Error` as almost all errors arise from the file system.
-//! Panics should never occur, and are considered implementation bugs.
+//! (blocking).
+
+// TODOs:
+// - Integer casts
+// - document write does not validate block data.
+// - More testing: EBB writing, crash/retry paths, malformed metadata, read
+// failures, or lock liveness.
 use bytes::BytesMut;
 use core::sync::atomic;
 use crossbeam_utils::CachePadded;
@@ -54,9 +61,10 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
     let dir_iter = std::fs::read_dir(&dir)?;
     for entry in dir_iter {
         let file_name = entry?.file_name();
-        if let Some(bytes) = &file_name.as_encoded_bytes().get(..5)
+        if let Some((bytes, rest)) = &file_name.as_encoded_bytes().split_at_checked(5)
             && let Ok(num_str) = std::str::from_utf8(bytes)
             && let Ok(num) = num_str.parse::<u64>()
+            && rest == b".secondary"
         {
             chunk_number = chunk_number.max(num);
         }
@@ -64,7 +72,6 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
 
     let (chunk_file, secondary_file) = open_or_create(&dir, chunk_number)?;
     let data = secondary::read(&mut BytesMut::new(), &secondary_file)?;
-    let len = data.len();
     let size = chunk_file.metadata()?.len();
 
     // This large struct is potentially stored on the stack before being moved to the heap,
@@ -83,15 +90,17 @@ pub fn open<const N: usize>(dir: impl Into<PathBuf>) -> io::Result<(Reader<N>, W
         .expect("no other references to shared exist")
         .get_mut()
         .expect("cache is not poisoned");
+    let mut len = 0;
     cache_mut
         .entries
         .get_mut()
         .iter_mut()
         .zip(data)
         .for_each(|(entry, block_info)| {
+            len += 1;
             entry.write(block_info);
         });
-    *cache_mut.len_size.get_mut() = (size << 32) | (len as u64);
+    *cache_mut.len_size.get_mut() = (size << 32) | len;
 
     Ok((Reader(shared.clone()), Writer(shared)))
 }
@@ -156,8 +165,6 @@ impl<const N: usize> Cache<N> {
 /// - The unique writer only modifies `entries[len]`, and then monotonically increases `len` before
 ///   `Release`.
 /// - The readers `Acquire` `len` and only read `entries[..len]`.
-///
-/// => There are no data races.
 unsafe impl<const N: usize> Sync for Cache<N> {}
 
 /// Data for a chunk, read from the `secondary` file.
@@ -192,14 +199,13 @@ fn open_or_create(path: &Path, chunk_number: u64) -> io::Result<(File, File)> {
     Ok((chunk_file, secondary_file))
 }
 
-/// Reads a chunk from the given file into the buffer.
+/// Reads from the given file, appending the buffer.
 fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io::Result<()> {
-    buffer.clear();
     buffer.reserve(size);
     // Safety: The `File::read_exact` method only writes to the buffer, the buffer is fully
-    // initialized if `read_exact` is successful. This is theoretically unsound because we
-    // `assume_init` uninitialized memory. This is what `tokio` does, so it should be fine in
-    // practice.
+    // initialized if `read_exact` is successful. This is may be unsound because we `assume_init`
+    // uninitialized memory This is what `tokio` does, so it should be fine in practice.
+    // 
     // FIXME: once `File::read_exact_buf` is stabilized, we can avoid unsafe. Copied directly
     // from the `tokio` implementation in the meantime.
     unsafe {

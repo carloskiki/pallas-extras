@@ -25,27 +25,26 @@ impl<const N: usize> Writer<N> {
     pub fn append(
         &mut self,
         bytes: &[u8],
-        header: Range<usize>,
+        header: Range<u16>,
         id: [u8; 32],
         slot_or_ebb: u64,
     ) -> io::Result<()> {
         let crc = crc32fast::hash(bytes);
-        let write_block = |len, size, chunk_file: &File, secondary_file: &File| -> io::Result<()> {
-            let secondary_offset = (len * std::mem::size_of::<secondary::Entry>()) as u32;
-            chunk_file.write_all_at(bytes, size as u64)?;
-            let entry = secondary::Entry {
-                offset: u64::from(size).into(),
-                header_offset: (header.start as u16).into(),
-                header_size: ((header.end - header.start) as u16).into(),
-                crc: crc.into(),
-                id,
-                slot: slot_or_ebb.into(),
+        let write_block =
+            |chunk_len, chunk_size, chunk_file: &File, secondary_file: &File| -> io::Result<()> {
+                chunk_file.write_all_at(bytes, u64::from(chunk_size))?;
+                let secondary_offset = chunk_len * std::mem::size_of::<secondary::Entry>() as u64;
+                let entry = secondary::Entry {
+                    offset: u64::from(chunk_size).into(),
+                    header_offset: header.start.into(),
+                    header_size: (header.end - header.start).into(),
+                    crc: crc.into(),
+                    id,
+                    slot: slot_or_ebb.into(),
+                };
+                secondary_file.write_all_at(entry.as_bytes(), secondary_offset)
             };
-            chunk_file.sync_data()?;
-            secondary_file.write_all_at(entry.as_bytes(), u64::from(secondary_offset))
-        };
 
-        let chunk_number = slot_or_ebb / CHUNK_SIZE;
         let guard = self.0.read().expect("cache should not be poisoned");
         let mut cache: &Cache<_> = &guard;
         let mut cache_mut;
@@ -60,17 +59,23 @@ impl<const N: usize> Writer<N> {
             }
         });
 
-        // FIXME: Here we only accept appending to the current chunk or next chunk. We don't allow
+        // FIXME: We only accept appending to the current chunk or next chunk. We don't allow
         // appending to a chunk further ahead. This may cause issue if for example the blockchain
         // goes down for a long time and then resumes at a slot much later.
-        if chunk_number == cache.chunk_number + 1
-            || (slot_or_ebb == chunk_number + 1 && last_slot.is_none_or(|slot| slot_or_ebb <= slot))
+        let chunk_number = if slot_or_ebb == cache.chunk_number + 1
+            && last_slot.is_none_or(|slot| slot_or_ebb <= slot)
         {
-            let block_info = block_info.into();
+            slot_or_ebb
+        } else {
+            slot_or_ebb / CHUNK_SIZE
+        };
+        if chunk_number == cache.chunk_number + 1 {
             let (new_chunk_file, new_secondary_file) =
                 open_or_create(&cache.directory, chunk_number)?;
-            write_block(0, 0u32, &new_chunk_file, &new_secondary_file)?;
+            write_block(0u64, 0u32, &new_chunk_file, &new_secondary_file)?;
 
+            let block_info = block_info.into();
+            // Acquire a write lock to update the cache.
             drop(guard);
             cache_mut = self.0.write().expect("cache should not be poisoned");
             let old_chunk_file = std::mem::replace(&mut cache_mut.chunk_file, new_chunk_file);
@@ -83,8 +88,7 @@ impl<const N: usize> Writer<N> {
                 };
                 let pointer = cache_mut.pointer;
                 cache_mut.completed[pointer] = OnceCell::from(chunk);
-                cache_mut.pointer =
-                    (pointer + (chunk_number - cache_mut.chunk_number) as usize) % N;
+                cache_mut.pointer = (pointer + 1) % N;
             }
             cache_mut.chunk_number = chunk_number;
             len = 0;
@@ -93,7 +97,7 @@ impl<const N: usize> Writer<N> {
         } else if chunk_number == cache.chunk_number
             && last_slot.is_none_or(|slot| slot_or_ebb > slot)
         {
-            write_block(len, size, &cache.chunk_file, &cache.secondary_file)?;
+            write_block(len as u64, size, &cache.chunk_file, &cache.secondary_file)?;
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
