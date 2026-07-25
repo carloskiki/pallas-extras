@@ -36,9 +36,8 @@ impl<const N: usize> Reader<N> {
 
     /// Returns a streaming reader for chunks from the provided slot range.
     ///
-    /// Keeping [`Read`] alive prevents new chunks from being written to the database. This can
-    /// prevent the [`Writer`](crate::Writer) from making progress if it needs to write across a
-    /// chunk boundary.
+    /// Keeping [`Read`] alive prevents writing new chunks (happens every 21,600 slots) and
+    /// truncating.
     pub fn read(&self, range: Range<slot::Number>) -> Read<'_, N> {
         Read {
             cache: self.0.read().expect("cache should not be poisoned"),
@@ -107,9 +106,7 @@ impl<const N: usize> Read<'_, N> {
                     block_info,
                     size,
                     file,
-                } = some_try!(read_chunk(
-                    chunk_number,
-                ));
+                } = some_try!(read_chunk(chunk_number,));
                 owned_file = file;
                 (Cow::Owned(block_info.into_vec()), size, &owned_file)
             } else {

@@ -10,11 +10,6 @@
 //! appending at chunk boundaries, which currently happens every 21,600 slots. All operations are
 //! syncrhonous (blocking).
 
-// TODOs:
-// - Integer casts
-// - document write does not validate block data.
-// - More testing: EBB writing, crash/retry paths, malformed metadata, read
-// failures, or lock liveness.
 use bytes::BytesMut;
 use core::sync::atomic;
 use crossbeam_utils::CachePadded;

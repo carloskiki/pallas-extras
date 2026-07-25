@@ -17,6 +17,7 @@ pub struct Entry {
     pub slot: U64,
 }
 
+/// Reads the `secondary` file into a buffer and returns a slice of `BlockInfo` entries.
 pub fn read(buffer: &mut BytesMut, secondary_file: &File) -> io::Result<Box<[BlockInfo]>> {
     let secondary_size = secondary_file.metadata()?.len() as usize;
     read_buf(secondary_file, buffer, 0, secondary_size)?;

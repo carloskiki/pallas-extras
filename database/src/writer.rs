@@ -28,6 +28,14 @@ impl<const N: usize> Writer<N> {
     ///
     /// Returns an error on file system errors.
     pub fn truncate(&mut self, slot: u64) -> io::Result<()> {
+        fn remove_file_if_exists(path: impl AsRef<std::path::Path>) -> io::Result<()> {
+            match fs::remove_file(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error),
+            }
+        }
+        
         let target_chunk_number = slot / CHUNK_SIZE;
         let mut cache = self.0.write().expect("cache should not be poisoned");
 
@@ -90,8 +98,7 @@ impl<const N: usize> Writer<N> {
             }
             cache.pointer = 0;
         } else {
-            let rollback = rollback as usize;
-            let mut pointer = cache.pointer.wrapping_sub(rollback);
+            let mut pointer = cache.pointer.wrapping_sub(rollback as usize);
             if pointer >= N {
                 pointer = pointer.wrapping_add(N);
             }
@@ -130,6 +137,9 @@ impl<const N: usize> Writer<N> {
     }
 
     /// Append a block to the database.
+    ///
+    /// This does not validate any of the block's structure or contents. The caller is responsible
+    /// for ensuring that the `bytes`, `header`, `id`, and `slot` are consistent with each other.
     ///
     /// ## Errors
     ///
@@ -248,13 +258,5 @@ impl<const N: usize> Writer<N> {
             atomic::Ordering::Release,
         );
         Ok(())
-    }
-}
-
-fn remove_file_if_exists(path: impl AsRef<std::path::Path>) -> io::Result<()> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
     }
 }
