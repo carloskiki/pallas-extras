@@ -1,5 +1,5 @@
-pub mod certificate;
+mod certificate;
 pub use certificate::Certificate;
 
-pub mod signature;
+mod signature;
 pub use signature::Signature;

@@ -12,12 +12,12 @@ use tinycbor::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Target<'a> {
+pub enum Target {
     Other(Coin),
     // TODO: This should be `DeltaCoin` instead of `Coin` which allows negative amounts. Since this
     // is no longer part of the ledger in `conway`, check if DeltaCoin is truly needed, or if
     // positive amounts suffice.
-    Accounts(Unique<Vec<(Credential<'a>, Coin)>, false>),
+    Accounts(Unique<Vec<(Credential, Coin)>, false>),
 }
 
 #[derive(Debug, Display, Error)]
@@ -29,17 +29,17 @@ pub enum Error {
         #[from]
         container::Error<
             map::Error<
-                <Credential<'static> as Decode<'static>>::Error,
+                <Credential as Decode<'static>>::Error,
                 <Coin as Decode<'static>>::Error,
             >,
         >,
     ),
 }
 
-impl<'a, 'b: 'a> Decode<'b> for Target<'a> {
+impl Decode<'_> for Target {
     type Error = Error;
 
-    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         Ok(
             if d.datatype().map_err(|e| Error::Other(e.into()))? == tinycbor::Type::Int {
                 Target::Other(Decode::decode(d).map_err(Error::Other)?)
@@ -50,7 +50,7 @@ impl<'a, 'b: 'a> Decode<'b> for Target<'a> {
     }
 }
 
-impl Encode for Target<'_> {
+impl Encode for Target {
     fn encode<W: tinycbor::Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
         match self {
             Target::Other(coin) => coin.encode(e),
@@ -59,7 +59,7 @@ impl Encode for Target<'_> {
     }
 }
 
-impl CborLen for Target<'_> {
+impl CborLen for Target {
     fn cbor_len(&self) -> usize {
         match self {
             Target::Other(coin) => coin.cbor_len(),

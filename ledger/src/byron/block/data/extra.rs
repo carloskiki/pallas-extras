@@ -8,6 +8,6 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 pub struct Data<'a> {
     pub version: protocol::Version,
     pub software_version: protocol::version::Software<'a>,
-    pub attributes: Attributes<'a>,
+    pub attributes: Attributes,
     pub extra_proof: &'a crypto::Blake2b256Digest,
 }

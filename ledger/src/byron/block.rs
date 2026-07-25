@@ -8,13 +8,13 @@ pub mod boundary;
 
 pub mod data;
 
-pub mod header;
+mod header;
 pub use header::Header;
 
-pub mod proof;
+mod proof;
 pub use proof::Proof;
 
-pub mod signature;
+mod signature;
 pub use signature::Signature;
 
 pub type Id = crate::crypto::Blake2b256Digest;
@@ -25,5 +25,5 @@ pub type Difficulty = u64;
 pub struct Block<'a> {
     pub header: Box<Header<'a>>,
     pub body: Body<'a>,
-    pub extra: [Attributes<'a>; 1],
+    pub extra: [Attributes; 1],
 }

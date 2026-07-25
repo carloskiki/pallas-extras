@@ -1,10 +1,10 @@
-use crate::byron::transaction;
 use tinycbor_derive::{CborLen, Decode, Encode};
+use ledger::transaction;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 pub enum Id<'a> {
     #[n(0)]
-    Byron(&'a transaction::Id),
+    Byron(#[cbor(with = "codec::Codec<'a>")] &'a transaction::Id),
     #[n(1)]
     Shelley(&'a transaction::Id),
     #[n(2)]
@@ -20,20 +20,20 @@ pub enum Id<'a> {
 }
 
 mod codec {
-    use crate::byron::transaction;
+    use ledger::transaction::Id;
     use tinycbor_derive::{CborLen, Decode, Encode};
 
     #[derive(Encode, Decode, CborLen)]
     #[repr(transparent)]
-    enum Codec<'a> {
+    pub enum Codec<'a> {
         // We only implement `Transaction` ids for the byron era because we don't expect to receive
         // payloads that communicate transactions for that era anyway. In the byron era, there were
         // other types of ids: update id, certificate id, vote id.
         #[n(0)]
-        Transaction(&'a transaction::Id),
+        Transaction(&'a Id),
     }
 
-    impl<'a> From<Codec<'a>> for &'a transaction::Id {
+    impl<'a> From<Codec<'a>> for &'a Id {
         fn from(codec: Codec<'a>) -> Self {
             match codec {
                 Codec::Transaction(id) => id,
@@ -41,10 +41,10 @@ mod codec {
         }
     }
 
-    impl<'a, 'b> From<&'b &'a transaction::Id> for &'b Codec<'a> {
-        fn from(id: &'b &'a transaction::Id) -> Self {
-            // Safety: `Codec` is `repr(transparent)` over `&transaction::Id`.
-            unsafe { &*(id as *const &'a transaction::Id as *const Codec<'a>) }
+    impl<'a, 'b> From<&'a &'b Id> for &'a Codec<'b> {
+        fn from(id: &'a &'b Id) -> Self {
+            // Safety: `Codec` is `repr(transparent)` over `Id`.
+            unsafe { &*(id as *const &'b Id as *const Codec<'b>) }
         }
     }
 }

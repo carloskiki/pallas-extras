@@ -1,9 +1,18 @@
-use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
+use crate::{allegra, alonzo, babbage, byron, conway, crypto, mary, shelley};
 use tinycbor::Encoded;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-mod id;
-pub use id::Id;
+pub mod reference;
+pub use reference::Reference;
+
+/// The index of a transaction or an item within a transaction.
+pub type Index = u16;
+
+/// A transaction identifier.
+///
+/// This is the Blake2b-256 hash of the CBOR-serialized transaction body. It uniquely identifies a
+/// transaction in the ledger.
+pub type Id = crypto::Blake2b256Digest;
 
 /// Era-independent transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

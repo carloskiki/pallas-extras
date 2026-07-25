@@ -10,5 +10,5 @@ pub use header::Header;
 pub struct Block<'a> {
     pub header: Header<'a>,
     pub body: Vec<&'a crate::crypto::Blake2b224Digest>,
-    pub extra: [crate::byron::Attributes<'a>; 1],
+    pub extra: [crate::byron::Attributes; 1],
 }

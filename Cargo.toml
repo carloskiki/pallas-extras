@@ -8,6 +8,7 @@ members = [
     "ledger",
     "network",
     "plutus",
+    "state",
 ]
 resolver = "3"
 
@@ -29,6 +30,9 @@ digest = { version = "0.11.0", default-features = false }
 signature = { version = "3.0.0", default-features = false }
 
 # Data types
+hashbrown = { version = "0.17", default-features = false, features = [
+    "inline-more",
+] }
 mitsein = "0.9"
 rug = { version = "1.28.0", default-features = false, features = [
     "integer",
@@ -37,13 +41,13 @@ rug = { version = "1.28.0", default-features = false, features = [
 
 # Hashing
 blake2 = { version = "0.11.0-rc.5", default-features = false }
+crc32fast = "1.5"
 sha2 = { version = "0.11.0", default-features = false }
 sha3 = { version = "0.12.0", default-features = false }
-crc32fast = "1.5"
 
 # Public Key Cryptography
-curve25519-dalek = { version = "5.0.0-pre.6", default-features = false }
-ed25519-dalek = { version = "3.0.0-pre.6", default-features = false }
+curve25519-dalek = { version = "5.0.0", default-features = false }
+ed25519-dalek = { version = "3.0.0", default-features = false }
 # TODO: remove once ed25519-dalek has a zerocopy feature also that enables this
 ed25519 = { version = "3.0.0", features = ["zerocopy"] }
 hybrid-array = { version = "0.4.12" }
@@ -56,8 +60,8 @@ macro_rules_attribute = "0.2.2"
 rand = "0.9"
 ref-cast = "1.0"
 thiserror = "2.0"
+yoke = { version = "0.8.3", default-features = false, features = [
+    "alloc",
+    "derive",
+] }
 zerocopy = { version = "0.8", features = ["derive"] }
-
-[patch.crates-io]
-# TODO: remove once https://github.com/dalek-cryptography/curve25519-dalek/pull/733 is merged
-ed25519-dalek = { git = "https://github.com/carloskiki/curve25519-dalek.git" }

@@ -3,8 +3,8 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
 #[cbor(naked)]
 pub struct Transactions<'a>(
-    #[cbor(with = "cbor_util::Indefinite<Vec<ledger::transaction::Id<'a>>>")]
-    pub  Vec<ledger::transaction::Id<'a>>,
+    #[cbor(with = "cbor_util::Indefinite<Vec<&'a ledger::transaction::Id>>")]
+    pub  Vec<&'a ledger::transaction::Id>,
 );
 
 impl crate::Message for Transactions<'_> {

@@ -1,17 +1,13 @@
-use crate::{Unique, crypto::Blake2b256Digest, shelley::transaction};
+use crate::{Unique, shelley::transaction};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod header;
 pub use header::Header;
-
-pub type Number = u64;
-pub type Size = u32;
-pub type Id = Blake2b256Digest;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Block<'a> {
     pub header: Header<'a>,
     pub transaction_bodies: Vec<transaction::Body<'a>>,
     pub transaction_witness_sets: Vec<transaction::witness::Set<'a>>,
-    pub transaction_data: Unique<Vec<(transaction::Index, transaction::Data<'a>)>, false>,
+    pub transaction_data: Unique<Vec<(crate::transaction::Index, transaction::Data<'a>)>, false>,
 }

@@ -7,5 +7,5 @@ pub struct Header<'a> {
     pub previous_block: &'a crate::byron::block::Id,
     pub proof: &'a crate::crypto::Blake2b256Digest,
     pub consensus_data: super::Data,
-    pub extra_data: [Attributes<'a>; 1],
+    pub extra_data: [Attributes; 1],
 }

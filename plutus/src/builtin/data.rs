@@ -101,5 +101,6 @@ pub fn mk_nil_pair<'a>(_: ()) -> List<'a> {
 }
 
 pub fn serialize(data: &Data) -> Vec<u8> {
+    // TODO: This should totally be a borrowed bytes no-op, `tinycbor::With`
     tinycbor::to_vec(&data)
 }

@@ -7,7 +7,7 @@ use tinycbor::{container::bounded, *};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Output<'a> {
-    pub address: Address<'a>,
+    pub address: Address,
     pub value: Value<'a>,
     pub datum_hash: Option<&'a Blake2b256Digest>,
 }
@@ -17,7 +17,7 @@ pub struct Output<'a> {
 #[prefix_enum_doc_attributes]
 pub enum Error {
     /// in field `address`
-    Address(#[from] <Address<'static> as Decode<'static>>::Error),
+    Address(#[from] <Address as Decode<'static>>::Error),
     /// in field `value`
     Value(#[from] <Value<'static> as Decode<'static>>::Error),
     /// in field `datum_hash`

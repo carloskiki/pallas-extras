@@ -11,6 +11,7 @@ pub use blake2;
 pub use ed25519_dalek;
 pub use bip32;
 pub use hybrid_array;
+pub use digest;
 
 pub(crate) type Blake2b224 = blake2::Blake2b<U28>;
 /// Blake2b224 hash value.
@@ -20,7 +21,6 @@ pub type Blake2b256Digest = [u8; 32];
 
 pub type VerifyingKey = ed25519_dalek::pkcs8::PublicKeyBytes;
 pub type Signature = ed25519_dalek::Signature;
-pub type ExtendedVerifyingKey = bip32::ExtendedVerifyingKey;
 
 /// Pair of serialized secret and verifying keys.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,4 +55,24 @@ pub mod kes {
         kes::SingleUse<super::Keypair>,
         blake2::Blake2b256,
     >;
+}
+
+/// A writer adapter for anything that implements [`digest::Update`], allowing it to be used in
+/// [`tinycbor::Encoder`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DigestWriter<D>(pub D);
+
+impl<D> embedded_io::ErrorType for DigestWriter<D> {
+    type Error = core::convert::Infallible;
+}
+
+impl<D: digest::Update> embedded_io::Write for DigestWriter<D> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.0.update(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }

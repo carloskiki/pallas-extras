@@ -1,8 +1,7 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     conway::{
-        Certificate,
-        Asset, asset,
+        Asset, Certificate, asset,
         governance::{
             proposal,
             voting::{self},
@@ -10,13 +9,10 @@ use crate::{
         transaction::Output,
     },
     crypto::{Blake2b224Digest, Blake2b256Digest},
-    shelley::{
-        Network,
-        address::Account,
-        transaction::Input,
-    },
-    slot, unique,
-    Coin,
+    shelley::{Network, address::Account},
+    slot,
+    transaction::Reference,
+    unique,
 };
 use mitsein::vec1::Vec1;
 use sparse_struct::SparseStruct;
@@ -40,10 +36,10 @@ pub enum Option<'a> {
     #[n(5)]
     Withdrawals(
         #[cbor(
-            encode_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>",
-            len_with = "unique::codec::NonEmpty<(Account<'a>, Coin)>"
+            encode_with = "unique::codec::NonEmpty<(Account, Coin)>",
+            len_with = "unique::codec::NonEmpty<(Account, Coin)>"
         )]
-        Unique<Vec1<(Account<'a>, Coin)>, false>,
+        Unique<Vec1<(Account, Coin)>, false>,
     ),
     #[n(7)]
     AuxiliaryDataHash(&'a Blake2b256Digest),
@@ -54,7 +50,7 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(#[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>),
+    Collateral(#[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>),
     #[n(14)]
     RequiredSigners(
         #[cbor(with = "unique::codec::NonEmpty<&'a Blake2b224Digest>")]
@@ -68,7 +64,7 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(with = "unique::codec::NonEmpty<Input<'a>>")] Unique<Vec1<Input<'a>>, false>,
+        #[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>,
     ),
     #[n(19)]
     VotingProcedures(
@@ -78,7 +74,7 @@ pub enum Option<'a> {
     #[n(20)]
     ProposalProcedures(
         #[cbor(with = "unique::codec::NonEmpty<proposal::Procedure<'a>>")]
-        Unique<Vec1<proposal::Procedure<'a>>, false>
+        Unique<Vec1<proposal::Procedure<'a>>, false>,
     ),
     #[n(21)]
     CurrentTreasury(Coin),

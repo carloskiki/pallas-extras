@@ -6,6 +6,7 @@ version = "0.1.0"
 [dependencies]
 cbor-util = { workspace = true }
 embedded-io = { workspace = true }
+ref-cast = { workspace = true }
 tinycbor = { workspace = true }
 tinycbor-derive = { workspace = true }
 zerocopy = { workspace = true }

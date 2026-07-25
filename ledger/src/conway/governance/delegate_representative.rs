@@ -2,13 +2,13 @@ use crate::shelley::{self, Credential};
 use tinycbor::{container::bounded, *};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DelegateRepresentative<'a> {
-    Credential(Credential<'a>),
+pub enum DelegateRepresentative {
+    Credential(Credential),
     Abstain,
     NoConfidence,
 }
 
-impl Encode for DelegateRepresentative<'_> {
+impl Encode for DelegateRepresentative {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         match self {
             DelegateRepresentative::Credential(Credential::VerificationKey(vkey)) => {
@@ -33,7 +33,7 @@ impl Encode for DelegateRepresentative<'_> {
     }
 }
 
-impl CborLen for DelegateRepresentative<'_> {
+impl CborLen for DelegateRepresentative {
     fn cbor_len(&self) -> usize {
         match self {
             DelegateRepresentative::Credential(Credential::VerificationKey(vkey)) => {
@@ -48,10 +48,10 @@ impl CborLen for DelegateRepresentative<'_> {
     }
 }
 
-impl<'a, 'b: 'a> Decode<'b> for DelegateRepresentative<'a> {
+impl Decode<'_> for DelegateRepresentative {
     type Error = container::Error<bounded::Error<tag::Error<shelley::credential::Error>>>;
 
-    fn decode(d: &mut tinycbor::Decoder<'b>) -> Result<Self, Self::Error> {
+    fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         use shelley::credential::Error as CredError;
 
         let mut visitor = d.array_visitor()?;
@@ -62,7 +62,7 @@ impl<'a, 'b: 'a> Decode<'b> for DelegateRepresentative<'a> {
         {
             0 => DelegateRepresentative::Credential(Credential::VerificationKey(
                 visitor
-                    .visit::<&crate::crypto::Blake2b224Digest>()
+                    .visit::<crate::crypto::Blake2b224Digest>()
                     .ok_or(bounded::Error::Missing)?
                     .map_err(|e| {
                         bounded::Error::Content(tag::Error::Content(CredError::VerificationKey(e)))
@@ -70,7 +70,7 @@ impl<'a, 'b: 'a> Decode<'b> for DelegateRepresentative<'a> {
             )),
             1 => DelegateRepresentative::Credential(Credential::Script(
                 visitor
-                    .visit::<&crate::crypto::Blake2b224Digest>()
+                    .visit::<crate::crypto::Blake2b224Digest>()
                     .ok_or(bounded::Error::Missing)?
                     .map_err(|e| {
                         bounded::Error::Content(tag::Error::Content(CredError::Script(e)))

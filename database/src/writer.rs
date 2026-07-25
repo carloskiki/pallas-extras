@@ -1,134 +1,208 @@
-use crate::{BlockInfo, CHUNK_SIZE, Cache, ChunkData, open_or_create, secondary};
-use blake2::{Blake2b256, Digest};
-use ledger::Block;
+use crate::{BlockInfo, CHUNK_SIZE, Cache, ChunkData, open_or_create, path_prefix, secondary};
+use bytes::BytesMut;
 use once_cell::sync::OnceCell;
 use std::{
-    hint::cold_path,
+    fs::{self, File},
     io,
+    ops::Range,
     os::unix::fs::FileExt,
     sync::{
         Arc, RwLock,
         atomic::{self},
     },
 };
-use tinycbor::{CborLen, encoded::With};
 use zerocopy::IntoBytes;
 
 /// Database writer.
-pub struct Writer<const N: usize> {
-    /// Shared data.
-    pub(crate) shared: Arc<RwLock<Cache<N>>>,
-    /// Primary file relative slot.
-    ///
-    /// This is used to determine how much to backfill the primary file. The last block's slot
-    /// cannot always be used for this because EBBs are represented with slot number `CHUNK_SIZE *
-    /// chunk_number`. This is ambiguous with the first slot of the chunk, so there could be a
-    /// regular block and an EBB with the same slot number. If the current chunk contains a single
-    /// block with that slot, we can't know whether this is the EBB (offset index 0) or the regular
-    /// block (offset index 1). So we store
-    pub(crate) primary_count: usize,
-}
+pub struct Writer<const N: usize>(pub(super) Arc<RwLock<Cache<N>>>);
 
 impl<const N: usize> Writer<N> {
+    /// Truncate the database after `slot`.
+    ///
+    /// Blocks at `slot` are retained. If the database tip is before `slot`, this is a no-op.
+    ///
+    /// Keeping a [`Read`](crate::reader::Read) alive while calling this method prevents it from
+    /// making progress until the read is dropped.
+    ///
+    /// ## Errors
+    ///
+    /// Returns an error on file system errors.
+    pub fn truncate(&mut self, slot: u64) -> io::Result<()> {
+        fn remove_file_if_exists(path: impl AsRef<std::path::Path>) -> io::Result<()> {
+            match fs::remove_file(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error),
+            }
+        }
+        
+        let target_chunk_number = slot / CHUNK_SIZE;
+        let mut cache = self.0.write().expect("cache should not be poisoned");
+
+        if target_chunk_number > cache.chunk_number {
+            return Ok(());
+        }
+
+        if target_chunk_number == cache.chunk_number {
+            // Only the writer updates `len_size`, so `Relaxed` is OK while holding the lock.
+            let (len, _) = cache.len_size(atomic::Ordering::Relaxed);
+            // Safety: the write lock prevents readers and `append` from accessing `entries`.
+            let entries =
+                unsafe { std::slice::from_raw_parts(cache.entries.get().cast::<BlockInfo>(), len) };
+            let new_len = entries.partition_point(|info| info.slot <= slot);
+            if new_len == len {
+                return Ok(());
+            }
+            let new_size = entries[new_len].offset;
+
+            cache
+                .secondary_file
+                .set_len((new_len * std::mem::size_of::<secondary::Entry>()) as u64)?;
+            // Publish the smaller initialized prefix before allowing another append or read.
+            cache.len_size.store(
+                (u64::from(new_size) << 32) | new_len as u64,
+                atomic::Ordering::Release,
+            );
+            // Extra chunk bytes are harmless if shrinking the file fails: the secondary index and
+            // cache already describe the truncated database, and a subsequent append overwrites
+            // them.
+            cache.chunk_file.set_len(u64::from(new_size))?;
+            return Ok(());
+        }
+
+        let (chunk_file, secondary_file) = open_or_create(&cache.directory, target_chunk_number)?;
+        let size = chunk_file.metadata()?.len() as u32;
+        let mut buffer = BytesMut::new();
+        let mut entries = secondary::read(&mut buffer, &secondary_file)?.into_vec();
+        let new_len = entries.partition_point(|info| info.slot <= slot);
+        let new_size = entries.get(new_len).map_or(size, |info| info.offset);
+        entries.truncate(new_len);
+        let old_chunk_number = cache.chunk_number;
+
+        // Remove secondary files first because `open` uses them to find the database tip.
+        for chunk_number in (target_chunk_number + 1)..=old_chunk_number {
+            remove_file_if_exists(
+                path_prefix(&cache.directory, chunk_number).with_extension("secondary"),
+            )?;
+        }
+        secondary_file.set_len((entries.len() * std::mem::size_of::<secondary::Entry>()) as u64)?;
+
+        cache.chunk_file = chunk_file;
+        cache.secondary_file = secondary_file;
+        cache.chunk_number = target_chunk_number;
+        let rollback = old_chunk_number - target_chunk_number;
+        if rollback >= N as u64 {
+            // The new current chunk predates every cached chunk.
+            for completed in &mut cache.completed {
+                *completed = OnceCell::new();
+            }
+            cache.pointer = 0;
+        } else {
+            let mut pointer = cache.pointer.wrapping_sub(rollback as usize);
+            if pointer >= N {
+                pointer = pointer.wrapping_add(N);
+            }
+
+            // Moving the pointer preserves the mapping for chunks older than the new current
+            // chunk. Clear the slots which held the new current chunk and the newer chunks being
+            // removed; otherwise they would be mistaken for older chunks after the pointer moves.
+            let mut index = pointer;
+            for _ in 0..rollback {
+                cache.completed[index] = OnceCell::new();
+                index += 1;
+                if index == N {
+                    index = 0;
+                }
+            }
+            cache.pointer = pointer;
+        }
+        for (destination, entry) in cache.entries.get_mut().iter_mut().zip(entries) {
+            destination.write(entry);
+        }
+        cache.len_size.store(
+            (u64::from(new_size) << 32) | new_len as u64,
+            atomic::Ordering::Release,
+        );
+
+        // As with truncating the current chunk, these files are no longer logically reachable if
+        // cleanup fails.
+        cache.chunk_file.set_len(u64::from(new_size))?;
+        for chunk_number in (target_chunk_number + 1)..=old_chunk_number {
+            remove_file_if_exists(
+                path_prefix(&cache.directory, chunk_number).with_extension("chunk"),
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Append a block to the database.
+    ///
+    /// This does not validate any of the block's structure or contents. The caller is responsible
+    /// for ensuring that the `bytes`, `header`, `id`, and `slot` are consistent with each other.
     ///
     /// ## Errors
     ///
     /// Returns an error on file system errors, or if the block's slot is less than the tip of the
     /// database.
-    pub fn append(&mut self, block: &With<'_, Block>) -> io::Result<()> {
-        const HEADER_OFFSET: usize = 3;
-        let mut hasher = Blake2b256::new();
-        let bytes: &[u8] = block.as_ref();
-        macro_rules! shelley_data {
-            ($block:ident, $bytes:ident) => {
-                (
-                    $block.header.body.slot,
-                    $block.header.cbor_len(),
-                    Blake2b256::digest(
-                        &$bytes[HEADER_OFFSET..$block.header.cbor_len() + HEADER_OFFSET],
-                    )
-                    .into(),
-                )
+    pub fn append(
+        &mut self,
+        bytes: &[u8],
+        header: Range<u16>,
+        id: [u8; 32],
+        slot_or_ebb: u64,
+    ) -> io::Result<()> {
+        let crc = crc32fast::hash(bytes);
+        let write_block =
+            |chunk_len, chunk_size, chunk_file: &File, secondary_file: &File| -> io::Result<()> {
+                chunk_file.write_all_at(bytes, u64::from(chunk_size))?;
+                let secondary_offset = chunk_len * std::mem::size_of::<secondary::Entry>() as u64;
+                let entry = secondary::Entry {
+                    offset: u64::from(chunk_size).into(),
+                    header_offset: header.start.into(),
+                    header_size: (header.end - header.start).into(),
+                    crc: crc.into(),
+                    id,
+                    slot: slot_or_ebb.into(),
+                };
+                secondary_file.write_all_at(entry.as_bytes(), secondary_offset)
             };
-        }
 
-        let (slot_or_ebb, header_size, hash) = match block.as_ref() {
-            // EBBs are always the first block in a chunk. The database must line up the chunk size
-            // to contain exactly one byron epoch of blocks for that to happen, hence `epoch ==
-            // chunk_number`.
-            Block::Boundary(b) => (b.header.consensus_data.epoch, b.header.cbor_len(), {
-                hasher.update([0x82, 0x00]);
-                hasher.update(&bytes[HEADER_OFFSET..b.header.cbor_len() + HEADER_OFFSET]);
-                hasher.finalize().into()
-            }),
-            Block::Byron(b) => (
-                b.header.consensus_data.slot.epoch * CHUNK_SIZE + b.header.consensus_data.slot.slot,
-                b.header.cbor_len(),
-                {
-                    hasher.update([0x82, 0x01]);
-                    hasher.update(&bytes[HEADER_OFFSET..b.header.cbor_len() + HEADER_OFFSET]);
-                    hasher.finalize().into()
-                },
-            ),
-            Block::Shelley(b) => shelley_data!(b, bytes),
-            Block::Allegra(b) => shelley_data!(b, bytes),
-            Block::Mary(b) => shelley_data!(b, bytes),
-            Block::Alonzo(b) => shelley_data!(b, bytes),
-            Block::Babbage(b) => shelley_data!(b, bytes),
-            Block::Conway(b) => shelley_data!(b, bytes),
-        };
-        let (slot, relative_slot) = if matches!(block.as_ref(), Block::Boundary(_)) {
-            (slot_or_ebb * CHUNK_SIZE, 0)
-        } else {
-            (slot_or_ebb, slot_or_ebb % CHUNK_SIZE + 1)
-        };
-        let chunk_number = slot / CHUNK_SIZE;
-        let mut cache = self.shared.read().expect("cache should not be poisoned");
-        let primary_file_offset = (1 + self.primary_count * std::mem::size_of::<u32>()) as u64;
+        let guard = self.0.read().expect("cache should not be poisoned");
+        let mut cache: &Cache<_> = &guard;
+        let mut cache_mut;
         // Only the writer updates `len_size`, so `Relaxed` is OK.
-        let (mut len, mut size) = cache.len_size(atomic::Ordering::Relaxed);
-
-        if chunk_number > cache.chunk_number {
-            cache.primary_file.write_all_at(
-                &size
-                    .to_be_bytes()
-                    .repeat((CHUNK_SIZE as usize + 2) - self.primary_count),
-                primary_file_offset,
-            )?;
-            for i in (cache.chunk_number + 1)..chunk_number {
-                cold_path();
-                let (new_chunk_file, new_primary_file, _) = open_or_create(&cache.directory, i)?;
-                new_primary_file.write_all_at(
-                    &[0; (CHUNK_SIZE as usize + 2) * std::mem::size_of::<u32>()],
-                    1,
-                )?;
-                if N > 0 {
-                    cache.completed[(cache.pointer + (i - cache.chunk_number) as usize - 1) % N]
-                        .set(ChunkData {
-                            block_info: Box::new([]),
-                            size: 0,
-                            file: new_chunk_file,
-                        })
-                        .ok();
-                }
+        let (block_info, mut size, _) = cache.current_chunk_data(atomic::Ordering::Relaxed);
+        let mut len = block_info.len();
+        let last_slot = block_info.last().and_then(|info| {
+            if info.slot == cache.chunk_number && block_info.len() == 1 {
+                (info.slot * CHUNK_SIZE).checked_sub(1)
+            } else {
+                Some(info.slot)
             }
-            let (new_chunk_file, new_primary_file, new_secondary_file) =
+        });
+
+        // FIXME: We only accept appending to the current chunk or next chunk. We don't allow
+        // appending to a chunk further ahead. This may cause issue if for example the blockchain
+        // goes down for a long time and then resumes at a slot much later.
+        let chunk_number = if slot_or_ebb == cache.chunk_number + 1
+            && last_slot.is_none_or(|slot| slot_or_ebb <= slot)
+        {
+            slot_or_ebb
+        } else {
+            slot_or_ebb / CHUNK_SIZE
+        };
+        if chunk_number == cache.chunk_number + 1 {
+            let (new_chunk_file, new_secondary_file) =
                 open_or_create(&cache.directory, chunk_number)?;
+            write_block(0u64, 0u32, &new_chunk_file, &new_secondary_file)?;
 
-            // Safety: `len` is the number of initialized entries in `entries`, so `entries[0..len]`
-            // are all initialized.
-            let block_info: Box<[_]> = unsafe {
-                std::slice::from_raw_parts(cache.entries.get().cast::<BlockInfo>(), len).into()
-            };
-
-            drop(cache);
-            let mut cache_mut = self.shared.write().expect("cache should not be poisoned");
-            // TODO: do all of this at the end?
+            let block_info = block_info.into();
+            // Acquire a write lock to update the cache.
+            drop(guard);
+            cache_mut = self.0.write().expect("cache should not be poisoned");
             let old_chunk_file = std::mem::replace(&mut cache_mut.chunk_file, new_chunk_file);
             cache_mut.secondary_file = new_secondary_file;
-            cache_mut.primary_file = new_primary_file;
-            self.primary_count = 0;
             if N > 0 {
                 let chunk = ChunkData {
                     block_info,
@@ -137,48 +211,24 @@ impl<const N: usize> Writer<N> {
                 };
                 let pointer = cache_mut.pointer;
                 cache_mut.completed[pointer] = OnceCell::from(chunk);
-                cache_mut.pointer =
-                    (pointer + (chunk_number - cache_mut.chunk_number) as usize) % N;
+                cache_mut.pointer = (pointer + 1) % N;
             }
             cache_mut.chunk_number = chunk_number;
             len = 0;
             size = 0;
-            *cache_mut.len_size.get_mut() = 0;
-            drop(cache_mut);
-            cache = self.shared.read().expect("cache should not be poisoned");
-        } else if chunk_number != cache.chunk_number
-            || (relative_slot as usize) < self.primary_count
+            cache = &cache_mut;
+        } else if chunk_number == cache.chunk_number
+            && last_slot.is_none_or(|slot| slot_or_ebb > slot)
         {
+            write_block(len as u64, size, &cache.chunk_file, &cache.secondary_file)?;
+        } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "cannot append block with slot {slot_or_ebb} because more recent blocks exist"
+                    "block slot {slot_or_ebb} does not follow the tip of the database {last_slot:?}",
                 ),
             ));
         }
-
-        let secondary_offset = (len * std::mem::size_of::<secondary::Entry>()) as u32;
-        cache.primary_file.write_all_at(
-            &secondary_offset
-                .to_be_bytes()
-                .repeat(relative_slot as usize - self.primary_count + 1),
-            primary_file_offset,
-        )?;
-        cache.chunk_file.write_all_at(bytes, size as u64)?;
-        let crc = crc32fast::hash(bytes);
-        let entry = secondary::Entry {
-            offset: u64::from(size).into(),
-            header_offset: (HEADER_OFFSET as u16).into(),
-            header_size: (header_size as u16).into(),
-            crc: crc.into(),
-            hash,
-            slot: slot_or_ebb.into(),
-        };
-        cache
-            .secondary_file
-            .write_all_at(entry.as_bytes(), u64::from(secondary_offset))?;
-
-        // All failable operations are done, we can update the cache.
 
         // Safety:
         // - `append` ensures that at most `CHUNK_SIZE + 1` blocks are written to the current chunk
@@ -195,14 +245,13 @@ impl<const N: usize> Writer<N> {
                 .cast::<BlockInfo>()
                 .add(len)
                 .write(BlockInfo {
-                    slot,
+                    slot: slot_or_ebb,
                     offset: size,
                     crc,
                 });
         };
         len += 1;
         size += bytes.len() as u32;
-        self.primary_count = relative_slot as usize + 1;
         // Syncrhonizes with the `Acquire` load of the reader.
         cache.len_size.store(
             (size as u64) << 32 | (len as u64),

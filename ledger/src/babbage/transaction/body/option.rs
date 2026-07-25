@@ -1,15 +1,12 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     babbage::{Update, transaction::Output},
     crypto::{Blake2b224Digest, Blake2b256Digest},
     mary::{Asset, asset},
-    shelley::{
-        Certificate, Network,
-        address::Account,
-        transaction::Input,
-    },
-    slot, unique,
-    Coin,
+    shelley::{Certificate, Network, address::Account},
+    slot,
+    transaction::Reference,
+    unique,
 };
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
@@ -26,7 +23,7 @@ pub enum Option<'a> {
     #[n(4)]
     Certificates(Vec<Certificate<'a>>),
     #[n(5)]
-    Withdrawals(Unique<Vec<(Account<'a>, Coin)>, false>),
+    Withdrawals(Unique<Vec<(Account, Coin)>, false>),
     #[n(6)]
     Update(Update<'a>),
     #[n(7)]
@@ -39,7 +36,7 @@ pub enum Option<'a> {
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
     Collateral(
-        #[cbor(decode_with = "unique::codec::Set<Input<'a>>")] Unique<Vec<Input<'a>>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
     ),
     #[n(14)]
     RequiredSigners(
@@ -54,6 +51,6 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(decode_with = "unique::codec::Set<Input<'a>>")] Unique<Vec<Input<'a>>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
     ),
 }
