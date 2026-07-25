@@ -1,6 +1,5 @@
 use crate::{CHUNK_SIZE, Cache, ChunkData, read_buf, secondary};
 use bytes::{Bytes, BytesMut};
-use ledger::slot;
 use std::{
     borrow::Cow,
     fs::File,
@@ -19,7 +18,7 @@ pub struct Reader<const N: usize>(pub(super) Arc<RwLock<Cache<N>>>);
 
 impl<const N: usize> Reader<N> {
     /// Obtain the slot of the last block in the database, if any.
-    pub fn tip(&self) -> Option<slot::Number> {
+    pub fn tip(&self) -> Option<u64> {
         let cache = self.0.read().expect("cache should not be poisoned");
         cache
             .current_chunk_data(atomic::Ordering::Acquire)
@@ -38,7 +37,7 @@ impl<const N: usize> Reader<N> {
     ///
     /// Keeping [`Read`] alive prevents writing new chunks (happens every 21,600 slots) and
     /// truncating.
-    pub fn read(&self, range: Range<slot::Number>) -> Read<'_, N> {
+    pub fn read(&self, range: Range<u64>) -> Read<'_, N> {
         Read {
             cache: self.0.read().expect("cache should not be poisoned"),
             buffer: BytesMut::new(),
@@ -53,7 +52,7 @@ impl<const N: usize> Reader<N> {
 pub struct Read<'a, const N: usize> {
     cache: RwLockReadGuard<'a, Cache<N>>,
     buffer: BytesMut,
-    range: Range<slot::Number>,
+    range: Range<u64>,
 }
 
 impl<const N: usize> Read<'_, N> {
@@ -92,7 +91,7 @@ impl<const N: usize> Read<'_, N> {
             return None;
         }
         let old_start = self.range.start;
-        self.range.start = ((chunk_number + 1) as slot::Number) * CHUNK_SIZE;
+        self.range.start = (chunk_number + 1) * CHUNK_SIZE;
 
         let owned_file: File;
         let (block_info, size, file) = if chunk_number == self.cache.chunk_number {

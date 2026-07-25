@@ -13,7 +13,6 @@
 use bytes::BytesMut;
 use core::sync::atomic;
 use crossbeam_utils::CachePadded;
-use ledger::slot;
 use once_cell::sync::OnceCell;
 use std::path::{Path, PathBuf};
 use std::{
@@ -40,7 +39,7 @@ mod writer;
 pub use reader::Reader;
 pub use writer::Writer;
 
-const CHUNK_SIZE: slot::Number = 21_600;
+const CHUNK_SIZE: u64 = 21_600;
 
 /// Open a database at the given directory, returning a [`Reader`] and [`Writer`].
 ///
@@ -174,7 +173,7 @@ struct ChunkData {
 /// Entry for a block in the cache.
 #[derive(Clone, Copy)]
 struct BlockInfo {
-    slot: slot::Number,
+    slot: u64,
     offset: u32,
     crc: u32,
 }
