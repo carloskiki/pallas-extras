@@ -534,6 +534,8 @@ dependencies = [
  "bytes",
  "crc32fast",
  "crossbeam-utils",
+ "ledger",
+ "libc",
  "once_cell",
  "tempfile",
  "tinycbor",

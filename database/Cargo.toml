@@ -13,4 +13,10 @@ crc32fast = { workspace = true }
 blake2 = { workspace = true }
 
 [dev-dependencies]
+ledger = { path = "../ledger" }
+libc = "0.2"
 tempfile = "3.27.0"
+
+[[bench]]
+harness = false
+name = "iterate"

@@ -10,8 +10,8 @@ pub struct Body<'a> {
     /// Each transaction memoizes its CBOR encoding to ensure accurate validation. If the
     /// transactions were to be re-encoded differently, fees may change and the block would become
     /// invalid.
-    transactions: Vec<With<'a, transaction::Payload<'a>>>,
-    ssc: Any<'a>,
-    delegations: Vec<delegation::Certificate<'a>>,
-    update: Update<'a>,
+    pub transactions: Vec<With<'a, transaction::Payload<'a>>>,
+    pub ssc: Any<'a>,
+    pub delegations: Vec<delegation::Certificate<'a>>,
+    pub update: Update<'a>,
 }
