@@ -1,4 +1,7 @@
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, network_endian::{U16, U32}};
+use zerocopy::{
+    FromBytes, Immutable, IntoBytes, KnownLayout,
+    network_endian::{U16, U32},
+};
 
 /// The lower 32 bits of the peer's monotonic microseconds clock.
 #[derive(Debug, Clone, Copy, Default, FromBytes, IntoBytes, Immutable)]

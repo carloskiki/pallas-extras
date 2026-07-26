@@ -1,7 +1,7 @@
 //! Transaction witness.
 //!
 //! A transaction witness both authenticates the transaction issuer and ensures integrity of the
-//! transaction. The cryptographic signature found in the 
+//! transaction. The cryptographic signature found in the
 
 use tinycbor_derive::{CborLen, Decode, Encode};
 

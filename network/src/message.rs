@@ -44,10 +44,7 @@ impl<A, M: Message> FromParts<A> for Single<A, M> {
         handle: crate::mux::Handle<A, S>,
     ) -> Option<Self> {
         if tag == M::TAG {
-            Some((
-                Lazy::from(bytes),
-                handle.transition(),
-            ))
+            Some((Lazy::from(bytes), handle.transition()))
         } else {
             None
         }

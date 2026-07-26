@@ -14,4 +14,3 @@ pub struct Data<'a> {
     pub difficulty: [Difficulty; 1],
     pub signature: block::Signature<'a>,
 }
-

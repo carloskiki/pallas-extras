@@ -1,5 +1,5 @@
-use tinycbor_derive::{CborLen, Decode, Encode};
 use crate::crypto::VerifyingKey;
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 /// The address identity data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, CborLen)]

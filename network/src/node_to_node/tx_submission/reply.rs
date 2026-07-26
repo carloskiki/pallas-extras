@@ -46,7 +46,6 @@ impl CborLen for Ids<'_> {
     }
 }
 
-
 #[derive(Decode)]
 struct Codec<'a> {
     transaction: Id<'a>,

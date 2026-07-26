@@ -1,4 +1,4 @@
-use crate::{alonzo::script::execution, epoch, interval, Coin};
+use crate::{Coin, alonzo::script::execution, epoch, interval};
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
 

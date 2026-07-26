@@ -201,7 +201,7 @@ fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io:
     // Safety: The `File::read_exact` method only writes to the buffer, the buffer is fully
     // initialized if `read_exact` is successful. This is may be unsound because we `assume_init`
     // uninitialized memory This is what `tokio` does, so it should be fine in practice.
-    // 
+    //
     // FIXME: once `File::read_exact_buf` is stabilized, we can avoid unsafe. Copied directly
     // from the `tokio` implementation in the meantime.
     unsafe {

@@ -1,8 +1,4 @@
-use crate::{
-    Unique,
-    shelley::Credential,
-    Coin,
-};
+use crate::{Coin, Unique, shelley::Credential};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{
@@ -28,10 +24,7 @@ pub enum Error {
     Accounts(
         #[from]
         container::Error<
-            map::Error<
-                <Credential as Decode<'static>>::Error,
-                <Coin as Decode<'static>>::Error,
-            >,
+            map::Error<<Credential as Decode<'static>>::Error, <Coin as Decode<'static>>::Error>,
         >,
     ),
 }

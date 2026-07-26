@@ -1,4 +1,4 @@
-use crate::{epoch, interval, Coin};
+use crate::{Coin, epoch, interval};
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};
 

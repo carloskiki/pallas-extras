@@ -1,9 +1,9 @@
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::{
+    Coin,
     conway::governance::{Action, Anchor},
-    shelley::{address::Account},
-    Coin
+    shelley::address::Account,
 };
 
 // TODO: check if this should be owned.

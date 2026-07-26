@@ -1,7 +1,7 @@
 use crate::{
+    agency::{Client, Server},
     mux::{Egress, Handle, header::ProtocolNumber},
     state::InitialState,
-    agency::{Client, Server},
 };
 use tokio::sync::mpsc;
 

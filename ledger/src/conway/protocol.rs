@@ -1,8 +1,8 @@
 use crate::{
+    Coin,
     alonzo::script::execution,
     conway::{governance::voting, script::cost},
     epoch, interval,
-    Coin,
 };
 use sparse_struct::SparseStruct;
 use tinycbor_derive::{CborLen, Decode, Encode};

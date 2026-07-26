@@ -197,8 +197,8 @@ fn challenge(points: [&[u8; 32]; 5]) -> (Scalar, [u8; CHALLENGE_LENGTH]) {
 
 #[cfg(test)]
 mod tests {
-    use const_hex::const_decode_to_array;
     use super::*;
+    use const_hex::const_decode_to_array;
 
     struct Vector {
         secret_key: [u8; 32],
@@ -260,7 +260,8 @@ mod tests {
     fn rfc() {
         for vector in VECTORS {
             let proving_key = ProvingKey::from(&vector.secret_key);
-            let verifying_key = VerifyingKey::try_from(&PublicKeyBytes(vector.verifying_key)).unwrap();
+            let verifying_key =
+                VerifyingKey::try_from(&PublicKeyBytes(vector.verifying_key)).unwrap();
             let proof = proving_key.try_sign(vector.alpha).unwrap();
             assert_eq!(proof, Proof::from(vector.proof));
             assert_eq!(proof.to_hash().unwrap(), vector.hash);

@@ -1,10 +1,9 @@
 use crate::{
-    Unique,
+    Coin, Unique,
     crypto::{Blake2b224Digest, Blake2b256Digest},
     epoch, interval,
     shelley::{Credential, address::Account, pool},
     unique,
-    Coin
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 

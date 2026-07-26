@@ -111,25 +111,19 @@ pub enum Error {
     /// while decoding field `epoch` in variant `PoolRetirement`
     PoolRetirementEpoch(#[source] <epoch::Number as Decode<'static>>::Error),
     /// while decoding field `issuer` in variant `ConstitutionalCommitteeAuthorization`
-    ConstitutionalCommitteeAuthorizationIssuer(
-        #[source] <Credential as Decode<'static>>::Error,
-    ),
+    ConstitutionalCommitteeAuthorizationIssuer(#[source] <Credential as Decode<'static>>::Error),
     /// while decoding field `hot_credential` in variant `ConstitutionalCommitteeAuthorization`
     ConstitutionalCommitteeAuthorizationHotCredential(
         #[source] <Credential as Decode<'static>>::Error,
     ),
     /// while decoding field `credential` in variant `ConstitutionalCommitteeResignation`
-    ConstitutionalCommitteeResignationCredential(
-        #[source] <Credential as Decode<'static>>::Error,
-    ),
+    ConstitutionalCommitteeResignationCredential(#[source] <Credential as Decode<'static>>::Error),
     /// while decoding field `anchor` in variant `ConstitutionalCommitteeResignation`
     ConstitutionalCommitteeResignationAnchor(
         #[source] <Option<Anchor<'static>> as Decode<'static>>::Error,
     ),
     /// while decoding field `credential` in variant `DelegateRepresentativeRegistration`
-    DelegateRepresentativeRegistrationCredential(
-        #[source] <Credential as Decode<'static>>::Error,
-    ),
+    DelegateRepresentativeRegistrationCredential(#[source] <Credential as Decode<'static>>::Error),
     /// while decoding field `deposit` in variant `DelegateRepresentativeRegistration`
     DelegateRepresentativeRegistrationDeposit(#[source] <Coin as Decode<'static>>::Error),
     /// while decoding field `anchor` in variant `DelegateRepresentativeRegistration`
@@ -143,9 +137,7 @@ pub enum Error {
     /// while decoding field `deposit` in variant `DelegateRepresentativeUnregistration`
     DelegateRepresentativeUnregistrationDeposit(#[source] <Coin as Decode<'static>>::Error),
     /// while decoding field `credential` in variant `DelegateRepresentativeUpdate`
-    DelegateRepresentativeUpdateCredential(
-        #[source] <Credential as Decode<'static>>::Error,
-    ),
+    DelegateRepresentativeUpdateCredential(#[source] <Credential as Decode<'static>>::Error),
     /// while decoding field `anchor` in variant `DelegateRepresentativeUpdate`
     DelegateRepresentativeUpdateAnchor(
         #[source] <Option<Anchor<'static>> as Decode<'static>>::Error,

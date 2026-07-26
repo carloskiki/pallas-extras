@@ -1,4 +1,4 @@
-use crate::{byron::Address, Coin};
+use crate::{Coin, byron::Address};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 /// A transaction output.

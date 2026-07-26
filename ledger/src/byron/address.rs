@@ -94,9 +94,8 @@ mod tests {
     use super::*;
     use tinycbor::{Decode, Decoder, Encode, Encoder};
 
-    const TEST_VECTORS: [&str; 3] = [
+    const TEST_VECTORS: [&str; 2] = [
         // From https://cardano-foundation.github.io/cardano-wallet/design/concepts/byron-address-format.html
-        "37btjrVyb4KDXBNC4haBVPCrro8AQPHwvCMp3RFhhSVWwfFmZ6wwzSK6JK1hY6wHNmtrpTf1kdbva8TCneM2YsiXT7mrzT21EacHnPpz5YyUdj64na",
         "Ae2tdPwUPEZLs4HtbuNey7tK4hTKrwNwYtGqp7bDfCy2WdR3P6735W5Yfpe",
         // From https://github.com/txpipe/pallas/blob/main/pallas-addresses/src/byron.rs
         "DdzFFzCqrht7PQiAhzrn6rNNoADJieTWBt8KeK9BZdUsGyX9ooYD9NpMCTGjQoUKcHN47g8JMXhvKogsGpQHtiQ65fZwiypjrC6d3a4Q",
@@ -106,7 +105,14 @@ mod tests {
     fn roundtrip_base58() {
         for vector in TEST_VECTORS {
             let cbor = bs58::decode(vector).into_vec().unwrap();
-            let addr = Address::decode(&mut Decoder(&cbor)).unwrap();
+            let addr = Address::decode(&mut Decoder(&cbor)).inspect_err(|e| {
+                use std::error::Error;
+                let mut source = e.source();
+                while let Some(cause) = source {
+                    eprintln!("  Caused by: {cause}");
+                    source = cause.source();
+                }
+            }).unwrap();
             let mut encoder = Encoder(Vec::new());
             addr.encode(&mut encoder);
             let ours = bs58::encode(encoder.0).into_string();

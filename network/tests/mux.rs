@@ -1,18 +1,6 @@
-use duplex::full_duplex;
-use futures::{executor::LocalPool, task::SpawnExt};
-use network::{
-    NetworkMagic, comatch, hlist_pat,
-    protocol::{
-        NodeToNode,
-        handshake::{self, message::NodeToNodeVersionData},
-    },
-};
-
-mod duplex;
-
 fn main() {
-    let mut tp = LocalPool::new();
-    let (first, second) = full_duplex();
+    // let mut tp = LocalPool::new();
+    // let (first, second) = full_duplex();
     // let hlist_pat![(handshake_client, _), _] =
     //     network::mux::mux::<NodeToNode>(first, &tp.spawner()).unwrap();
     // let hlist_pat![(_, handshake_server), _] =

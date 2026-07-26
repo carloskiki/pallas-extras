@@ -1,5 +1,5 @@
+use crate::{byron::protocol, slot};
 use tinycbor_derive::{CborLen, Decode, Encode};
-use crate::{slot, byron::protocol};
 
 pub mod vote;
 pub use vote::Vote;

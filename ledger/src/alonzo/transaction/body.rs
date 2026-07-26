@@ -1,8 +1,4 @@
-use crate::{
-    Unique,
-    transaction::Reference,
-    Coin
-};
+use crate::{Coin, Unique, transaction::Reference};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::{container::bounded, *};

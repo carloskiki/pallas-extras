@@ -28,13 +28,8 @@ pub enum Vote {
     Abstain,
 }
 
-pub type Procedures<'a> = Unique<
-    Vec1<(
-        Voter,
-        Unique<Vec1<(action::Id<'a>, Procedure<'a>)>, false>,
-    )>,
-    false,
->;
+pub type Procedures<'a> =
+    Unique<Vec1<(Voter, Unique<Vec1<(action::Id<'a>, Procedure<'a>)>, false>)>, false>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]

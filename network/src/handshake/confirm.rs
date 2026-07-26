@@ -40,14 +40,12 @@ impl<VD> crate::message::FromParts<Server> for Message<VD> {
         handle: crate::mux::Handle<Server, S>,
     ) -> Option<Self> {
         match tag {
-            <Accept<VD> as crate::Message>::TAG => Some(Message::Accept(
-                Lazy::from(bytes),
-                handle.transition(),
-            )),
-            <Refuse<'static> as crate::Message>::TAG => Some(Message::Refuse(
-                Lazy::from(bytes),
-                handle.transition(),
-            )),
+            <Accept<VD> as crate::Message>::TAG => {
+                Some(Message::Accept(Lazy::from(bytes), handle.transition()))
+            }
+            <Refuse<'static> as crate::Message>::TAG => {
+                Some(Message::Refuse(Lazy::from(bytes), handle.transition()))
+            }
             <Reply<VD> as crate::Message>::TAG => {
                 Some(Message::Reply(Lazy::from(bytes), handle.transition()))
             }

@@ -31,7 +31,11 @@ pub enum Error {
     MultipleDelegations,
 }
 
-pub fn transition(state: &mut State, env: &Environment, certificate: &Certificate<'_>) -> Result<(), Error> {
+pub fn transition(
+    state: &mut State,
+    env: &Environment,
+    certificate: &Certificate<'_>,
+) -> Result<(), Error> {
     let delegator_hash = key_digest(certificate.issuer);
     let delegate_hash = key_digest(certificate.delegate);
 
@@ -43,7 +47,10 @@ pub fn transition(state: &mut State, env: &Environment, certificate: &Certificat
         return Err(Error::InvalidEpoch);
     }
 
-    if state.key_epoch_delegations.contains(&(certificate.epoch, delegator_hash)) {
+    if state
+        .key_epoch_delegations
+        .contains(&(certificate.epoch, delegator_hash))
+    {
         return Err(Error::MultipleDelegations);
     }
 

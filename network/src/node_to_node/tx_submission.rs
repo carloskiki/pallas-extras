@@ -1,10 +1,10 @@
-use std::time::Duration;
 use crate::{Message, State, agency::Client};
+use std::time::Duration;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-pub mod request;
-pub mod reply;
 pub mod blocking;
+pub mod reply;
+pub mod request;
 
 pub mod idle;
 pub use idle::Idle;
@@ -31,7 +31,6 @@ impl Message for Init {
 
     type ToState = Idle;
 }
-
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Transactions;

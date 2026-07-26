@@ -1,14 +1,10 @@
 use crate::{
-    transaction::Reference,
-    Unique,
+    Coin, Unique,
     allegra::Update,
-    shelley::{
-        Certificate,
-        address::Account,
-        transaction::Output,
-    },
-    slot, unique,
-    Coin,
+    shelley::{Certificate, address::Account, transaction::Output},
+    slot,
+    transaction::Reference,
+    unique,
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 

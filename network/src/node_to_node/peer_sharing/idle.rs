@@ -1,9 +1,5 @@
 use crate::{
-    agency::Client,
-    message::Done,
-    node_to_node::peer_sharing::Request,
-    state::InitialState,
-    state,
+    agency::Client, message::Done, node_to_node::peer_sharing::Request, state, state::InitialState,
 };
 
 state! {

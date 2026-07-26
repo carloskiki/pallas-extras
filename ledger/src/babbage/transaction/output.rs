@@ -1,8 +1,5 @@
 use super::Value;
-use crate::{
-    Address,
-    babbage::transaction,
-};
+use crate::{Address, babbage::transaction};
 use displaydoc::Display;
 use thiserror::Error;
 use tinycbor::Decode;
@@ -67,13 +64,10 @@ impl<'a, 'b: 'a> Decode<'b> for Output<'a> {
 
 mod codec {
     use super::Value;
-    use crate::{
-        Address,
-        babbage::transaction::Datum,
-    };
+    use crate::{Address, babbage::transaction::Datum};
     use tinycbor::Encoded;
     use tinycbor_derive::{CborLen, Decode, Encode};
-    
+
     type Script<'a> = super::super::super::Script<'a>;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]

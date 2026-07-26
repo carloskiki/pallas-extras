@@ -1,4 +1,7 @@
-use tinycbor::{CborLen, Decode, Encode, container::{self, bounded}};
+use tinycbor::{
+    CborLen, Decode, Encode,
+    container::{self, bounded},
+};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 use crate::point::Point;
@@ -14,11 +17,11 @@ pub enum Tip {
     /// A specific block on the chain.
     Block {
         /// The block's slot number.
-        slot: u64,
+        slot: ledger::slot::Number,
         /// The hash of the block header.
         hash: [u8; 32],
         /// The block number.
-        block_number: u64,
+        block_number: ledger::block::Number,
     },
 }
 
@@ -35,10 +38,7 @@ impl Tip {
                 block_number,
             } => Codec {
                 block_number,
-                point: Point::Block {
-                    slot,
-                    hash,
-                },
+                point: Point::Block { slot, hash },
             },
         }
     }
@@ -67,7 +67,7 @@ impl CborLen for Tip {
 
 #[derive(Decode, Encode, CborLen)]
 struct Codec {
-    block_number: ledger::shelley::block::Number,
+    block_number: ledger::block::Number,
     point: Point,
 }
 

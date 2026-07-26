@@ -1,6 +1,6 @@
 use crate::{
-    byron::{Attributes, protocol, crypto::ExtendedVerifyingKey},
-    crypto::{Signature, Blake2b256Digest},
+    byron::{Attributes, crypto::ExtendedVerifyingKey, protocol},
+    crypto::{Blake2b256Digest, Signature},
 };
 use tinycbor_derive::{CborLen, Decode, Encode};
 

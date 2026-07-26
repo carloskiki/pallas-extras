@@ -1,11 +1,6 @@
 // So that we can `duplicate!` this in `allegra` and `mary` eras.
 use super::super::super::protocol;
-use crate::{
-    crypto,
-    shelley::certificate,
-    slot,
-    block,
-};
+use crate::{block, crypto, shelley::certificate, slot};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]

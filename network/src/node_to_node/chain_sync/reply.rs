@@ -10,8 +10,8 @@ crate::state! {
 }
 
 mod roll_forward {
-    use tinycbor_derive::{Decode, Encode, CborLen};
-    
+    use tinycbor_derive::{CborLen, Decode, Encode};
+
     #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
     #[cbor(naked)]
     pub struct RollForward<'a> {
@@ -21,7 +21,6 @@ mod roll_forward {
 }
 pub use roll_forward::RollForward;
 
-
 impl crate::Message for RollForward<'_> {
     const TAG: u64 = 2;
 
@@ -29,8 +28,8 @@ impl crate::Message for RollForward<'_> {
 }
 
 mod roll_backward {
-    use tinycbor_derive::{Decode, Encode, CborLen};
-    
+    use tinycbor_derive::{CborLen, Decode, Encode};
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
     #[cbor(naked)]
     pub struct RollBackward {

@@ -3,17 +3,16 @@
 use std::{env, error::Error, hint::black_box, io, mem::MaybeUninit, path::PathBuf, time::Instant};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let data = env::args_os()
+    let Some(data) = env::args_os()
         .skip(1)
         // Cargo supplies this argument to custom benchmark harnesses.
         .find(|argument| argument != "--bench")
         .map(PathBuf::from)
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "usage: cargo bench --bench iterate -- <database-directory>",
-            )
-        })?;
+    else {
+        eprintln!("Skipping benchmark because no database directory was specified.");
+        eprintln!("usage: cargo bench --bench iterate -- <database-directory>");
+        return Ok(());
+    };
     // Sequential iteration does not benefit from retaining completed chunks in the cache.
     let (reader, _) = database::open::<0>(data.clone())?;
     let Some(tip) = reader.tip() else {

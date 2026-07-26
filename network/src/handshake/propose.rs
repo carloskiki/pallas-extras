@@ -33,4 +33,3 @@ impl<D> Message for Versions<D> {
 
     type ToState = super::Confirm<D>;
 }
-

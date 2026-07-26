@@ -7,11 +7,11 @@ use digest::{
 
 pub mod vrf;
 
-pub use blake2;
-pub use ed25519_dalek;
 pub use bip32;
-pub use hybrid_array;
+pub use blake2;
 pub use digest;
+pub use ed25519_dalek;
+pub use hybrid_array;
 
 pub(crate) type Blake2b224 = blake2::Blake2b<U28>;
 /// Blake2b224 hash value.
@@ -47,7 +47,7 @@ pub mod kes {
     //! Key evolving cryptographic primitives.
 
     pub use kes::*;
-    
+
     pub type VerifyingKey = kes::sum::VerifyingKey<blake2::Blake2b256>;
     #[allow(private_interfaces)]
     pub type Signature = kes::sum::Pow6Signature<

@@ -120,7 +120,10 @@ pub fn shift(mut x: Vec<u8>, by: &Integer) -> Vec<u8> {
     } else {
         for i in (0..len.saturating_sub(byte_shift)).rev() {
             x[i + byte_shift] = x[i] >> bit_shift;
-            x[i + byte_shift] |= x.get(i.wrapping_sub(1)).unwrap_or(&0).unbounded_shl(8 - bit_shift);
+            x[i + byte_shift] |= x
+                .get(i.wrapping_sub(1))
+                .unwrap_or(&0)
+                .unbounded_shl(8 - bit_shift);
         }
         x[..byte_shift.min(len)].fill(0);
     }

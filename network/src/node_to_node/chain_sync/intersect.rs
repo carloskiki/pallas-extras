@@ -1,4 +1,4 @@
-use tinycbor_derive::{Decode, Encode, CborLen};
+use tinycbor_derive::{CborLen, Decode, Encode};
 
 crate::state! {
     Intersect {
@@ -10,8 +10,8 @@ crate::state! {
 }
 
 mod found {
-    use tinycbor_derive::{Decode, Encode, CborLen};
-    
+    use tinycbor_derive::{CborLen, Decode, Encode};
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, CborLen)]
     #[cbor(naked)]
     pub struct Found {
@@ -22,7 +22,6 @@ mod found {
 pub use found::Found;
 
 use crate::agency::Server;
-
 
 impl crate::Message for Found {
     const TAG: u64 = 5;

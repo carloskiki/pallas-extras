@@ -35,7 +35,7 @@ impl<const N: usize> Writer<N> {
                 Err(error) => Err(error),
             }
         }
-        
+
         let target_chunk_number = slot / CHUNK_SIZE;
         let mut cache = self.0.write().expect("cache should not be poisoned");
 

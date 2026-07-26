@@ -1,4 +1,7 @@
-use crate::{agency::Server, node_to_node::chain_sync::reply::{RollBackward, RollForward}};
+use crate::{
+    agency::Server,
+    node_to_node::chain_sync::reply::{RollBackward, RollForward},
+};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 crate::state! {
