@@ -105,14 +105,7 @@ mod tests {
     fn roundtrip_base58() {
         for vector in TEST_VECTORS {
             let cbor = bs58::decode(vector).into_vec().unwrap();
-            let addr = Address::decode(&mut Decoder(&cbor)).inspect_err(|e| {
-                use std::error::Error;
-                let mut source = e.source();
-                while let Some(cause) = source {
-                    eprintln!("  Caused by: {cause}");
-                    source = cause.source();
-                }
-            }).unwrap();
+            let addr = Address::decode(&mut Decoder(&cbor)).unwrap();
             let mut encoder = Encoder(Vec::new());
             addr.encode(&mut encoder);
             let ours = bs58::encode(encoder.0).into_string();
