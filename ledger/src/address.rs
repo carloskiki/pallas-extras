@@ -68,7 +68,7 @@ pub(crate) mod truncating {
 
     pub struct Address(pub super::Address);
 
-    impl<'a> From<Address> for super::Address {
+    impl From<Address> for super::Address {
         fn from(a: Address) -> Self {
             a.0
         }

@@ -258,7 +258,7 @@ fn expand(
                 }
             }
         })
-        .unwrap_or_else(TokenStream::new);
+        .unwrap_or_default();
 
     Ok(quote! {
         #full_struct

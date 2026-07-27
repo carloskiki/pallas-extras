@@ -58,7 +58,7 @@ impl Egress {
         impl tinycbor::Write for Writer<'_> {
             fn write(&mut self, mut buf: &[u8]) -> Result<usize, Self::Error> {
                 let written = buf.len();
-                while buf.len() != 0 {
+                while !buf.is_empty() {
                     if self.1 == 0 {
                         let header = Header {
                             protocol: self.2,

@@ -37,7 +37,7 @@ pub fn transition(
     certificate: &Certificate<'_>,
 ) -> Result<(), Error> {
     let delegator_hash = key_digest(certificate.issuer);
-    let delegate_hash = key_digest(certificate.delegate);
+    let _delegate_hash = key_digest(certificate.delegate);
 
     if !env.allowed_delegators.contains(&delegator_hash) {
         return Err(Error::InvalidDelegator);
@@ -55,5 +55,4 @@ pub fn transition(
     }
 
     todo!();
-    Ok(())
 }
