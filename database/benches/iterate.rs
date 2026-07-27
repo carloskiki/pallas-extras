@@ -1,6 +1,7 @@
 //! Measure sequential immutable database iteration throughput and memory usage.
 
-use std::{env, error::Error, hint::black_box, io, mem::MaybeUninit, path::PathBuf, time::Instant};
+use std::{env, error::Error, hint::black_box, io, path::PathBuf, time::Instant};
+use sysinfo::{Process, ProcessRefreshKind, ProcessesToUpdate, System, get_current_pid};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Some(data) = env::args_os()
@@ -33,29 +34,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let elapsed = start.elapsed();
     let blocks_per_minute = block_count as f64 * 60.0 / elapsed.as_secs_f64();
-    let peak_rss_mib = peak_rss_bytes()? as f64 / (1024.0 * 1024.0);
+    let rss_mib = rss_bytes()? as f64 / (1024.0 * 1024.0);
 
     println!("data: {}", data.display());
     println!("blocks: {block_count}");
     println!("elapsed: {elapsed:.3?}");
     println!("throughput: {blocks_per_minute:.0} blocks/min");
-    println!("peak RSS: {peak_rss_mib:.2} MiB");
+    println!("RSS at completion: {rss_mib:.2} MiB");
 
     Ok(())
 }
 
-fn peak_rss_bytes() -> io::Result<u64> {
-    let mut usage = MaybeUninit::<libc::rusage>::uninit();
-    // Safety: `getrusage` initializes `usage` when it returns success, which is checked below.
-    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // Safety: the successful `getrusage` call initialized `usage`.
-    let peak_rss = unsafe { usage.assume_init() }.ru_maxrss as u64;
-
-    // Darwin reports bytes; Linux and the other supported Unix targets report KiB.
-    #[cfg(target_os = "macos")]
-    return Ok(peak_rss);
-    #[cfg(not(target_os = "macos"))]
-    return Ok(peak_rss * 1024);
+fn rss_bytes() -> io::Result<u64> {
+    let pid = get_current_pid().map_err(io::Error::other)?;
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[pid]),
+        false,
+        ProcessRefreshKind::nothing().with_memory(),
+    );
+    let process: &Process = system.process(pid).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "current process is unavailable from sysinfo",
+        )
+    })?;
+    Ok(process.memory())
 }
