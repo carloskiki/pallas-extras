@@ -18,14 +18,8 @@ pub fn choose<'a>(
     }
 }
 
-pub fn construct(tag: &Integer, fields: Vec<Data>) -> Data {
-    Data::Construct(Construct {
-        // We wrap here because this case is quite degenerate.
-        // Although the spec strongly suggests using integers that fit in 64 bits,
-        // this is not forbidden, although deserialization will fail.
-        tag: tag.to_u64_wrapping(),
-        value: fields,
-    })
+pub fn construct(tag: u64, fields: Vec<Data>) -> Data {
+    Data::Construct(Construct { tag, value: fields })
 }
 
 pub fn map(pairs: Vec<(Data, Data)>) -> Data {

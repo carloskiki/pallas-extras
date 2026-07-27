@@ -529,6 +529,51 @@ impl TryFrom<Constant<'_>> for rug::Integer {
     }
 }
 
+impl TryFrom<Constant<'_>> for i64 {
+    type Error = ();
+
+    fn try_from(value: Constant<'_>) -> Result<Self, Self::Error> {
+        if let Constant::Integer(i) = value {
+            i.to_i64().ok_or(())
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for usize {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        match value {
+            Constant::Integer(i) => i.to_usize().ok_or(()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for u8 {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        match value {
+            Constant::Integer(i) => i.to_u8().ok_or(()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Constant<'_>> for u64 {
+    type Error = ();
+
+    fn try_from(value: Constant) -> Result<Self, Self::Error> {
+        match value {
+            Constant::Integer(i) => i.to_u64().ok_or(()),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<'a> TryFrom<Constant<'a>> for &'a [u8] {
     type Error = ();
 

@@ -156,7 +156,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         Budget { memory, execution }
     };
     let mut context = Context {
-        model: COST_MODEL,
+        model: COST_MODEL_E,
         budget,
     };
     let output = match (

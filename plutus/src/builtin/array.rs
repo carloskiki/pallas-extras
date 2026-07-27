@@ -13,8 +13,7 @@ pub fn length(arr: Array<'_>) -> rug::Integer {
     .into()
 }
 
-pub fn index<'a>(arr: Array<'a>, index: &rug::Integer) -> Option<Constant<'a>> {
-    let index = index.to_usize()?;
+pub fn index<'a>(arr: Array<'a>, index: usize) -> Option<Constant<'a>> {
     match arr.0 {
         List::Integer(integers) => integers.get(index).map(Constant::Integer),
         List::Data(datas) => datas.get(index).map(Constant::Data),

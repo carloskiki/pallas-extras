@@ -22,6 +22,12 @@ impl Function<&rug::Integer> for First {
     }
 }
 
+impl Function<u8> for First {
+    fn cost(&self, _input: &u8) -> i64 {
+        1
+    }
+}
+
 impl Function<List<'_>> for First {
     fn cost(&self, input: &List) -> i64 {
         (match input {
@@ -56,13 +62,13 @@ impl Function<&[u8]> for First {
 
 impl Function<String> for First {
     fn cost(&self, input: &String) -> i64 {
-        input.chars().count() as i64
+        self.cost(&input.as_str())
     }
 }
 
 impl Function<&str> for First {
     fn cost(&self, input: &&str) -> i64 {
-        input.chars().count() as i64
+        (input.len() / 4) as i64
     }
 }
 
@@ -173,6 +179,12 @@ impl Function<&rug::Integer> for FirstIntegerAsBytes {
     fn cost(&self, input: &&rug::Integer) -> i64 {
         let value: i64 = input.saturating_cast();
         value.unsigned_abs().div_ceil(8) as i64
+    }
+}
+
+impl Function<usize> for FirstIntegerAsBytes {
+    fn cost(&self, input: &usize) -> i64 {
+        i64::try_from(input.div_ceil(8)).unwrap_or(i64::MAX)
     }
 }
 

@@ -107,16 +107,16 @@ pub struct IntegerToByteStringMemory {
     pub affine: Affine<Third>,
 }
 
-impl<A, B> Function<(A, &rug::Integer, B)> for IntegerToByteStringMemory
+impl<A, B> Function<(A, usize, B)> for IntegerToByteStringMemory
 where
     First: Function<B>,
 {
-    fn cost(&self, inputs @ (_, int, _): &(A, &rug::Integer, B)) -> i64 {
-        if int.is_zero() {
+    fn cost(&self, inputs @ (_, width, _): &(A, usize, B)) -> i64 {
+        if *width == 0 {
             return self.affine.cost(inputs);
         }
 
-        FirstIntegerAsBytes.cost(int)
+        FirstIntegerAsBytes.cost(width)
     }
 }
 

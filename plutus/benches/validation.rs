@@ -24,7 +24,7 @@ pub fn bench(c: &mut Criterion) {
                 let arena = plutus::Arena::default();
                 let program = Program::from_flat(flat, &arena).unwrap();
                 let mut context = Context {
-                    model: COST_MODEL,
+                    model: COST_MODEL_C,
                     budget: Budget {
                         execution: u64::MAX,
                         memory: u64::MAX,

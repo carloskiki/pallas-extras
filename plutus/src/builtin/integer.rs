@@ -48,8 +48,7 @@ pub fn less_than_or_equal(x: &rug::Integer, y: &rug::Integer) -> bool {
     x <= y
 }
 
-pub fn to_bytes(big_endian: bool, width: &rug::Integer, num: &rug::Integer) -> Option<Vec<u8>> {
-    let width = width.to_usize()?;
+pub fn to_bytes(big_endian: bool, width: usize, num: &rug::Integer) -> Option<Vec<u8>> {
     if width > 8192 || num.cmp0() == std::cmp::Ordering::Less {
         return None;
     }

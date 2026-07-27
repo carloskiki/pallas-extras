@@ -37,7 +37,7 @@ fn perform_test(flat: &[u8], expected_file: &Path) -> Result<(), RunError> {
         parse_expected(&std::fs::read_to_string(expected_file).unwrap(), &arena).unwrap();
     let program = Program::from_flat(flat, &arena).unwrap();
     let mut context = Context {
-        model: COST_MODEL,
+        model: COST_MODEL_C,
         budget,
     };
     let result = program.evaluate(&mut context).unwrap();
