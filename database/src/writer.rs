@@ -1,11 +1,12 @@
-use crate::{BlockInfo, CHUNK_SIZE, Cache, ChunkData, open_or_create, path_prefix, secondary};
+use crate::{
+    BlockInfo, CHUNK_SIZE, Cache, ChunkData, open_or_create, path_prefix, secondary, write_all_at,
+};
 use bytes::BytesMut;
 use once_cell::sync::OnceCell;
 use std::{
     fs::{self, File},
     io,
     ops::Range,
-    os::unix::fs::FileExt,
     sync::{
         Arc, RwLock,
         atomic::{self},
@@ -155,7 +156,7 @@ impl<const N: usize> Writer<N> {
         let crc = crc32fast::hash(bytes);
         let write_block =
             |chunk_len, chunk_size, chunk_file: &File, secondary_file: &File| -> io::Result<()> {
-                chunk_file.write_all_at(bytes, u64::from(chunk_size))?;
+                write_all_at(chunk_file, bytes, u64::from(chunk_size))?;
                 let secondary_offset = chunk_len * std::mem::size_of::<secondary::Entry>() as u64;
                 let entry = secondary::Entry {
                     offset: u64::from(chunk_size).into(),
@@ -165,7 +166,7 @@ impl<const N: usize> Writer<N> {
                     id,
                     slot: slot_or_ebb.into(),
                 };
-                secondary_file.write_all_at(entry.as_bytes(), secondary_offset)
+                write_all_at(secondary_file, entry.as_bytes(), secondary_offset)
             };
 
         let guard = self.0.read().expect("cache should not be poisoned");

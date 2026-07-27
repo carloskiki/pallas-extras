@@ -20,15 +20,8 @@ use std::{
     fs::{File, OpenOptions},
     io,
     mem::MaybeUninit,
-    os::unix::fs::FileExt,
     sync::{Arc, RwLock, atomic::AtomicU64},
 };
-
-// We can provide Windows support by using `seek_read`/`seek_write`.
-//
-// This is simply not a priority.
-#[cfg(not(unix))]
-compile_error!("This library only supports on Unix-like systems");
 
 mod reader;
 mod secondary;
@@ -36,7 +29,7 @@ mod secondary;
 mod tests;
 mod writer;
 
-pub use reader::Reader;
+pub use reader::{Reader, Read, Blocks};
 pub use writer::Writer;
 
 const CHUNK_SIZE: u64 = 21_600;
@@ -195,6 +188,82 @@ fn open_or_create(path: &Path, chunk_number: u64) -> io::Result<(File, File)> {
     Ok((chunk_file, secondary_file))
 }
 
+std::cfg_select! {
+    unix => {
+        fn read_exact_at(file: &File, buffer: &mut [u8], offset: u64) -> io::Result<()> {
+            use std::os::unix::fs::FileExt;
+            file.read_exact_at(buffer, offset)
+        }
+
+        fn write_all_at(file: &File, buffer: &[u8], offset: u64) -> io::Result<()> {
+            use std::os::unix::fs::FileExt;
+            file.write_all_at(buffer, offset)
+        }
+    }
+    windows => {
+        fn read_exact_at(file: &File, mut buffer: &mut [u8], mut offset: u64) -> io::Result<()> {
+            use std::os::windows::fs::FileExt;
+
+            while !buffer.is_empty() {
+                match file.seek_read(buffer, offset) {
+                    Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+                    Ok(read) => {
+                        buffer = &mut buffer[read..];
+                        offset += read as u64;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            Ok(())
+        }
+
+        fn write_all_at(file: &File, mut buffer: &[u8], mut offset: u64) -> io::Result<()> {
+            use std::os::windows::fs::FileExt;
+
+            while !buffer.is_empty() {
+                match file.seek_write(buffer, offset) {
+                    Ok(0) => return Err(io::ErrorKind::WriteZero.into()),
+                    Ok(written) => {
+                        buffer = &buffer[written..];
+                        offset += written as u64;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) => return Err(error),
+                }
+            }
+            Ok(())
+        }
+    }
+    _ => {
+        // Seeking changes the shared file cursor, so keep each seek and transfer atomic with
+        // respect to the other fallback operations in this crate.
+        static FILE_CURSOR_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+        fn read_exact_at(file: &File, buffer: &mut [u8], offset: u64) -> io::Result<()> {
+            use std::io::{Read, Seek, SeekFrom};
+
+            let _guard = FILE_CURSOR_LOCK
+                .lock()
+                .expect("file cursor lock should not be poisoned");
+            let mut file = file;
+            file.seek(SeekFrom::Start(offset))?;
+            file.read_exact(buffer)
+        }
+
+        fn write_all_at(file: &File, buffer: &[u8], offset: u64) -> io::Result<()> {
+            use std::io::{Seek, SeekFrom, Write};
+
+            let _guard = FILE_CURSOR_LOCK
+                .lock()
+                .expect("file cursor lock should not be poisoned");
+            let mut file = file;
+            file.seek(SeekFrom::Start(offset))?;
+            file.write_all(buffer)
+        }
+    }
+}
+
 /// Reads from the given file, appending the buffer.
 fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io::Result<()> {
     buffer.reserve(size);
@@ -206,7 +275,7 @@ fn read_buf(file: &File, buffer: &mut BytesMut, offset: u64, size: usize) -> io:
     // from the `tokio` implementation in the meantime.
     unsafe {
         let buf: &mut [u8] = buffer.spare_capacity_mut()[..size].assume_init_mut();
-        file.read_exact_at(buf, offset)?;
+        read_exact_at(file, buf, offset)?;
         buffer.set_len(size);
     }
     Ok(())
