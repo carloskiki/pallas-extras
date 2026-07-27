@@ -22,7 +22,7 @@ tokio-stream = { version = "0.1.18", default-features = false }
 # CBOR
 cbor-util = { path = "cbor-util" }
 embedded-io = "0.7.1"
-tinycbor = "0.12.2"
+tinycbor = "0.13.0"
 tinycbor-derive = "0.15.2"
 
 # Crypto Traits
@@ -48,7 +48,7 @@ sha3 = { version = "0.12.0", default-features = false }
 # Public Key Cryptography
 curve25519-dalek = { version = "5.0.0", default-features = false }
 ed25519-dalek = { version = "3.0.0", default-features = false }
-# TODO: remove once ed25519-dalek has a zerocopy feature also that enables this
+# FIXME: remove once ed25519-dalek has a zerocopy feature also that enables this
 ed25519 = { version = "3.0.0", features = ["zerocopy"] }
 hybrid-array = { version = "0.4.12" }
 
@@ -57,7 +57,7 @@ bytes = "1.11.1"
 const-hex = { version = "1" }
 displaydoc = "0.2"
 macro_rules_attribute = "0.2.2"
-rand = "0.9"
+rand = "0.10"
 ref-cast = "1.0"
 thiserror = "2.0"
 yoke = { version = "0.8.3", default-features = false, features = [

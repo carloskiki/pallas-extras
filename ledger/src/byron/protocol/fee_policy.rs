@@ -19,7 +19,11 @@ impl Encode for FeePolicy {
 impl<'a> Decode<'a> for FeePolicy {
     type Error = container::Error<
         bounded::Error<
-            tag::Error<tag::Error<container::Error<container::Error<bounded::Error<Error>>>>>,
+            tag::Error<
+                tag::Error<
+                    container::Error<bounded::Error<container::Error<bounded::Error<Error>>>>,
+                >,
+            >,
         >,
     >;
 
