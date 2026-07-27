@@ -1,4 +1,4 @@
-use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley, slot};
+use crate::{allegra, alonzo, babbage, byron, conway, mary, shelley};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 mod header;

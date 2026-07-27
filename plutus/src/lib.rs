@@ -26,8 +26,8 @@
 //! ```rust
 //! use plutus::{Program, Context, Budget};
 //!
-//! const PROGRAM: &str = "(program 1.0.0 [ [ (builtin addInteger) (con integer 2)] (con integer 2) ])";
-//! const FOUR: &str = "(program 1.0.0 (con integer 4))";
+//! const PROGRAM: &str = r#"(program 1.0.0 [(builtin encodeUtf8) (con string "Ola")])"#;
+//! const OUTPUT: &str = "(program 1.0.0 (con bytestring #4f6c61))";
 //!
 //! let arena = plutus::Arena::default();
 //! let program: Program<String> = Program::from_str(PROGRAM, &arena).unwrap();
@@ -39,7 +39,7 @@
 //! };
 //! let evaluated = program.evaluate(&mut context).unwrap();
 //!
-//! let four: Program<String> = Program::from_str(FOUR, &arena).unwrap();
+//! let four: Program<String> = Program::from_str(OUTPUT, &arena).unwrap();
 //! let four = four.into_de_bruijn().unwrap();
 //! assert_eq!(evaluated.into_de_bruijn().unwrap(), four);
 //! ```
