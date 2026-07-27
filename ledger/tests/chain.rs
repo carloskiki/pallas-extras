@@ -1,4 +1,4 @@
-use std::{error::Error, ffi::OsStr, fs::File, io::Read, os::unix::ffi::OsStrExt};
+use std::{error::Error, ffi::OsStr, fs::File, io::Read};
 
 use tinycbor::{Decode, Decoder};
 
@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     ))?
     .filter_map(|res| {
         res.ok()
-            .and_then(|f| (f.path().extension() == Some(OsStr::from_bytes(b"chunk"))).then_some(f))
+            .and_then(|f| (f.path().extension() == Some(OsStr::new("chunk"))).then_some(f))
     })
     .collect::<Vec<_>>();
     files_ordered.sort_by_key(|dir_entry| dir_entry.file_name());
