@@ -1,0 +1,4 @@
+[1.723252s] Started CountBlocks
+[1.930466s] Counted 215977 blocks.
+[1.930544s] Done
+ImmutableDB tip: Point (At (Block {blockPointSlot = SlotNo 215999, blockPointHash = ff3f37d545b0a933f7556abdbcc91c096147ebf5332b5e512083906726b2bf19}))
