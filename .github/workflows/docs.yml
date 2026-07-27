@@ -43,7 +43,7 @@ jobs:
       - name: Setup GitHub Pages
         # This action configures the Pages environment
         id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Clean previous docs
         # Clean old docs to ensure a fresh build
