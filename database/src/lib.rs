@@ -29,7 +29,7 @@ mod secondary;
 mod tests;
 mod writer;
 
-pub use reader::{Reader, Read, Blocks};
+pub use reader::{Blocks, Read, Reader};
 pub use writer::Writer;
 
 const CHUNK_SIZE: u64 = 21_600;
