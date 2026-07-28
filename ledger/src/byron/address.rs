@@ -51,27 +51,14 @@ impl Address {
     }
 }
 
-/// Compute a root digest from the components of an address.
-pub fn root_digest(
-    address_type: Type,
-    data: Data<'_>,
-    attributes: &Attributes,
-) -> Blake2b224Digest {
-    #[derive(Encode)]
-    struct Root<'a> {
-        address_type: Type,
-        data: Data<'a>,
-        attributes: &'a Attributes,
-    }
-
-    let mut encoder = Encoder(DigestWriter(Sha3_256::default()));
-    Root {
-        address_type,
-        data,
-        attributes,
-    }
-    .encode(&mut encoder);
-    Blake2b224::digest(encoder.0.0.finalize()).into()
+/// A Byron era address root.
+///
+/// This is used to compute the address root digest: the hash of this CBOR-encoded structure.
+#[derive(Encode)]
+pub struct Root<'a> {
+    pub address_type: Type,
+    pub data: Data<'a>,
+    pub attributes: &'a Attributes,
 }
 
 /// The type of an address.

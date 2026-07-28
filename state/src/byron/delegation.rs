@@ -1,6 +1,11 @@
-use ledger::byron::crypto::key_digest;
 pub use ledger::{block, byron::delegation::Certificate, crypto::Blake2b224Digest, epoch, slot};
+use ledger::{
+    byron,
+    crypto::{self, digest::Digest, ed25519_dalek},
+};
 use std::collections::{HashSet, VecDeque};
+use tinycbor::{Encode, Encoder};
+use zerocopy::IntoBytes;
 
 pub struct Environment {
     pub protocol_magic: [u8; 5],
@@ -24,7 +29,12 @@ pub struct Delegation {
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("delegator is not allowed to delegate")]
-    InvalidDelegator,
+    UnauthorizedDelegator,
+    #[error("delegator is invalid")]
+    InvalidDelegator(
+        #[from]
+        ed25519_dalek::SignatureError,
+    ),
     #[error("certificate epoch is invalid for current epoch")]
     InvalidEpoch,
     #[error("delegator has already delegated in this epoch")]
@@ -36,13 +46,27 @@ pub fn transition(
     env: &Environment,
     certificate: &Certificate<'_>,
 ) -> Result<(), Error> {
-    let delegator_hash = key_digest(certificate.issuer);
-    let _delegate_hash = key_digest(certificate.delegate);
+    let mut hasher: crypto::DigestWriter<byron::crypto::Sha3_256Blake2b224> = Default::default();
+    let delegator_hash = {
+        certificate
+            .issuer
+            .as_bytes()
+            .encode(&mut Encoder(&mut hasher));
+        hasher.0.finalize_reset().into()
+    };
+    let _delegate_hash = {
+        certificate
+            .delegate
+            .as_bytes()
+            .encode(&mut Encoder(&mut hasher));
+        hasher.0.finalize_reset()
+    };
 
-    if !env.allowed_delegators.contains(&delegator_hash) {
-        return Err(Error::InvalidDelegator);
-    }
-
+    let verifying_key = if env.allowed_delegators.contains(&delegator_hash) {
+        ed25519_dalek::VerifyingKey::from_bytes(&certificate.issuer.key)?
+    } else {
+        return Err(Error::UnauthorizedDelegator);
+    };
     if !(env.epoch..=env.epoch + 1).contains(&certificate.epoch) {
         return Err(Error::InvalidEpoch);
     }

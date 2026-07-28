@@ -59,7 +59,7 @@ pub mod kes {
 
 /// A writer adapter for anything that implements [`digest::Update`], allowing it to be used in
 /// [`tinycbor::Encoder`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DigestWriter<D>(pub D);
 
 impl<D> embedded_io::ErrorType for DigestWriter<D> {

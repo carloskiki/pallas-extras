@@ -4,7 +4,7 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Header<'a> {
     pub protocol_magic: u32,
-    pub previous_block: &'a crate::byron::block::Id,
+    pub previous_block: &'a crate::block::Id,
     pub proof: &'a crate::crypto::Blake2b256Digest,
     pub consensus_data: super::Data,
     pub extra_data: [Attributes; 1],

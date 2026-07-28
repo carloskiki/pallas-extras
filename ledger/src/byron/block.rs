@@ -17,8 +17,6 @@ pub use proof::Proof;
 mod signature;
 pub use signature::Signature;
 
-pub type Id = crate::crypto::Blake2b256Digest;
-
 pub type Difficulty = u64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
