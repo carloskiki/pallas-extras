@@ -23,7 +23,7 @@ impl CborLen for BigInt {
             let bytes = (&self.0 + if negative { 1u8 } else { 0 })
                 .complete()
                 .to_digits(rug::integer::Order::Msf);
-            1 + BoundedBytes(bytes).cbor_len()
+            1 + BoundedBytes(bytes.into_boxed_slice()).cbor_len()
         }
     }
 }
@@ -43,12 +43,15 @@ impl Encode for BigInt {
             tag::Tagged::<BoundedBytes, { tag::IanaTag::NegBignum as u64 }>(BoundedBytes(
                 (&self.0 + 1u8)
                     .complete()
-                    .to_digits(rug::integer::Order::Msf),
+                    .to_digits(rug::integer::Order::Msf)
+                    .into_boxed_slice(),
             ))
             .encode(e)
         } else {
             tag::Tagged::<BoundedBytes, { tag::IanaTag::PosBignum as u64 }>(BoundedBytes(
-                self.0.to_digits(rug::integer::Order::Msf),
+                self.0
+                    .to_digits(rug::integer::Order::Msf)
+                    .into_boxed_slice(),
             ))
             .encode(e)
         }

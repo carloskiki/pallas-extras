@@ -21,9 +21,9 @@ pub enum Option<'a> {
     #[n(3)]
     TimeToLive(slot::Number),
     #[n(4)]
-    Certificates(Vec<Certificate<'a>>),
+    Certificates(Box<[Certificate<'a>]>),
     #[n(5)]
-    Withdrawals(Unique<Vec<(Account, Coin)>, false>),
+    Withdrawals(Unique<Box<[(Account, Coin)]>, false>),
     #[n(6)]
     Update(Update<'a>),
     #[n(7)]
@@ -36,12 +36,12 @@ pub enum Option<'a> {
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
     Collateral(
-        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Box<[Reference]>, false>,
     ),
     #[n(14)]
     RequiredSigners(
         #[cbor(decode_with = "unique::codec::Set<&'a Blake2b224Digest>")]
-        Unique<Vec<&'a Blake2b224Digest>, false>,
+        Unique<Box<[&'a Blake2b224Digest]>, false>,
     ),
     #[n(15)]
     Network(Network),
@@ -51,6 +51,6 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Vec<Reference>, false>,
+        #[cbor(decode_with = "unique::codec::Set<Reference>")] Unique<Box<[Reference]>, false>,
     ),
 }

@@ -6,9 +6,9 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[cbor(map)]
 pub struct Set<'a> {
     #[cbor(n(0), optional)]
-    pub verifying_keys: Vec<VerifyingKey<'a>>,
+    pub verifying_keys: Box<[VerifyingKey<'a>]>,
     #[cbor(n(1), optional)]
-    pub scripts: Vec<Script<'a>>,
+    pub scripts: Box<[Script<'a>]>,
     #[cbor(n(2), optional)]
-    pub bootstraps: Vec<Bootstrap<'a>>,
+    pub bootstraps: Box<[Bootstrap<'a>]>,
 }

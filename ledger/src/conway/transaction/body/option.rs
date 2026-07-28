@@ -14,7 +14,7 @@ use crate::{
     transaction::Reference,
     unique,
 };
-use mitsein::vec1::Vec1;
+use mitsein::boxed1::BoxedSlice1;
 use sparse_struct::SparseStruct;
 use std::num::NonZero;
 use tinycbor_derive::{CborLen, Decode, Encode};
@@ -31,7 +31,7 @@ pub enum Option<'a> {
     #[n(4)]
     Certificates(
         #[cbor(with = "unique::codec::NonEmpty<Certificate<'a>>")]
-        Unique<Vec1<Certificate<'a>>, false>,
+        Unique<BoxedSlice1<Certificate<'a>>, false>,
     ),
     #[n(5)]
     Withdrawals(
@@ -39,7 +39,7 @@ pub enum Option<'a> {
             encode_with = "unique::codec::NonEmpty<(Account, Coin)>",
             len_with = "unique::codec::NonEmpty<(Account, Coin)>"
         )]
-        Unique<Vec1<(Account, Coin)>, false>,
+        Unique<BoxedSlice1<(Account, Coin)>, false>,
     ),
     #[n(7)]
     AuxiliaryDataHash(&'a Blake2b256Digest),
@@ -50,11 +50,13 @@ pub enum Option<'a> {
     #[n(11)]
     ScriptDataHash(&'a Blake2b256Digest),
     #[n(13)]
-    Collateral(#[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>),
+    Collateral(
+        #[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<BoxedSlice1<Reference>, false>,
+    ),
     #[n(14)]
     RequiredSigners(
         #[cbor(with = "unique::codec::NonEmpty<&'a Blake2b224Digest>")]
-        Unique<Vec1<&'a Blake2b224Digest>, false>,
+        Unique<BoxedSlice1<&'a Blake2b224Digest>, false>,
     ),
     #[n(15)]
     Network(Network),
@@ -64,7 +66,7 @@ pub enum Option<'a> {
     CollateralAmount(Coin),
     #[n(18)]
     ReferenceInputs(
-        #[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<Vec1<Reference>, false>,
+        #[cbor(with = "unique::codec::NonEmpty<Reference>")] Unique<BoxedSlice1<Reference>, false>,
     ),
     #[n(19)]
     VotingProcedures(
@@ -74,7 +76,7 @@ pub enum Option<'a> {
     #[n(20)]
     ProposalProcedures(
         #[cbor(with = "unique::codec::NonEmpty<proposal::Procedure<'a>>")]
-        Unique<Vec1<proposal::Procedure<'a>>, false>,
+        Unique<BoxedSlice1<proposal::Procedure<'a>>, false>,
     ),
     #[n(21)]
     CurrentTreasury(Coin),

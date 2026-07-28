@@ -4,7 +4,7 @@ use thiserror::Error;
 use tinycbor::*;
 
 #[apply(super::wrapper)]
-pub struct BoundedBytes(pub Vec<u8>);
+pub struct BoundedBytes(pub Box<[u8]>);
 
 impl CborLen for BoundedBytes {
     fn cbor_len(&self) -> usize {
@@ -41,7 +41,7 @@ impl Decode<'_> for BoundedBytes {
                 bytes.extend_from_slice(chunk);
                 Ok(bytes)
             })
-            .map(BoundedBytes)
+            .map(|bytes| BoundedBytes(bytes.into_boxed_slice()))
     }
 }
 

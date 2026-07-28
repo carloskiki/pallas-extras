@@ -34,8 +34,8 @@ pub enum Certificate<'a> {
         margin: interval::Unit,
         account: Account,
         #[cbor(decode_with = "unique::codec::Set<&'a Blake2b224Digest>")]
-        owners: Unique<Vec<&'a Blake2b224Digest>, false>,
-        relays: Vec<pool::Relay<'a>>,
+        owners: Unique<Box<[&'a Blake2b224Digest]>, false>,
+        relays: Box<[pool::Relay<'a>]>,
         pool_metadata: Option<pool::Metadata<'a>>,
     },
     #[n(4)]

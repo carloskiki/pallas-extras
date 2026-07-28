@@ -1,5 +1,5 @@
 use cbor_util::NonEmpty;
-use mitsein::vec1::Vec1;
+use mitsein::boxed1::BoxedSlice1;
 use tinycbor::{
     CborLen, Decode, Encode,
     container::{self, map},
@@ -10,9 +10,9 @@ pub use name::Name;
 
 use crate::Unique;
 
-pub type Asset<'a, T> = Unique<Vec<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>, false>;
+pub type Asset<'a, T> = Unique<Box<[(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)]>, false>;
 
-pub type Bundle<'a, T> = Unique<Vec1<(&'a Name, T)>, false>;
+pub type Bundle<'a, T> = Unique<BoxedSlice1<(&'a Name, T)>, false>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
@@ -59,7 +59,7 @@ impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
     type Error = container::Error<
         map::Error<
             <&'a crate::crypto::Blake2b224Digest as Decode<'a>>::Error,
-            <Vec<(&'a Name, T)> as Decode<'a>>::Error,
+            <Box<[(&'a Name, T)]> as Decode<'a>>::Error,
         >,
     >;
 
@@ -70,9 +70,12 @@ impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
         let size_hint = visitor.remaining();
         crate::unique::decode_dedup_by_key(
             || loop {
-                match visitor.visit::<&'a crate::crypto::Blake2b224Digest, Unique<Vec<(&'a Name, T)>, false>>()? {
+                match visitor.visit::<
+                    &'a crate::crypto::Blake2b224Digest,
+                    Unique<Box<[(&'a Name, T)]>, false>,
+                >()? {
                     Ok((policy, bundle)) => {
-                        let Ok(bundle) = Vec1::try_from(bundle.0) else {
+                        let Ok(bundle) = BoxedSlice1::try_from(bundle.0) else {
                             continue;
                         };
                         return Some(Ok((policy, Unique(bundle))))
@@ -82,6 +85,7 @@ impl<'a, T: Decode<'a>> Decode<'a> for Codec<'a, T> {
             },
             |(k, _)| k,
             size_hint,
-        ).map(|(_, unique)| Self(unique))
+        )
+        .map(|(_, unique)| Self(unique))
     }
 }

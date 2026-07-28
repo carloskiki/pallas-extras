@@ -7,11 +7,11 @@ pub enum Script<'a> {
     #[n(0)]
     Vkey(&'a Blake2b224Digest),
     #[n(1)]
-    All(Vec<Script<'a>>),
+    All(Box<[Script<'a>]>),
     #[n(2)]
-    Any(Vec<Script<'a>>),
+    Any(Box<[Script<'a>]>),
     #[n(3)]
-    NofK(i64, Vec<Script<'a>>),
+    NofK(i64, Box<[Script<'a>]>),
     #[n(4)]
     InvalidBefore(slot::Number),
     #[n(5)]

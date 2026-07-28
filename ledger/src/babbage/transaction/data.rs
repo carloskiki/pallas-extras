@@ -15,11 +15,11 @@ pub struct Data<'a> {
     #[cbor(n(0), optional)]
     pub metadata: shelley::transaction::Data<'a>,
     #[cbor(n(1), optional)]
-    pub native_scripts: Vec<Script<'a>>,
+    pub native_scripts: Box<[Script<'a>]>,
     #[cbor(n(2), optional)]
-    pub plutus_v1_scripts: Vec<&'a PlutusV1>,
+    pub plutus_v1_scripts: Box<[&'a PlutusV1]>,
     #[cbor(n(3), optional)]
-    pub plutus_v2_scripts: Vec<&'a PlutusV2>,
+    pub plutus_v2_scripts: Box<[&'a PlutusV2]>,
 }
 
 #[derive(Debug, Display, Error)]
@@ -44,9 +44,9 @@ impl<'a, 'b: 'a> Decode<'b> for Data<'a> {
         match d.datatype() {
             Ok(Type::Map | Type::MapIndef) => Ok(Data {
                 metadata: shelley::transaction::Data::decode(d)?,
-                native_scripts: Vec::new(),
-                plutus_v1_scripts: Vec::new(),
-                plutus_v2_scripts: Vec::new(),
+                native_scripts: Box::new([]),
+                plutus_v1_scripts: Box::new([]),
+                plutus_v2_scripts: Box::new([]),
             }),
             Ok(Type::Array | Type::ArrayIndef) => {
                 let allegra::transaction::data::codec::Codec { metadata, scripts } =
@@ -54,8 +54,8 @@ impl<'a, 'b: 'a> Decode<'b> for Data<'a> {
                 Ok(Data {
                     metadata,
                     native_scripts: scripts,
-                    plutus_v1_scripts: Vec::new(),
-                    plutus_v2_scripts: Vec::new(),
+                    plutus_v1_scripts: Box::new([]),
+                    plutus_v2_scripts: Box::new([]),
                 })
             }
             _ => {
@@ -86,10 +86,10 @@ pub(crate) mod codec {
         #[cbor(n(0), optional)]
         pub metadata: shelley::transaction::Data<'a>,
         #[cbor(n(1), optional)]
-        pub native_scripts: Vec<Script<'a>>,
+        pub native_scripts: Box<[Script<'a>]>,
         #[cbor(n(2), optional)]
-        pub plutus_v1_scripts: Vec<&'a PlutusV1>,
+        pub plutus_v1_scripts: Box<[&'a PlutusV1]>,
         #[cbor(n(3), optional)]
-        pub plutus_v2_scripts: Vec<&'a PlutusV2>,
+        pub plutus_v2_scripts: Box<[&'a PlutusV2]>,
     }
 }

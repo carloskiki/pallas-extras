@@ -1,5 +1,5 @@
 use cbor_util::NonEmpty;
-use mitsein::vec1::Vec1;
+use mitsein::boxed1::BoxedSlice1;
 use tinycbor::{
     CborLen, Decode, Encode,
     container::{self, map},
@@ -11,7 +11,8 @@ use crate::{
     mary::asset::{Bundle, Name},
 };
 
-pub type Asset<'a, T> = Unique<Vec1<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>, false>;
+pub type Asset<'a, T> =
+    Unique<BoxedSlice1<(&'a crate::crypto::Blake2b224Digest, Bundle<'a, T>)>, false>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]
@@ -57,7 +58,7 @@ impl<'a, 'b: 'a, T: Decode<'b>> Decode<'b> for Codec<'a, T> {
         nonzero::Error<
             map::Error<
                 <&'a crate::crypto::Blake2b224Digest as Decode<'b>>::Error,
-                <Unique<Vec1<(&'a Name, T)>, false> as Decode<'b>>::Error,
+                <Unique<BoxedSlice1<(&'a Name, T)>, false> as Decode<'b>>::Error,
             >,
         >,
     >;
@@ -68,13 +69,18 @@ impl<'a, 'b: 'a, T: Decode<'b>> Decode<'b> for Codec<'a, T> {
         let mut visitor = d.map_visitor()?;
         let size_hint = visitor.remaining();
         crate::unique::decode_dedup_by_key(
-            || visitor.visit::<&'a crate::crypto::Blake2b224Digest, Unique<Vec1<(&'a Name, T)>, false>>(),
+            || {
+                visitor.visit::<
+                    &'a crate::crypto::Blake2b224Digest,
+                    Unique<BoxedSlice1<(&'a Name, T)>, false>,
+                >()
+            },
             |(k, _)| k,
             size_hint,
         )
         .map_err(|e| container::Error::Content(nonzero::Error::Value(e)))
         .and_then(|(_, Unique::<_, false>(content))| {
-            let Ok(non_empty) = Vec1::try_from(content) else {
+            let Ok(non_empty) = BoxedSlice1::try_from(content) else {
                 return Err(container::Error::Content(nonzero::Error::Zero));
             };
             Ok(Codec(Unique(non_empty)))

@@ -8,8 +8,8 @@ pub use option::Options;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Body<'a> {
-    pub inputs: Unique<Vec<Reference>, false>,
-    pub outputs: Vec<super::output::Output<'a>>,
+    pub inputs: Unique<Box<[Reference]>, false>,
+    pub outputs: Box<[super::output::Output<'a>]>,
     pub fee: Coin,
     pub options: Options<'a>,
 }

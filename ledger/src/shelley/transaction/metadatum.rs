@@ -15,8 +15,8 @@ pub enum Metadatum<'a> {
     Integer(tinycbor::num::Int),
     Bytes(&'a [u8]),
     Text(&'a str),
-    List(Vec<Metadatum<'a>>),
-    Map(Unique<Vec<(Metadatum<'a>, Metadatum<'a>)>, false>),
+    List(Box<[Metadatum<'a>]>),
+    Map(Unique<Box<[(Metadatum<'a>, Metadatum<'a>)]>, false>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Error, Display)]

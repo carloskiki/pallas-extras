@@ -12,15 +12,15 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[cbor(map)]
 pub struct Set<'a> {
     #[cbor(n(0), optional)]
-    pub verifying_keys: Vec<VerifyingKey<'a>>,
+    pub verifying_keys: Box<[VerifyingKey<'a>]>,
     #[cbor(n(1), optional)]
-    pub native_scripts: Vec<allegra::Script<'a>>,
+    pub native_scripts: Box<[allegra::Script<'a>]>,
     #[cbor(n(2), optional)]
-    pub bootstraps: Vec<Bootstrap<'a>>,
+    pub bootstraps: Box<[Bootstrap<'a>]>,
     #[cbor(n(3), optional)]
-    pub plutus_v1: Vec<&'a PlutusV1>,
+    pub plutus_v1: Box<[&'a PlutusV1]>,
     #[cbor(n(4), optional)]
-    pub plutus_data: Vec<Data>,
+    pub plutus_data: Box<[Data]>,
     #[cbor(n(5), optional)]
-    pub redeemers: Vec<Redeemer>,
+    pub redeemers: Box<[Redeemer]>,
 }

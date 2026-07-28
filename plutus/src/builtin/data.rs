@@ -19,15 +19,18 @@ pub fn choose<'a>(
 }
 
 pub fn construct(tag: u64, fields: Vec<Data>) -> Data {
-    Data::Construct(Construct { tag, value: fields })
+    Data::Construct(Construct {
+        tag,
+        value: fields.into_boxed_slice(),
+    })
 }
 
 pub fn map(pairs: Vec<(Data, Data)>) -> Data {
-    Data::Map(pairs)
+    Data::Map(pairs.into_boxed_slice())
 }
 
 pub fn list(elements: Vec<Data>) -> Data {
-    Data::List(elements)
+    Data::List(elements.into_boxed_slice())
 }
 
 pub fn integer(i: Integer) -> Data {
@@ -35,7 +38,7 @@ pub fn integer(i: Integer) -> Data {
 }
 
 pub fn bytes(b: Vec<u8>) -> Data {
-    Data::Bytes(b)
+    Data::Bytes(b.into_boxed_slice())
 }
 
 pub fn un_construct(data: &Data) -> Option<(Integer, &[Data])> {

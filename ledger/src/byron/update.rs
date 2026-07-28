@@ -14,7 +14,7 @@ pub use data::Data;
 pub struct Update<'a> {
     #[cbor(with = "cbor_util::option::Array<Proposal<'a>, false>")]
     pub proposal: Option<Proposal<'a>>,
-    pub votes: Vec<Vote<'a>>,
+    pub votes: Box<[Vote<'a>]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

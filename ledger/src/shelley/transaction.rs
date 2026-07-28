@@ -13,7 +13,7 @@ use crate::Unique;
 
 pub mod witness;
 
-pub type Data<'a> = Unique<Vec<(metadatum::Label, Metadatum<'a>)>, false>;
+pub type Data<'a> = Unique<Box<[(metadatum::Label, Metadatum<'a>)]>, false>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, CborLen)]
 pub struct Transaction<'a> {

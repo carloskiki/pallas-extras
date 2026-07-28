@@ -11,17 +11,17 @@ use tinycbor_derive::{CborLen, Decode, Encode};
 #[cbor(map)]
 pub struct Body<'a> {
     #[cbor(n(0), decode_with = "unique::codec::Set<Reference>")]
-    pub inputs: Unique<Vec<Reference>, false>,
+    pub inputs: Unique<Box<[Reference]>, false>,
     #[n(1)]
-    pub outputs: Vec<Output>,
+    pub outputs: Box<[Output]>,
     #[n(2)]
     pub fee: Coin,
     #[n(3)]
     pub ttl: slot::Number,
     #[cbor(n(4), optional)]
-    pub certificates: Vec<Certificate<'a>>,
+    pub certificates: Box<[Certificate<'a>]>,
     #[cbor(n(5), optional)]
-    pub withdrawals: Unique<Vec<(Account, Coin)>, false>,
+    pub withdrawals: Unique<Box<[(Account, Coin)]>, false>,
     #[cbor(n(6), optional, decode_with = "Update<'a>")]
     pub update: Option<Update<'a>>,
     #[cbor(n(7), optional, decode_with = "&'a crate::crypto::Blake2b256Digest")]

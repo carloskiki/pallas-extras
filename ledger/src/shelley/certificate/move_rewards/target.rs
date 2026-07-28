@@ -13,7 +13,7 @@ pub enum Target {
     // TODO: This should be `DeltaCoin` instead of `Coin` which allows negative amounts. Since this
     // is no longer part of the ledger in `conway`, check if DeltaCoin is truly needed, or if
     // positive amounts suffice.
-    Accounts(Unique<Vec<(Credential, Coin)>, false>),
+    Accounts(Unique<Box<[(Credential, Coin)]>, false>),
 }
 
 #[derive(Debug, Display, Error)]

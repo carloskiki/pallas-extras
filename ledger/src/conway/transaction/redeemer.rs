@@ -13,10 +13,10 @@ pub struct Redeemer {
     pub execution_units: execution::Units,
 }
 
-pub type Redeemers = Unique<Vec<(Index, Redeemer)>, false>;
+pub type Redeemers = Unique<Box<[(Index, Redeemer)]>, false>;
 
 pub(super) mod codec {
-    use mitsein::vec1::Vec1;
+    use mitsein::boxed1::BoxedSlice1;
     use tinycbor::{Decode, Type};
 
     use crate::{Unique, unique};
@@ -34,7 +34,7 @@ pub(super) mod codec {
         /// while decoding conway style `Redeemers`
         Conway(
             #[from]
-            <Unique<Vec1<(super::Index, super::Redeemer)>, false> as Decode<'static>>::Error,
+            <Unique<BoxedSlice1<(super::Index, super::Redeemer)>, false> as Decode<'static>>::Error,
         ),
         /// while decoding alonzo style `Redeemers`
         Alonzo(
@@ -48,7 +48,7 @@ pub(super) mod codec {
         fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
             match d.datatype() {
                 Ok(Type::Array | Type::ArrayIndef) => {
-                    let non_empty: Unique<Vec<_>, false> =
+                    let non_empty: Unique<Box<[_]>, false> =
                         unique::codec::NonEmpty::<super::legacy::Redeemer>::decode(d)?.into();
                     Ok(Codec(Unique(
                         non_empty
@@ -74,9 +74,9 @@ pub(super) mod codec {
                     )))
                 }
                 _ => Ok(Codec(Unique(
-                    Unique::<Vec1<(super::Index, super::Redeemer)>, false>::decode(d)?
+                    Unique::<BoxedSlice1<(super::Index, super::Redeemer)>, false>::decode(d)?
                         .0
-                        .into_vec(),
+                        .into(),
                 ))),
             }
         }

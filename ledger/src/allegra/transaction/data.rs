@@ -10,7 +10,7 @@ use tinycbor_derive::{CborLen, Encode};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, CborLen)]
 pub struct Data<'a> {
     pub metadata: shelley::transaction::Data<'a>,
-    pub scripts: Vec<Script<'a>>,
+    pub scripts: Box<[Script<'a>]>,
 }
 
 #[derive(Debug, Display, Error)]
@@ -33,7 +33,7 @@ impl<'a, 'b: 'a> Decode<'b> for Data<'a> {
         match d.datatype() {
             Ok(Type::Map | Type::MapIndef) => Ok(Data {
                 metadata: shelley::transaction::Data::decode(d)?,
-                scripts: Vec::new(),
+                scripts: Box::new([]),
             }),
             _ => {
                 let codec::Codec { metadata, scripts } = codec::Codec::decode(d)?;
@@ -51,6 +51,6 @@ pub(crate) mod codec {
     #[derive(Decode)]
     pub struct Codec<'a> {
         pub metadata: Data<'a>,
-        pub scripts: Vec<super::Script<'a>>,
+        pub scripts: Box<[super::Script<'a>]>,
     }
 }

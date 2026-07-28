@@ -83,7 +83,7 @@ impl Function<&crate::Data> for First {
                 | crate::Data::Construct(crate::Construct { value: datas, .. }) => datas
                     .iter()
                     .fold(Saturating(0), |a, d| Saturating(self.cost(&d)) + a),
-                crate::Data::Bytes(items) => Saturating(self.cost(items)),
+                crate::Data::Bytes(items) => Saturating(self.cost(&items.as_ref())),
                 crate::Data::Integer(integer) => Saturating(self.cost(integer)),
             })
         .0

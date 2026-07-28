@@ -1,4 +1,4 @@
-pub type Models = Vec<(u8, Vec<i64>)>;
+pub type Models = Box<[(u8, Box<[i64]>)]>;
 
 pub(crate) mod model {
     use tinycbor::{
@@ -25,16 +25,16 @@ pub(crate) mod model {
     }
 
     impl<'a> Decode<'a> for Codec {
-        type Error = container::Error<map::Error<num::Error, <Vec<i64> as Decode<'a>>::Error>>;
+        type Error = container::Error<map::Error<num::Error, <Box<[i64]> as Decode<'a>>::Error>>;
 
         fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
             let mut visitor = d.map_visitor()?;
             let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
-            while let Some(result) = visitor.visit::<num::U8, Vec<i64>>() {
+            while let Some(result) = visitor.visit::<num::U8, Box<[i64]>>() {
                 let (key, value) = result.map_err(container::Error::Content)?;
                 items.push((key.0, value));
             }
-            Ok(Codec(items))
+            Ok(Codec(items.into_boxed_slice()))
         }
     }
 

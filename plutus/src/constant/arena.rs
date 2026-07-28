@@ -141,10 +141,14 @@ mod tests {
 
         let data = Data::Construct(Construct {
             tag: 0,
-            value: vec![Data::Bytes(vec![]), Data::Bytes(vec![1, 2, 3])],
+            value: vec![
+                Data::Bytes(vec![].into_boxed_slice()),
+                Data::Bytes(vec![1, 2, 3].into_boxed_slice()),
+            ]
+            .into_boxed_slice(),
         });
-        let data2 = Data::Bytes(vec![4, 5, 6]);
-        let data3 = Data::Bytes(vec![7, 8, 9]);
+        let data2 = Data::Bytes(vec![4, 5, 6].into_boxed_slice());
+        let data3 = Data::Bytes(vec![7, 8, 9].into_boxed_slice());
 
         arena.data(data);
         let mut datas = arena.datas(vec![data2, data3]);

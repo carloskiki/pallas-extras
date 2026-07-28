@@ -10,9 +10,9 @@ pub use construct::Construct;
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub enum Data {
     // TODO: Does the list here prune duplicates?
-    Map(Vec<(Data, Data)>),
-    List(Vec<Data>),
-    Bytes(Vec<u8>),
+    Map(Box<[(Data, Data)]>),
+    List(Box<[Data]>),
+    Bytes(Box<[u8]>),
     Integer(rug::Integer),
     Construct(Construct),
 }

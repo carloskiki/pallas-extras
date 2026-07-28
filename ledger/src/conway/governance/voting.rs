@@ -1,6 +1,6 @@
 use crate::{Unique, conway::governance::action};
 use cbor_util::NonEmpty;
-use mitsein::vec1::Vec1;
+use mitsein::boxed1::BoxedSlice1;
 use tinycbor::{CborLen, Encode};
 use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -28,8 +28,13 @@ pub enum Vote {
     Abstain,
 }
 
-pub type Procedures<'a> =
-    Unique<Vec1<(Voter, Unique<Vec1<(action::Id<'a>, Procedure<'a>)>, false>)>, false>;
+pub type Procedures<'a> = Unique<
+    BoxedSlice1<(
+        Voter,
+        Unique<BoxedSlice1<(action::Id<'a>, Procedure<'a>)>, false>,
+    )>,
+    false,
+>;
 
 #[derive(ref_cast::RefCast)]
 #[repr(transparent)]

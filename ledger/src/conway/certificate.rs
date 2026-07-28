@@ -37,8 +37,8 @@ pub enum Certificate<'a> {
         cost: Coin,
         margin: interval::Unit,
         account: Account,
-        owners: Unique<Vec<&'a Blake2b224Digest>, false>,
-        relays: Vec<pool::Relay<'a>>,
+        owners: Unique<Box<[&'a Blake2b224Digest]>, false>,
+        relays: Box<[pool::Relay<'a>]>,
         metadata: Option<pool::Metadata<'a>>,
     },
     PoolRetirement {
@@ -103,7 +103,7 @@ pub enum Error {
         <crate::unique::codec::Tagged<&'static Blake2b224Digest> as Decode<'static>>::Error,
     ),
     /// while decoding field `relays` in variant `PoolRegistration`
-    PoolRegistrationRelays(#[source] <Vec<pool::Relay<'static>> as Decode<'static>>::Error),
+    PoolRegistrationRelays(#[source] <Box<[pool::Relay<'static>]> as Decode<'static>>::Error),
     /// while decoding field `metadata` in variant `PoolRegistration`
     PoolRegistrationMetadata(#[source] <Option<pool::Metadata<'static>> as Decode<'static>>::Error),
     /// while decoding field `pool` in variant `PoolRetirement`

@@ -408,7 +408,7 @@ fn data(s: &str) -> Option<(Data, &str)> {
                 .map(|pos| (&data_str[..pos], data_str[pos..].trim_start()))
                 .unwrap_or((data_str.trim_end(), ""));
             let bytes = const_hex::decode(hex).ok()?;
-            (Data::Bytes(bytes), rest.trim_start())
+            (Data::Bytes(bytes.into_boxed_slice()), rest.trim_start())
         }
         "I" => {
             let (int_str, rest) = data_str
@@ -420,7 +420,10 @@ fn data(s: &str) -> Option<(Data, &str)> {
         }
         "List" => {
             let (items_str, rest) = lex::group::<b'[', b']'>(data_str)?;
-            (Data::List(list_from_fn(items_str, data)?), rest)
+            (
+                Data::List(list_from_fn(items_str, data)?.into_boxed_slice()),
+                rest,
+            )
         }
         "Map" => {
             let (mut items_str, rest) = lex::group::<b'[', b']'>(data_str)?;
@@ -440,14 +443,20 @@ fn data(s: &str) -> Option<(Data, &str)> {
                 items.push((key, value));
             }
 
-            (Data::Map(items), rest)
+            (Data::Map(items.into_boxed_slice()), rest)
         }
         "Constr" => {
             let (tag_str, fields) = data_str.split_once(|c: char| !c.is_ascii_digit())?;
             let tag = u64::from_str(tag_str).ok()?;
             let (fields, rest) = lex::group::<b'[', b']'>(fields.trim_start())?;
             let value = list_from_fn(fields, data)?;
-            (Data::Construct(Construct { tag, value }), rest)
+            (
+                Data::Construct(Construct {
+                    tag,
+                    value: value.into_boxed_slice(),
+                }),
+                rest,
+            )
         }
         _ => return None,
     })

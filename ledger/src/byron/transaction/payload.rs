@@ -15,5 +15,5 @@ pub struct Payload<'a> {
     /// The witnesses for each input of the transaction.
     ///
     /// Each witness authenticates the input at the same index in the transaction.
-    pub witnesses: Vec<super::Witness<'a>>,
+    pub witnesses: Box<[super::Witness<'a>]>,
 }

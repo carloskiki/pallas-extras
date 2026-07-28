@@ -8,9 +8,6 @@ pub use big_int::BigInt;
 pub mod bounded_bytes;
 pub use bounded_bytes::BoundedBytes;
 
-// TODO: remove if useless
-pub mod crypto;
-
 // TODO: remove once useless
 pub mod inspect;
 pub use inspect::{Inspect, Inspector};

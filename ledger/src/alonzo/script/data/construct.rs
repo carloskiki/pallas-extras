@@ -6,7 +6,7 @@ use tinycbor_derive::{CborLen, Encode};
 #[cbor(tag(102))]
 pub struct Construct {
     pub tag: u64,
-    pub value: Vec<Data>,
+    pub value: Box<[Data]>,
 }
 
 impl Decode<'_> for Construct {
@@ -25,7 +25,7 @@ impl Decode<'_> for Construct {
             }
         };
         let (tag, value) = match tag {
-            121..=127 => (tag - 121, <Vec<Data>>::decode(d).map_err(wrap)?),
+            121..=127 => (tag - 121, <Box<[Data]>>::decode(d).map_err(wrap)?),
             1280..=1400 => (tag - 1280 + 7, Decode::decode(d).map_err(wrap)?),
             102 => {
                 let mut visitor = d
@@ -35,7 +35,7 @@ impl Decode<'_> for Construct {
                     .visit()
                     .ok_or(tag::Error::Content(bounded::Error::Missing.into()))?
                     .map_err(wrap)?;
-                let value: Vec<Data> = visitor
+                let value: Box<[Data]> = visitor
                     .visit()
                     .ok_or(tag::Error::Content(bounded::Error::Missing.into()))?
                     .map_err(wrap)?;

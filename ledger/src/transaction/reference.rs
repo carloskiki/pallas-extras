@@ -17,7 +17,7 @@ pub struct Reference {
 
 pub(crate) mod codec {
     use super::Reference;
-    use mitsein::vec1::Vec1;
+    use mitsein::boxed1::BoxedSlice1;
     use ref_cast::RefCast;
     use tinycbor_derive::{CborLen, Decode, Encode};
 
@@ -37,21 +37,22 @@ pub(crate) mod codec {
     #[derive(Encode, Decode, CborLen, ref_cast::RefCast)]
     #[repr(transparent)]
     #[cbor(naked)]
-    pub struct ByronReferences(cbor_util::NonEmpty<Vec<Byron>>);
+    pub struct ByronReferences(cbor_util::NonEmpty<Byron>);
 
-    impl From<ByronReferences> for Vec1<Reference> {
+    impl From<ByronReferences> for BoxedSlice1<Reference> {
         fn from(value: ByronReferences) -> Self {
             // Safety: `Byron` is `repr(transparent)` over `Input`.
-            unsafe { std::mem::transmute::<Vec1<Byron>, Vec1<Reference>>(value.0.0) }
+            unsafe { std::mem::transmute::<BoxedSlice1<Byron>, BoxedSlice1<Reference>>(value.0.0) }
         }
     }
 
-    impl<'a> From<&'a Vec1<Reference>> for &'a ByronReferences {
-        fn from(value: &'a Vec1<Reference>) -> Self {
+    impl<'a> From<&'a BoxedSlice1<Reference>> for &'a ByronReferences {
+        fn from(value: &'a BoxedSlice1<Reference>) -> Self {
             // Safety: `Byron` is `repr(transparent)` over `Input`.
-            let vec_byron =
-                unsafe { std::mem::transmute::<&'a Vec1<Reference>, &'a Vec1<Byron>>(value) };
-            let non_empty = cbor_util::NonEmpty::ref_cast(vec_byron);
+            let boxed_byron = unsafe {
+                std::mem::transmute::<&'a BoxedSlice1<Reference>, &'a BoxedSlice1<Byron>>(value)
+            };
+            let non_empty = cbor_util::NonEmpty::ref_cast(boxed_byron);
             ByronReferences::ref_cast(non_empty)
         }
     }

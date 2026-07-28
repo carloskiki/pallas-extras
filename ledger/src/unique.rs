@@ -1,5 +1,5 @@
 use displaydoc::Display;
-use mitsein::NonEmpty;
+use mitsein::boxed1::BoxedSlice1;
 use std::{
     collections::hash_map::RandomState,
     hash::{BuildHasher, Hash},
@@ -20,12 +20,12 @@ pub enum Error<E> {
     Content(#[from] E),
 }
 
-/// Ensures uniqueness of the elements in a `Vec` at deserialization time, maintaining insertion order.
+/// Ensures uniqueness of the elements in a boxed slice at deserialization time, maintaining insertion order.
 ///
 /// the `STRICT` generic parameter determines whether construction errors or deduplicates
 /// (maintaining the first instance) when encountering duplicates.
 ///
-/// For `Vec<(K, V)>`, this ensures uniqueness of `K`.
+/// For `Box<[(K, V)]>`, this ensures uniqueness of `K`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Unique<T, const STRICT: bool>(pub(crate) T);
@@ -36,9 +36,9 @@ impl<T, const STRICT: bool> Unique<T, STRICT> {
     }
 }
 
-impl<T, const STRICT: bool> Unique<Vec<T>, STRICT> {
-    pub const fn new() -> Self {
-        Unique(Vec::new())
+impl<T, const STRICT: bool> Unique<Box<[T]>, STRICT> {
+    pub fn new() -> Self {
+        Unique(Box::new([]))
     }
 }
 
@@ -50,7 +50,7 @@ impl<T, const STRICT: bool> Deref for Unique<T, STRICT> {
     }
 }
 
-impl<'a, K, V> Decode<'a> for Unique<Vec<(K, V)>, false>
+impl<'a, K, V> Decode<'a> for Unique<Box<[(K, V)]>, false>
 where
     K: Decode<'a> + Eq + std::hash::Hash,
     V: Decode<'a>,
@@ -67,7 +67,7 @@ where
     }
 }
 
-impl<'a, K, V> Decode<'a> for Unique<NonEmpty<Vec<(K, V)>>, false>
+impl<'a, K, V> Decode<'a> for Unique<BoxedSlice1<(K, V)>, false>
 where
     K: Decode<'a> + Eq + std::hash::Hash,
     V: Decode<'a>,
@@ -78,17 +78,17 @@ where
     >;
 
     fn decode(d: &mut tinycbor::Decoder<'a>) -> Result<Self, Self::Error> {
-        Unique::<Vec<(K, V)>, false>::decode(d)
+        Unique::<Box<[(K, V)]>, false>::decode(d)
             .map_err(|e| e.map(nonzero::Error::Value))
             .and_then(|Unique(a)| {
-                NonEmpty::<Vec<_>>::try_from(a)
+                BoxedSlice1::try_from(a)
                     .map(Unique)
                     .map_err(|_| container::Error::Content(nonzero::Error::Zero))
             })
     }
 }
 
-impl<'a, K, V> Decode<'a> for Unique<Vec<(K, V)>, true>
+impl<'a, K, V> Decode<'a> for Unique<Box<[(K, V)]>, true>
 where
     K: Decode<'a>,
     V: Decode<'a>,
@@ -125,7 +125,7 @@ pub(crate) fn decode_dedup_by_key<T, E, K: Hash + Eq, const STRICT: bool>(
     mut value: impl FnMut() -> Option<Result<T, E>>,
     key: impl Fn(&T) -> &K,
     size_hint: Option<usize>,
-) -> Result<(bool, Unique<Vec<T>, STRICT>), E> {
+) -> Result<(bool, Unique<Box<[T]>, STRICT>), E> {
     use hashbrown::{HashTable, hash_table::Entry};
 
     let random_state = RandomState::new();
@@ -151,19 +151,18 @@ pub(crate) fn decode_dedup_by_key<T, E, K: Hash + Eq, const STRICT: bool>(
         }
     }
 
-    Ok((removed, Unique(v)))
+    Ok((removed, Unique(v.into_boxed_slice())))
 }
 
 pub(crate) mod codec {
-    use mitsein::vec1::Vec1;
     use tinycbor::{EndOfInput, InvalidHeader, num::nonzero, tag};
 
     use super::*;
 
     // TODO: Maybe this should be named `Untagged` and `Tagged` should be named `Set`?
-    pub struct Set<T>(Unique<Vec<T>, false>);
+    pub struct Set<T>(Unique<Box<[T]>, false>);
 
-    impl<T> From<Set<T>> for Unique<Vec<T>, false> {
+    impl<T> From<Set<T>> for Unique<Box<[T]>, false> {
         fn from(value: Set<T>) -> Self {
             value.0
         }
@@ -181,9 +180,9 @@ pub(crate) mod codec {
         }
     }
 
-    pub struct Tagged<T>(Unique<Vec<T>, false>);
+    pub struct Tagged<T>(Unique<Box<[T]>, false>);
 
-    impl<T> From<Tagged<T>> for Unique<Vec<T>, false> {
+    impl<T> From<Tagged<T>> for Unique<Box<[T]>, false> {
         fn from(value: Tagged<T>) -> Self {
             value.0
         }
@@ -212,24 +211,24 @@ pub(crate) mod codec {
     }
 
     #[repr(transparent)]
-    pub struct NonEmpty<T>(Unique<Vec1<T>, false>);
+    pub struct NonEmpty<T>(Unique<BoxedSlice1<T>, false>);
 
-    impl<T> From<NonEmpty<T>> for Unique<Vec1<T>, false> {
+    impl<T> From<NonEmpty<T>> for Unique<BoxedSlice1<T>, false> {
         fn from(value: NonEmpty<T>) -> Self {
             value.0
         }
     }
 
-    impl<T> From<NonEmpty<T>> for Unique<Vec<T>, false> {
+    impl<T> From<NonEmpty<T>> for Unique<Box<[T]>, false> {
         fn from(value: NonEmpty<T>) -> Self {
-            Unique(value.0.0.into_vec())
+            Unique(value.0.0.into())
         }
     }
 
-    impl<'a, T> From<&'a Unique<Vec1<T>, false>> for &'a NonEmpty<T> {
-        fn from(value: &'a Unique<Vec1<T>, false>) -> Self {
+    impl<'a, T> From<&'a Unique<BoxedSlice1<T>, false>> for &'a NonEmpty<T> {
+        fn from(value: &'a Unique<BoxedSlice1<T>, false>) -> Self {
             // Safety: `NonEmpty` is `repr(transparent)`
-            unsafe { &*(value as *const Unique<Vec1<T>, false> as *const NonEmpty<T>) }
+            unsafe { &*(value as *const Unique<BoxedSlice1<T>, false> as *const NonEmpty<T>) }
         }
     }
 
@@ -240,7 +239,7 @@ pub(crate) mod codec {
             Tagged::decode(d)
                 .map_err(|e| e.map(|e| e.map(nonzero::Error::Value)))
                 .and_then(|Tagged(Unique(s))| {
-                    let Ok(non_empty) = Vec1::try_from(s) else {
+                    let Ok(non_empty) = BoxedSlice1::try_from(s) else {
                         return Err(tag::Error::Content(container::Error::Content(
                             nonzero::Error::Zero,
                         )));
@@ -252,19 +251,19 @@ pub(crate) mod codec {
 
     impl<T> Encode for NonEmpty<T>
     where
-        Vec<T>: Encode,
+        [T]: Encode,
     {
         fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-            self.0.as_vec().encode(e)
+            self.0.as_slice().encode(e)
         }
     }
 
     impl<T> CborLen for NonEmpty<T>
     where
-        Vec<T>: CborLen,
+        [T]: CborLen,
     {
         fn cbor_len(&self) -> usize {
-            self.0.as_vec().cbor_len()
+            self.0.as_slice().cbor_len()
         }
     }
 }
