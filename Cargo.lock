@@ -1116,8 +1116,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 [[package]]
 name = "mitsein"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a49aef75c004fb496a23f175395415ecfe2a630e4c6175ae6f7d9cc1a19332e"
+source = "git+https://github.com/carloskiki/mitsein?branch=unsized-clone#074ece27803f2ec06e0aa1a69f51c3b06d368513"
 dependencies = [
  "either",
  "indexmap",

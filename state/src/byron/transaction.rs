@@ -6,14 +6,12 @@ use ledger::{
         transaction::{Output, Witness, witness::data},
     },
     crypto::{
-        self, DigestWriter,
-        digest::FixedOutput,
+        self,
         ed25519_dalek::{self, ed25519::signature::MultipartVerifier},
     },
     transaction::Reference,
 };
 use std::collections::HashMap;
-use tinycbor::{Encode, Encoder};
 
 pub type State = HashMap<Reference, Output>;
 
@@ -118,16 +116,14 @@ pub fn transition<'a>(
                 root_digest,
                 attributes,
             } = &input_utxo.address.payload;
-            let mut hasher: crypto::DigestWriter<byron::crypto::Sha3_256Blake2b224> =
-                Default::default();
-            address::Root {
-                address_type: *address_type,
-                data: address_data,
-                attributes,
-            }
-            .encode(&mut Encoder(&mut hasher));
 
-            if *address_type != witness_type || root_digest != hasher.0.finalize_fixed().as_slice()
+            if *address_type != witness_type
+                || root_digest
+                    != &byron::crypto::hash(&address::Root {
+                        address_type: *address_type,
+                        data: address_data,
+                        attributes,
+                    })
             {
                 return Err(Error::AddressMismatch(index));
             }

@@ -1,8 +1,5 @@
 pub use ledger::{block, byron::delegation::Certificate, crypto::Blake2b224Digest, epoch, slot};
-use ledger::{
-    byron,
-    crypto::{self, digest::Digest, ed25519_dalek},
-};
+use ledger::{byron::crypto, crypto::ed25519_dalek::{self, ed25519::signature::MultipartVerifier}};
 use std::collections::{HashSet, VecDeque};
 use tinycbor::{Encode, Encoder};
 use zerocopy::IntoBytes;
@@ -30,11 +27,8 @@ pub struct Delegation {
 pub enum Error {
     #[error("delegator is not allowed to delegate")]
     UnauthorizedDelegator,
-    #[error("delegator is invalid")]
-    InvalidDelegator(
-        #[from]
-        ed25519_dalek::SignatureError,
-    ),
+    #[error("delegator (public key, signature) pair is invalid")]
+    InvalidCryptography(#[from] ed25519_dalek::SignatureError),
     #[error("certificate epoch is invalid for current epoch")]
     InvalidEpoch,
     #[error("delegator has already delegated in this epoch")]
@@ -46,21 +40,8 @@ pub fn transition(
     env: &Environment,
     certificate: &Certificate<'_>,
 ) -> Result<(), Error> {
-    let mut hasher: crypto::DigestWriter<byron::crypto::Sha3_256Blake2b224> = Default::default();
-    let delegator_hash = {
-        certificate
-            .issuer
-            .as_bytes()
-            .encode(&mut Encoder(&mut hasher));
-        hasher.0.finalize_reset().into()
-    };
-    let _delegate_hash = {
-        certificate
-            .delegate
-            .as_bytes()
-            .encode(&mut Encoder(&mut hasher));
-        hasher.0.finalize_reset()
-    };
+    let delegator_hash = crypto::hash(certificate.issuer.as_bytes());
+    let _delegate_hash = crypto::hash(certificate.delegate.as_bytes());
 
     let verifying_key = if env.allowed_delegators.contains(&delegator_hash) {
         ed25519_dalek::VerifyingKey::from_bytes(&certificate.issuer.key)?
@@ -77,6 +58,8 @@ pub fn transition(
     {
         return Err(Error::MultipleDelegations);
     }
+
+    let mut stream_verifier = verifying_key.verify_stream(certificate.signature)?;
 
     todo!();
 }

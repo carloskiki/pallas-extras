@@ -65,3 +65,7 @@ yoke = { version = "0.8.3", default-features = false, features = [
     "derive",
 ] }
 zerocopy = { version = "0.8", features = ["derive"] }
+
+# FIXME: Remove once https://github.com/olson-sean-k/mitsein/pull/56 is merged.
+[patch.crates-io]
+mitsein = { git = "https://github.com/carloskiki/mitsein", branch = "unsized-clone" }

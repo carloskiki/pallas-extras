@@ -1,7 +1,5 @@
 //! Address.
 
-use crate::crypto::{Blake2b224, Blake2b224Digest, DigestWriter, digest::Digest};
-use sha3::Sha3_256;
 use tinycbor::{Encode, Encoded, Encoder};
 use tinycbor_derive::{CborLen, Decode, Encode};
 

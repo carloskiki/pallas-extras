@@ -43,3 +43,9 @@ impl FixedOutputReset for Sha3_256Blake2b224 {
 }
 
 impl HashMarker for Sha3_256Blake2b224 {}
+
+pub fn hash<T: tinycbor::Encode + ?Sized>(data: &T) -> crate::crypto::Blake2b224Digest {
+    let mut hasher = crate::crypto::DigestWriter::<Sha3_256Blake2b224>::default();
+    data.encode(&mut tinycbor::Encoder(&mut hasher));
+    hasher.0.finalize_fixed().into()
+}
