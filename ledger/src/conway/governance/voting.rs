@@ -55,7 +55,13 @@ impl<'a, 'b> From<&'b Procedures<'a>> for &'b Codec<'a> {
 
 impl Encode for Codec<'_> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        e.map(self.0.len().get())?;
+        e.map(
+            self.0
+                .len()
+                .get()
+                .try_into()
+                .expect("voting procedures should have no more than u64::MAX values"),
+        )?;
         for (voter, set) in &*self.0 {
             voter.encode(e)?;
             <&NonEmpty<_>>::from(&**set).encode(e)?;

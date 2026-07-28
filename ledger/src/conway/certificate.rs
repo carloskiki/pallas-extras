@@ -182,7 +182,10 @@ impl Certificate<'_> {
 impl Encode for Certificate<'_> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
         let (tag, len) = self.tag_len();
-        e.array(len)?;
+        e.array(
+            len.try_into()
+                .expect("certificate should have no more than u64::MAX fields"),
+        )?;
         tag.encode(e)?;
 
         match self {

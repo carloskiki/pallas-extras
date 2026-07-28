@@ -47,7 +47,11 @@ type FixedCollectionError<T> = container::Error<bounded::Error<T>>;
 
 impl Encode for Update {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        e.array(PARAMETER_COUNT)?;
+        e.array(
+            PARAMETER_COUNT
+                .try_into()
+                .expect("protocol update should have no more than u64::MAX parameters"),
+        )?;
         Array::<_, false>(self.script_version()).encode(e)?;
         Array::<_, false>(self.slot_duration()).encode(e)?;
         Array::<_, false>(self.max_block_size()).encode(e)?;

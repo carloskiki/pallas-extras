@@ -76,7 +76,12 @@ macro_rules! sparse_struct_impl {
             impl Encode for $type {
                 fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
                     let params = self.as_ref();
-                    e.map(params.len())?;
+                    e.map(
+                        params
+                            .len()
+                            .try_into()
+                            .expect("sparse struct should have no more than u64::MAX variants"),
+                    )?;
                     params.iter().try_for_each(|param| param.encode(e))
                 }
             }

@@ -12,6 +12,8 @@ use tinycbor::{
     num::nonzero,
 };
 
+// TODO: here we should bound pre-allocactions like in tinycbor because DDOS
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Display, Error)]
 pub enum Error<E> {
     /// duplicate elements found in set
@@ -124,14 +126,17 @@ impl<T: CborLen, const STRICT: bool> CborLen for Unique<T, STRICT> {
 pub(crate) fn decode_dedup_by_key<T, E, K: Hash + Eq, const STRICT: bool>(
     mut value: impl FnMut() -> Option<Result<T, E>>,
     key: impl Fn(&T) -> &K,
-    size_hint: Option<usize>,
+    size_hint: Option<u64>,
 ) -> Result<(bool, Unique<Box<[T]>, STRICT>), E> {
     use hashbrown::{HashTable, hash_table::Entry};
 
     let random_state = RandomState::new();
     let make_hash = |s: &K| random_state.hash_one(s);
-    let mut set = HashTable::with_capacity(size_hint.unwrap_or_default());
-    let mut v = Vec::with_capacity(size_hint.unwrap_or_default());
+    let size_hint = size_hint
+        .and_then(|size| size.try_into().ok())
+        .unwrap_or_default();
+    let mut set = HashTable::with_capacity(size_hint);
+    let mut v = Vec::with_capacity(size_hint);
     let mut removed = false;
 
     while let Some(x) = value() {

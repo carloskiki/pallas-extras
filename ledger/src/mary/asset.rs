@@ -33,7 +33,12 @@ impl<'a, 'b, T> From<&'b Asset<'a, T>> for &'b Codec<'a, T> {
 
 impl<T: Encode> Encode for Codec<'_, T> {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        e.map(self.0.len())?;
+        e.map(
+            self.0
+                .len()
+                .try_into()
+                .expect("asset should have no more than u64::MAX values"),
+        )?;
         for (policy, bundle) in self.0.iter() {
             policy.encode(e)?;
             <&NonEmpty<_>>::from(&**bundle).encode(e)?;

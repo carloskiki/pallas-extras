@@ -26,7 +26,11 @@ pub enum Error {
 
 impl Encode for Output<'_> {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
-        e.array(2 + self.datum_hash.is_some() as usize)?;
+        e.array(
+            (2 + self.datum_hash.is_some() as usize)
+                .try_into()
+                .expect("transaction output should have no more than u64::MAX fields"),
+        )?;
         self.address.encode(e)?;
         self.value.encode(e)?;
         if let Some(datum_hash) = &self.datum_hash {

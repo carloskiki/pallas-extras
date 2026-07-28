@@ -29,7 +29,11 @@ pub(crate) mod model {
 
         fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
             let mut visitor = d.map_visitor()?;
-            let mut items = Vec::with_capacity(visitor.remaining().unwrap_or(0));
+            let capacity = visitor
+                .remaining()
+                .and_then(|size| size.try_into().ok())
+                .unwrap_or_default();
+            let mut items = Vec::with_capacity(capacity);
             while let Some(result) = visitor.visit::<num::U8, Box<[i64]>>() {
                 let (key, value) = result.map_err(container::Error::Content)?;
                 items.push((key.0, value));
@@ -40,7 +44,12 @@ pub(crate) mod model {
 
     impl Encode for Codec {
         fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-            e.map(self.0.len())?;
+            e.map(
+                self.0
+                    .len()
+                    .try_into()
+                    .expect("cost models should have no more than u64::MAX values"),
+            )?;
             for (k, v) in &self.0 {
                 num::U8(*k).encode(e)?;
                 v.encode(e)?;

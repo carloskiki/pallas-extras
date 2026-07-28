@@ -30,7 +30,11 @@ pub enum Error {
 
 impl Encode for Body<'_> {
     fn encode<W: Write>(&self, e: &mut Encoder<W>) -> Result<(), W::Error> {
-        e.map(3 + self.options.as_ref().len())?;
+        e.map(
+            (3 + self.options.as_ref().len())
+                .try_into()
+                .expect("transaction body should have no more than u64::MAX fields"),
+        )?;
         0.encode(e)?;
         self.inputs.encode(e)?;
         1.encode(e)?;

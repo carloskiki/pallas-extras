@@ -14,7 +14,12 @@ pub struct Share {
 
 impl Encode for Share {
     fn encode<W: tinycbor::Write>(&self, e: &mut tinycbor::Encoder<W>) -> Result<(), W::Error> {
-        e.array(self.peers.len())?;
+        e.array(
+            self.peers
+                .len()
+                .try_into()
+                .expect("peer share should have no more than u64::MAX peers"),
+        )?;
         for peer in self.peers.iter() {
             SocketCodec::from(peer).encode(e)?;
         }
@@ -27,7 +32,12 @@ impl Decode<'_> for Share {
 
     fn decode(d: &mut tinycbor::Decoder<'_>) -> Result<Self, Self::Error> {
         let mut visitor = d.array_visitor()?;
-        let mut peers = Vec::with_capacity(visitor.remaining().unwrap_or(0));
+        // TODO: Bound pre-allocations like in tinycbor because DDOS
+        let capacity = visitor
+            .remaining()
+            .and_then(|size| size.try_into().ok())
+            .unwrap_or_default();
+        let mut peers = Vec::with_capacity(capacity);
 
         while let Some(peer_codec) = visitor.visit::<SocketCodec>() {
             let peer_codec = peer_codec?;

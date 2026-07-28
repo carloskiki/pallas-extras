@@ -1915,18 +1915,18 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fffdd9a581dfdec1a5305ef58eb305006a5cba90e5825ced5d98c302d1d53bd8"
+checksum = "eb2a619947e81f3aaac8db6f61df889decb49b86003c9dedff6d7490d42ba0c9"
 dependencies = [
  "embedded-io",
 ]
 
 [[package]]
 name = "tinycbor-derive"
-version = "0.15.3"
+version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18243496287c6c2a697793ba155248aba0063aa4a3744f90242ebc9755824918"
+checksum = "ef479b637545f98b2c58b7ae18cbc762081fa2b697db8a7b2a77691b6b9291c8"
 dependencies = [
  "heck",
  "proc-macro2",
