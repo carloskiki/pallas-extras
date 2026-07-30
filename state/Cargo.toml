@@ -9,3 +9,4 @@ ledger = { path = "../ledger" }
 yoke = { workspace = true }
 tinycbor = { workspace = true }
 zerocopy = { workspace = true }
+ref-cast = { workspace = true }
