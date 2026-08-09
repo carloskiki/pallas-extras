@@ -1,4 +1,4 @@
 
 (program 1.1.0
-    (constr -5 (con integer 1) (error))
+    (constr 18446744073709551615 (con string "Maximum tag = 2^64-1") (con integer 999))
 )
