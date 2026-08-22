@@ -1,4 +1,4 @@
-use tinycbor::encoded::With;
+use tinycbor::Memo;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 /// A transaction payload.
@@ -11,7 +11,7 @@ pub struct Payload<'a> {
     /// The transaction memoizes its bytes, because witnesses are computed from the transaction
     /// bytes. Re-encoding the transaction bytes could result in a different encoding, invalidating
     /// witnesses.
-    pub transaction: With<'a, super::Transaction>,
+    pub transaction: Memo<'a, super::Transaction>,
     /// The witnesses for each input of the transaction.
     ///
     /// Each witness authenticates the input at the same index in the transaction.

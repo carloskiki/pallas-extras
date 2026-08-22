@@ -1,3 +1,10 @@
+//! Byron era ledger types.
+//!
+//! This exists for historical validation purposes only. The ledger may assume stricter format rules
+//! than the specification, because it is solely meant to view the historical byron era of Cardano
+//! mainnet. As such, it uses stricter CBOR decoding rules than what the specification allows. For
+//! example, [`Attributes`] assume an empty map.
+
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod address;

@@ -13,7 +13,7 @@ use tinycbor::{CborLen, Encode, Encoder};
 use zerocopy::IntoBytes;
 
 pub struct Environment {
-    pub protocol_magic: [u8; 5],
+    pub network_magic: [u8; 5],
     pub allowed_delegators: HashSet<Blake2b224Digest>,
     pub epoch: epoch::Number,
     pub slot: slot::Number,
@@ -78,7 +78,7 @@ pub fn transition(
         verifying_key.verify_digest(
             |d: &mut Sha512| {
                 d.update(&[0x0a]);
-                d.update(&env.protocol_magic);
+                d.update(&env.network_magic);
                 d.update(&[
                     0x58,
                     (2 + certificate.issuer.as_bytes().len() + env.epoch.cbor_len()) as u8,

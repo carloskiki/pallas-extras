@@ -1,5 +1,5 @@
 use crate::{byron::protocol, slot};
-use tinycbor::encoded::With;
+use tinycbor::Memo;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub mod vote;
@@ -17,8 +17,8 @@ pub struct Update<'a> {
     ///
     /// Proposal identifiers, size limits, and signatures all depend on the exact bytes that were
     /// submitted, so validating a re-encoding is not sufficient.
-    #[cbor(with = "cbor_util::option::Array<With<'a, Proposal<'a>>, false>")]
-    pub proposal: Option<With<'a, Proposal<'a>>>,
+    #[cbor(with = "cbor_util::option::Array<Memo<'a, Proposal<'a>>, false>")]
+    pub proposal: Option<Memo<'a, Proposal<'a>>>,
     pub votes: Box<[Vote<'a>]>,
 }
 

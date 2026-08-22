@@ -2,7 +2,7 @@
 
 use ledger::{
     Block,
-    crypto::{DigestWriter, blake2::Blake2b256, digest::Digest},
+    crypto::{self, DigestWriter, blake2::Blake2b256, digest::Digest},
 };
 use std::{env, error::Error, fmt::Write, io, path::PathBuf};
 use tinycbor::{Decode, Decoder, Encode, Encoder};
@@ -36,11 +36,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     for payload in block.body.transactions {
                         let payload: &ledger::byron::transaction::Payload<'_> = payload.as_ref();
                         let transaction: &ledger::byron::Transaction = payload.transaction.as_ref();
-                        let transaction_bytes: &[u8] = payload.transaction.as_ref();
+                        let mut encoder: Encoder<crypto::DigestWriter<Blake2b256>> = Encoder::default();
+                        payload.transaction.as_ref().encode(&mut encoder);
                         report_large_outputs(
                             "Byron",
                             transaction.outputs.iter().map(|output| output.amount),
-                            || Blake2b256::digest(transaction_bytes).into(),
+                            || encoder.0.0.finalize().into(),
                         );
                     }
                 }

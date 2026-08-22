@@ -1916,9 +1916,9 @@ dependencies = [
 
 [[package]]
 name = "tinycbor"
-version = "0.14.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb2a619947e81f3aaac8db6f61df889decb49b86003c9dedff6d7490d42ba0c9"
+checksum = "57e1d441effb6e4677d83216dc1a7ad63ea425459e31aa3b41a19d786281a4db"
 dependencies = [
  "embedded-io",
 ]

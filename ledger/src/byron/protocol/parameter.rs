@@ -13,7 +13,7 @@ use tinycbor::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, SparseStruct)]
 #[sparse_name = "Update"]
 #[full_name = "Parameters"]
-#[struct_derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[struct_derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Parameter {
     ScriptVersion(u16),
     SlotDuration(u64),

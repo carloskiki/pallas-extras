@@ -56,14 +56,17 @@
 //!
 //! This generates a `Person` struct with a few helpful methods and trait implementations to access
 //! attributes, and modify them. When `#[full_name = "..."]` is provided, it also generates a struct
-//! with a field per variant.
+//! with a field per variant. The `struct_derive` attribute applies its derives to both generated
+//! structs, except `Copy`, which applies only to the full struct because the sparse struct contains
+//! a `Vec`. The full struct's `update` method borrows a sparse struct and replaces its present
+//! fields with clones.
 
 use heck::ToSnakeCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
-    Data, DataStruct, DataUnion, DeriveInput, Fields, Ident, parse_macro_input, spanned::Spanned,
-    token::Struct,
+    Data, DataStruct, DataUnion, DeriveInput, Fields, Ident, Path, Token, parse_macro_input,
+    punctuated::Punctuated, spanned::Spanned, token::Struct,
 };
 
 #[proc_macro_derive(SparseStruct, attributes(sparse_name, struct_derive, full_name))]
@@ -106,6 +109,7 @@ fn expand(
     }
 
     let mut full_struct_fields = Vec::new();
+    let mut full_struct_update_arms = Vec::new();
     let (methods, index_arms) = variants.iter().enumerate().map(|(i, variant)| {
             let span = variant.span();
             let field = match &variant.fields {
@@ -157,6 +161,9 @@ fn expand(
             full_struct_fields.push(quote! {
                 pub #fn_ident: #field,
             });
+            full_struct_update_arms.push(quote! {
+                #enum_ident::#variant_ident(value) => self.#fn_ident = value,
+            });
             let fn_ident_mut = Ident::new(&format!("{fn_ident}_mut"), Span::call_site());
             let set_ident = Ident::new(&format!("set_{fn_ident}"), Span::call_site());
             let remove_ident = Ident::new(&format!("remove_{fn_ident}"), Span::call_site());
@@ -205,7 +212,7 @@ fn expand(
         .collect::<syn::Result<(TokenStream, TokenStream)>>()?;
 
     let mut struct_ident: Ident = format_ident!("{}Set", enum_ident);
-    let mut struct_derives = quote! {};
+    let mut struct_derives = Vec::new();
     let mut full_struct_ident: Option<Ident> = None;
 
     for attr in attrs {
@@ -244,17 +251,48 @@ fn expand(
                 }
             }
         } else if attr.path().is_ident("struct_derive") {
-            struct_derives = attr.parse_args()?;
+            struct_derives = attr
+                .parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?
+                .into_iter()
+                .collect();
         }
     }
+
+    if full_struct_ident.is_none()
+        && let Some(copy_derive) = struct_derives.iter().find(|derive| derive.is_ident("Copy"))
+    {
+        return Err(syn::Error::new(
+            copy_derive.span(),
+            "`Copy` requires a full struct; add `#[full_name = \"...\"]`",
+        ));
+    }
+
+    let sparse_struct_derives = struct_derives
+        .iter()
+        .filter(|derive| !derive.is_ident("Copy"));
 
     let full_struct = full_struct_ident
         .map(|full_ident| {
             let full_struct_fields = &full_struct_fields;
+            let full_struct_update_arms = &full_struct_update_arms;
             quote! {
-                #[derive(#struct_derives)]
+                #[derive(#(#struct_derives),*)]
                 #vis struct #full_ident #generics {
                     #(#full_struct_fields)*
+                }
+
+                impl #generics #full_ident #generics {
+                    /// Replaces each field present in the sparse struct with a clone.
+                    pub fn update(&mut self, sparse: &#struct_ident #generics)
+                    where
+                        #enum_ident #generics: ::core::clone::Clone,
+                    {
+                        for value in sparse.data.iter().cloned() {
+                            match value {
+                                #(#full_struct_update_arms)*
+                            }
+                        }
+                    }
                 }
             }
         })
@@ -263,7 +301,7 @@ fn expand(
     Ok(quote! {
         #full_struct
 
-        #[derive(#struct_derives)]
+        #[derive(#(#sparse_struct_derives),*)]
         #vis struct #struct_ident #generics {
             data: ::alloc::vec::Vec<#enum_ident #generics>,
             present: ::core::primitive::u64,
