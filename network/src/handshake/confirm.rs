@@ -1,8 +1,11 @@
+use crate::message::Lazy;
 use crate::{
-    NetworkMagic, State, agency::Server, handshake::VersionTable, message::Contains, state::Done,
+    State,
+    agency::{Client, Server},
+    handshake::VersionTable,
+    message::Contains,
+    state::Done,
 };
-use bytes::Bytes;
-use tinycbor::encoded::Lazy;
 use tinycbor_derive::{CborLen, Decode, Encode};
 
 pub struct Confirm<VD>(std::marker::PhantomData<VD>);
@@ -16,16 +19,16 @@ impl<VD> State for Confirm<VD> {
 
 pub enum Message<VD> {
     Accept(
-        Lazy<Bytes, Accept<VD>>,
-        crate::mux::Handle<Server, <Accept<VD> as crate::Message>::ToState>,
+        Lazy<Accept<VD>>,
+        crate::mux::Handle<Client, <Accept<VD> as crate::Message>::ToState>,
     ),
     Refuse(
-        Lazy<Bytes, Refuse<'static>>,
-        crate::mux::Handle<Server, <Refuse<'static> as crate::Message>::ToState>,
+        Lazy<Refuse<'static>>,
+        crate::mux::Handle<Client, <Refuse<'static> as crate::Message>::ToState>,
     ),
     Reply(
-        Lazy<Bytes, Reply<VD>>,
-        crate::mux::Handle<Server, <Reply<VD> as crate::Message>::ToState>,
+        Lazy<Reply<VD>>,
+        crate::mux::Handle<Client, <Reply<VD> as crate::Message>::ToState>,
     ),
 }
 
@@ -33,11 +36,11 @@ impl<VD> Contains<Accept<VD>> for Message<VD> {}
 impl<VD> Contains<Refuse<'static>> for Message<VD> {}
 impl<VD> Contains<Reply<VD>> for Message<VD> {}
 
-impl<VD> crate::message::FromParts<Server> for Message<VD> {
+impl<VD> crate::message::FromParts<Client> for Message<VD> {
     fn from_parts<S>(
         tag: u64,
         bytes: ::bytes::Bytes,
-        handle: crate::mux::Handle<Server, S>,
+        handle: crate::mux::Handle<Client, S>,
     ) -> Option<Self> {
         match tag {
             <Accept<VD> as crate::Message>::TAG => {

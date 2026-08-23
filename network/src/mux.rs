@@ -9,7 +9,7 @@ use crate::{
 };
 use bytes::{Bytes, BytesMut};
 use std::io;
-use tinycbor::{Encode, Encoder};
+use tinycbor::{Decode, Encode, Encoder, Write};
 
 // TODO: In client and server, ensure that the timeouts are checked.
 // TODO: Check for cancel safety anywhere `select!` is used.
@@ -39,7 +39,8 @@ pub enum MuxError {
     Closed,
 }
 
-pub(crate) struct Egress(BytesMut);
+#[doc(hidden)]
+pub struct Egress(BytesMut);
 
 impl Egress {
     pub fn new<M: Message + Encode>(
@@ -83,11 +84,21 @@ impl Egress {
             }
         }
 
+        let payload = tinycbor::to_vec(message);
+        let mut decoder = tinycbor::Decoder(&payload);
+        let mut payload_items = 0;
+        while !decoder.0.is_empty() {
+            tinycbor::Any::decode(&mut decoder).expect("Encode produced valid CBOR");
+            payload_items += 1;
+        }
+
         let mut encoder = Encoder(Writer(buffer, 0, protocol));
-        encoder.begin_array();
+        encoder.array(1 + payload_items);
         M::TAG.encode(&mut encoder);
-        message.encode(&mut encoder);
-        encoder.end();
+        encoder
+            .0
+            .write_all(&payload)
+            .expect("multiplexer writer is infallible");
 
         let message = buffer.split();
         Egress(message)
@@ -98,11 +109,12 @@ impl Egress {
         const HEADER_SIZE: usize = std::mem::size_of::<Header>();
 
         self.0
+            .as_mut()
             .chunks_mut(u16::MAX as usize + HEADER_SIZE)
             .for_each(|chunk| {
                 let chunk_len = chunk.len() - HEADER_SIZE;
                 let header_array: &mut [u8; HEADER_SIZE] =
-                    &mut chunk[..HEADER_SIZE].try_into().expect("sizes match");
+                    (&mut chunk[..HEADER_SIZE]).try_into().expect("sizes match");
                 let header: &mut Header = zerocopy::transmute_mut!(header_array);
                 header.payload_len = (chunk_len as u16).into();
                 header.timestamp = timestamp;
@@ -114,5 +126,97 @@ impl Egress {
 
 pub(crate) struct Ingress {
     message: Bytes,
-    timestamp: Timestamp,
+}
+
+/// Start a multiplexer over an asynchronous bearer.
+///
+/// The returned handles represent both sides of every mini-protocol in `P`. The task handle
+/// resolves only when the bearer closes or a protocol error occurs.
+pub fn mux<P, B>(bearer: B) -> (P::Handles, tokio::task::JoinHandle<MuxError>)
+where
+    P: crate::Protocol + Send + 'static,
+    P::State: Send + 'static,
+    P::Handles: Send + 'static,
+    B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    let (sender, receiver) = tokio::sync::mpsc::channel(64);
+    let (handles, state) = P::initialize(sender);
+    let task = tokio::spawn(task::task::<P>(bearer, receiver, state));
+    (handles, task)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node_to_node::keep_alive::KeepAlive;
+
+    #[test]
+    fn egress_starts_with_a_complete_mux_header() {
+        let mut buffer = BytesMut::new();
+        let framed = Egress::new(
+            &KeepAlive { cookie: 42 },
+            &mut buffer,
+            ProtocolNumber::new(8, false),
+        )
+        .finalize(Timestamp::default());
+        let bytes: &[u8; 8] = framed[..8].try_into().unwrap();
+        let header: &Header = zerocopy::transmute_ref!(bytes);
+        assert_eq!(header.protocol.number(), 8);
+        assert_eq!(header.payload_len.get() as usize, framed.len() - 8);
+    }
+
+    #[test]
+    fn chain_sync_find_intersect_matches_the_wire_codec() {
+        let mut buffer = BytesMut::new();
+        let framed = Egress::new(
+            &crate::node_to_node::chain_sync::idle::FindIntersect {
+                points: vec![crate::Point::Genesis],
+            },
+            &mut buffer,
+            ProtocolNumber::new(2, false),
+        )
+        .finalize(Timestamp::default());
+
+        // [MsgFindIntersect = 4, [Origin]]
+        assert_eq!(&framed[8..], &[0x82, 0x04, 0x81, 0x80]);
+    }
+
+    #[test]
+    fn zero_payload_messages_use_a_single_item_array() {
+        let mut buffer = BytesMut::new();
+        let framed = Egress::new(
+            &crate::node_to_node::chain_sync::idle::Next,
+            &mut buffer,
+            ProtocolNumber::new(2, false),
+        )
+        .finalize(Timestamp::default());
+
+        assert_eq!(&framed[8..], &[0x81, 0x00]);
+    }
+
+    #[test]
+    fn handshake_proposal_uses_a_version_map() {
+        let mut buffer = BytesMut::new();
+        let framed = Egress::new(
+            &crate::handshake::propose::Versions(crate::handshake::VersionTable {
+                versions: vec![(
+                    14,
+                    crate::node_to_node::VersionData {
+                        network_magic: crate::NetworkMagic::Preprod,
+                        diffusion_mode: true,
+                        peer_sharing: false,
+                        query: false,
+                    },
+                )],
+            }),
+            &mut buffer,
+            ProtocolNumber::new(0, false),
+        )
+        .finalize(Timestamp::default());
+
+        assert_eq!(
+            &framed[8..],
+            &[0x82, 0x00, 0xa1, 0x0e, 0x84, 0x01, 0xf5, 0x00, 0xf4]
+        );
+    }
 }

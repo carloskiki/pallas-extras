@@ -66,7 +66,7 @@ macro_rules! state {
     (@message $agency:ty | $($message:ident$(<$($args:tt),*>)?),+) => {
         pub enum Message {
             $($message(
-                ::tinycbor::encoded::Lazy<::bytes::Bytes, $message$(<$($args),*>)?>,
+                $crate::message::Lazy<$message$(<$($args),*>)?>,
                 $crate::mux::Handle<
                     $agency,
                     <$message$(<$($args),*>)? as $crate::Message>::ToState

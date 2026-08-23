@@ -1,10 +1,9 @@
+use crate::message::Lazy;
 use crate::{
     agency::{Client, Server},
     message::Contains,
     mux::Handle,
 };
-use bytes::Bytes;
-use tinycbor::encoded::Lazy;
 
 use super::request::{Ids, Transactions};
 use tinycbor::{Decode, Decoder};
@@ -21,15 +20,15 @@ impl crate::State for Idle {
 
 pub enum Message {
     Transactions(
-        Lazy<Bytes, Transactions<'static>>,
+        Lazy<Transactions<'static>>,
         Handle<Client, <Transactions<'static> as crate::Message>::ToState>,
     ),
     Ids(
-        Lazy<Bytes, Ids<false>>,
+        Lazy<Ids<false>>,
         Handle<Client, <Ids<false> as crate::Message>::ToState>,
     ),
     IdsBlocking(
-        Lazy<Bytes, Ids<true>>,
+        Lazy<Ids<true>>,
         Handle<Client, <Ids<true> as crate::Message>::ToState>,
     ),
 }

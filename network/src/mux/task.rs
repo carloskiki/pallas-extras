@@ -34,7 +34,7 @@ where
                     return MuxError::Closed;
                 };
 
-                if let Err(e) = writer_task::<P>(
+                if let Err(e) = writer_task(
                     &mut bearer,
                     request,
                     &time,
@@ -51,7 +51,7 @@ where
     }
 }
 
-async fn writer_task<P: Protocol>(
+async fn writer_task(
     writer: &mut (impl AsyncWrite + Unpin),
     message: Egress,
     time: &std::time::Instant,
@@ -61,10 +61,11 @@ async fn writer_task<P: Protocol>(
 }
 
 pub struct State {
-    pub read_buffer: BytesMut,
-    pub read_state: tinycbor::stream::Any,
-    pub server_send_back: Sender<Ingress>,
-    pub client_send_back: Sender<Ingress>,
+    pub(crate) read_buffer: BytesMut,
+    pub(crate) read_position: usize,
+    pub(crate) read_state: tinycbor::stream::Any,
+    pub(crate) server_send_back: Sender<Ingress>,
+    pub(crate) client_send_back: Sender<Ingress>,
 }
 
 struct ReadTask {
@@ -81,7 +82,7 @@ impl ReadTask {
         reader: &mut (impl AsyncRead + Unpin),
         state: &mut P::State,
     ) -> Result<(), MuxError> {
-        if self.remaining != 0 {
+        while self.remaining != 0 {
             let read = reader
                 .read(&mut self.header[8 - self.remaining as usize..])
                 .await?;
@@ -97,16 +98,16 @@ impl ReadTask {
         let header: &mut Header = zerocopy::transmute_mut!(&mut self.header);
         let remaining = &mut header.payload_len;
         let protocol = header.protocol;
-        let timestamp = header.timestamp;
+        let _timestamp = header.timestamp;
 
         let State {
             read_buffer,
+            read_position,
             read_state,
             server_send_back,
             client_send_back,
         } = P::get_state(protocol, state).ok_or(MuxError::UnknownProtocol(protocol))?;
         read_buffer.reserve(remaining.get() as usize);
-        let mut initial_position = read_buffer.len();
 
         while let read @ 1.. = reader
             .read_buf(&mut read_buffer.limit(remaining.get() as usize))
@@ -122,32 +123,33 @@ impl ReadTask {
             .into());
         }
 
-        while initial_position != read_buffer.len() {
-            let mut decoder = Decoder(&read_buffer[initial_position..]);
+        while *read_position != read_buffer.len() {
+            let mut decoder = Decoder(&read_buffer[*read_position..]);
             let feed_result = read_state.feed(&mut decoder);
-            let message = read_buffer
-                .split_to(read_buffer.len() - decoder.0.len())
-                .freeze();
+            let consumed = read_buffer[*read_position..].len() - decoder.0.len();
+            *read_position += consumed;
             match feed_result {
                 Err(tinycbor::container::Error::Malformed(
                     tinycbor::primitive::Error::EndOfInput,
                 )) => break,
                 Err(_) => {
-                    return Err(MuxError::Malformed(message));
+                    return Err(MuxError::Malformed(read_buffer.clone().freeze()));
                 }
                 Ok(()) => {}
             }
 
+            let message = read_buffer.split_to(*read_position).freeze();
+
             let send_back = if protocol.server_sent() {
-                &mut *server_send_back
-            } else {
                 &mut *client_send_back
+            } else {
+                &mut *server_send_back
             };
-            if let Err(TrySendError::Full(_)) = send_back.try_send(Ingress { message, timestamp }) {
+            if let Err(TrySendError::Full(_)) = send_back.try_send(Ingress { message }) {
                 return Err(MuxError::Full(protocol));
             }
 
-            initial_position = 0;
+            *read_position = 0;
             read_state.reset();
         }
 

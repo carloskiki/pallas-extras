@@ -1,10 +1,11 @@
 use crate::{
     Agency, Message, State,
     agency::{Client, Server},
+    message::FromParts,
     mux::{Egress, Ingress, header::ProtocolNumber, task},
     state::InitialState,
 };
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use std::marker::PhantomData;
 use tinycbor::Encode;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -35,6 +36,7 @@ pub(crate) fn components<S: InitialState>(
 
     let state = task::State {
         read_buffer: BytesMut::new(),
+        read_position: 0,
         read_state: tinycbor::stream::Any::default(),
         server_send_back,
         client_send_back,
@@ -68,9 +70,10 @@ where
     A: Agency,
     S: State<Agency = A>,
 {
-    pub async fn send<M, IM>(mut self, message: &M) -> Option<Handle<A, M::ToState>>
+    pub async fn send<M>(mut self, message: &M) -> Option<Handle<A, M::ToState>>
     where
         M: Message + Encode,
+        S::Message: crate::message::Contains<M>,
     {
         self.sender
             .send(Egress::new(
@@ -89,18 +92,37 @@ impl<A, S> Handle<A, S>
 where
     A: Agency,
     S: State<Agency = A::Inverse>,
-    S::Message: TryFrom<(u64, Bytes, Self)>,
+    S::Message: FromParts<A>,
 {
-    pub async fn receive<IS>(mut self) -> Result<S::Message, Error> {
-        let Ingress { message, timestamp } = self.receiver.recv().await.ok_or(Error::Closed)?;
-        // TODO: get tag from message.
-        let tag = todo!();
-        S::Message::try_from((tag, message, self)).map_err(|_| Error::InvalidTag)
+    pub async fn receive(mut self) -> Result<S::Message, Error> {
+        let Ingress { message } = self.receiver.recv().await.ok_or(Error::Closed)?;
+
+        let mut decoder = tinycbor::Decoder(&message);
+        let (tag, definite) = {
+            let mut visitor = decoder.array_visitor().map_err(|_| Error::Malformed)?;
+            let tag = visitor
+                .visit::<u64>()
+                .ok_or(Error::Malformed)?
+                .map_err(|_| Error::Malformed)?;
+            (tag, visitor.definite())
+        };
+
+        let mut payload = message.slice_ref(decoder.0);
+        if !definite {
+            let Some((0xff, without_break)) = payload.split_last() else {
+                return Err(Error::Malformed);
+            };
+            payload = message.slice_ref(without_break);
+        }
+
+        S::Message::from_parts(tag, payload, self).ok_or(Error::InvalidTag)
     }
 }
 
 #[derive(Debug, displaydoc::Display, thiserror::Error)]
 pub enum Error {
+    /// the message is not a CBOR array containing a numeric tag
+    Malformed,
     /// the tag of the message is invalid
     InvalidTag,
     /// worker has been shut down

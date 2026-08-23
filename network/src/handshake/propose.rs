@@ -2,7 +2,12 @@ use std::time::Duration;
 
 use tinycbor_derive::{CborLen, Decode, Encode};
 
-use crate::{Message, State, agency::Client, handshake::VersionTable, message};
+use crate::{
+    Message, State,
+    agency::{Client, Server},
+    handshake::VersionTable,
+    message,
+};
 
 pub struct Propose<VD>(std::marker::PhantomData<VD>);
 
@@ -11,7 +16,7 @@ impl<VD> State for Propose<VD> {
     const TIMEOUT: Duration = Duration::from_secs(10);
     type Agency = Client;
 
-    type Message = message::Single<Client, Versions<VD>>;
+    type Message = message::Single<Server, Versions<VD>>;
 }
 
 impl<VD> crate::state::InitialState for Propose<VD> {

@@ -67,8 +67,8 @@ impl CborLen for Tip {
 
 #[derive(Decode, Encode, CborLen)]
 struct Codec {
-    block_number: ledger::block::Number,
     point: Point,
+    block_number: ledger::block::Number,
 }
 
 impl From<Codec> for Tip {

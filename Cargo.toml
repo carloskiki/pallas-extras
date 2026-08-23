@@ -6,7 +6,8 @@ members = [
     "database",
     "kes",
     "ledger",
-    # "network",
+    "network",
+    "network-components",
     "plutus",
     "state",
 ]

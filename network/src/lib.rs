@@ -10,7 +10,7 @@ pub use agency::Agency;
 pub mod handshake;
 
 mod message;
-pub use message::Message;
+pub use message::{Lazy, Message};
 
 pub mod mux;
 

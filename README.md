@@ -10,6 +10,8 @@ are developed and experimented with, and then merged into `pallas` once mature e
 - [`ledger`](ledger): an alternative ledger implementation that focuses on minimizing the amount of structs.
 - [`network`](network): an alternative network implementation that represents all protocol state machines at
     the type level.
+- [`network-components`](network-components): composable Tokio actors for peer management, header
+    synchronization, and chain-selected block fetching over Cardano node-to-node.
 - [`kes`](kes): A fully generic KES implementation based on the [MMM paper](kes/MMM-paper.pdf).
 - [`bip32`](bip32): A BIP32 implementation based on the [Ed25519 BIP32 paper](bip32/Ed25519-BIP32.pdf).
 - [`bip39`](bip39): A BIP39 implementation that minimizes the amount of dependencies.

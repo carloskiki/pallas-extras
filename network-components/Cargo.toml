@@ -1,0 +1,32 @@
+[package]
+edition = "2024"
+name = "network-components"
+version = "0.1.0"
+
+[dependencies]
+blake2 = { workspace = true }
+bytes = { workspace = true }
+ledger = { path = "../ledger" }
+network = { path = "../network" }
+thiserror = { workspace = true }
+tinycbor = { workspace = true }
+tokio = { workspace = true, features = [
+    "fs",
+    "io-util",
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tokio-stream = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+const-hex = { workspace = true }
+
+[[example]]
+name = "partial_node"
+
+[[example]]
+name = "simulation_report"

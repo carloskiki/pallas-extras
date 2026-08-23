@@ -11,7 +11,7 @@ crate::state! {
 }
 
 impl crate::state::InitialState for Idle {
-    const PROTOCOL_ID: u16 = 7;
+    const PROTOCOL_ID: u16 = 2;
     const INGRESS_BUFFER_SIZE: usize = 200;
 }
 
