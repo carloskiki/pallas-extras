@@ -1,6 +1,9 @@
 //! Byron era specific cryptographic types.
 
-use crate::crypto::{Blake2b224, digest::{Update, FixedOutput, OutputSizeUser, HashMarker, Reset, FixedOutputReset}};
+use crate::crypto::{
+    Blake2b224,
+    digest::{FixedOutput, FixedOutputReset, HashMarker, OutputSizeUser, Reset, Update},
+};
 use sha3::Sha3_256;
 
 pub type ExtendedVerifyingKey = bip32::ExtendedVerifyingKey;

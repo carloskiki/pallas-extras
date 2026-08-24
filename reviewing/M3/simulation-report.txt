@@ -1,0 +1,30 @@
+Pallas Extras M3 deterministic simulation report
+format: 1
+node_to_node_version: 14
+cardano_node_reference: 11.0.1
+
+[peer_manager]
+target_peers: 4
+active_at_completion: 4
+connection_attempts: 68
+successful_connections: 68
+dropped_messages: 204
+disconnected_sessions: 64
+result: PASS
+
+[chain_synchronizer]
+headers: 30000
+initial_sync_milliseconds: 4070
+rollback_depth: 10000
+rollback_recovery_milliseconds: 1753
+observed_rollbacks: 1
+validation_failures: 0
+result: PASS
+
+[block_fetcher]
+blocks: 30000
+bytes: 7680000
+elapsed_milliseconds: 22
+blocks_per_minute: 81425242
+required_blocks_per_minute: 20000
+result: PASS

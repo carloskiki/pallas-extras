@@ -36,7 +36,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     for payload in block.body.transactions {
                         let payload: &ledger::byron::transaction::Payload<'_> = payload.as_ref();
                         let transaction: &ledger::byron::Transaction = payload.transaction.as_ref();
-                        let mut encoder: Encoder<crypto::DigestWriter<Blake2b256>> = Encoder::default();
+                        let mut encoder: Encoder<crypto::DigestWriter<Blake2b256>> =
+                            Encoder::default();
                         payload.transaction.as_ref().encode(&mut encoder);
                         report_large_outputs(
                             "Byron",

@@ -67,20 +67,24 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         .unwrap()
         .trim()
         .to_string();
-
-    let program: Program<String> = match (
-        Program::from_str(&program, &arena),
+    let expects_parse_or_decode_error = matches!(
         expected_output.as_str(),
-    ) {
-        (Ok(_), "parse error") => return Err(RunError::fail("Expected parse error")),
-        (Err(_), "parse error") => return Ok(()),
-        (Ok(program), _) => program,
-        (Err(_), _) => return Err(RunError::fail("Unexpected parse error")),
+        "parse error" | "parse/decode error"
+    );
+
+    let program: Program<String> = match Program::from_str(&program, &arena) {
+        Ok(program) => program,
+        Err(_) if expects_parse_or_decode_error => return Ok(()),
+        Err(_) => return Err(RunError::fail("Unexpected parse/decode error")),
     };
-    let program_debruijn = match (program.into_de_bruijn(), expected_output.as_str()) {
-        (Some(program), _) => program,
-        (None, "evaluation failure") => return Ok(()),
-        (None, _) => {
+    let program_debruijn = match program.into_de_bruijn() {
+        Some(_) if expects_parse_or_decode_error => {
+            return Err(RunError::fail("Expected parse/decode error"));
+        }
+        Some(program) => program,
+        None if expects_parse_or_decode_error => return Ok(()),
+        None if expected_output == "evaluation failure" => return Ok(()),
+        None => {
             return Err(RunError::fail(
                 "Unexpected evaluation error when converting to de Bruijn indices",
             ));
@@ -120,7 +124,7 @@ fn perform_test(ctx: RunContext<'_>, program_path: &PathBuf) -> Result<(), RunEr
         (Err(_), None) => {}
     }
 
-    let budget_path = program_path.with_extension("uplc.budget.expected");
+    let budget_path = program_path.with_extension("budget.expected");
     let Ok(budget_str) = std::fs::read_to_string(&budget_path) else {
         return Err(RunError::fail("Failed to read expected budget file"));
     };

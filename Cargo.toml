@@ -9,7 +9,7 @@ members = [
     "network",
     "network-components",
     "plutus",
-    "state",
+    # "state",
 ]
 resolver = "3"
 

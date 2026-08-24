@@ -1,0 +1,34 @@
+Pallas Extras M3 preprod interoperability smoke
+date: 2026-08-22
+host: Apple arm64 / Darwin 25.5.0
+rustc: 1.97.1 (8bab26f4f 2026-07-14)
+mode: release
+scope: 10-second live smoke (not the required prolonged or 30-minute run)
+
+command:
+cargo run --offline --release -p network-components --example partial_node -- --preprod preprod-node.world.dev.cardano.org:3001 /private/tmp/pallas-m3-preprod-final-smoke.blocks 10
+
+selected tip: Block { slot: 89600, hash: [77, 56, 109, 112, 92, 26, 202, 74, 49, 45, 176, 172, 58, 142, 37, 190, 4, 190, 44, 168, 207, 81, 1, 1, 176, 221, 248, 71, 59, 40, 112, 110] }
+retained headers: 207
+roll forwards: 208
+rollbacks: 1
+peer failures: 0
+validation failures: 0
+chain error: None
+stored blocks: 207
+fetch state: BlockFetcherSnapshot { cached_blocks: 207, fetched_blocks: 207, fetched_bytes: 196222, served_blocks: 207, failed_batches: 0 }
+peer state: PeerSnapshot { active: [[2600:1f16:1825:b402:d747:f430:47d2:c6c1]:3001], available: [], connection_attempts: 1, successful_connections: 1, lost_connections: 0, discovered_peers: 0, dropped_messages: 0, last_error: None }
+elapsed: 10.086s
+output: /private/tmp/pallas-m3-preprod-final-smoke.blocks
+post-shutdown verification: PASS
+
+output SHA-256:
+a263103e97f44183cff044dc1b190019351302f4875f68cf4b8c7edaf428eb5f  /private/tmp/pallas-m3-preprod-final-smoke.blocks
+
+Resource sample (separate 5-second release run, /usr/bin/time -l):
+maximum resident set size: 12058624 bytes (11.50 MiB)
+user time: 0.16 seconds
+system time: 0.06 seconds
+wall time: 5.27 seconds
+average process CPU: 4.17%
+resource-sample post-shutdown verification: PASS

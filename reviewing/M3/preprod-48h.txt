@@ -1,0 +1,38 @@
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+block fetch failed: no healthy upstream peers are available
+selected tip: Block { slot: 131681604, hash: [17, 105, 132, 170, 212, 59, 200, 196, 84, 66, 40, 250, 108, 174, 124, 166, 1, 127, 252, 154, 70, 34, 55, 43, 246, 171, 74, 2, 227, 253, 152, 171] }
+retained headers: 5084379
+roll forwards: 5084399
+rollbacks: 19
+peer failures: 18
+validation failures: 0
+chain error: None
+stored blocks: 5084379
+fetch state: BlockFetcherSnapshot { cached_blocks: 47082, fetched_blocks: 5084379, fetched_bytes: 38347354765, served_blocks: 5084379, failed_batches: 1 }
+peer state: PeerSnapshot { active: [[2600:1f16:1825:b402:d747:f430:47d2:c6c1]:3001], available: [], connection_attempts: 19, successful_connections: 19, lost_connections: 18, discovered_peers: 0, dropped_messages: 0, last_error: None }
+elapsed: 172801.922s
+output: m3-preprod-48h.blocks
+post-shutdown verification: PASS
+           400097280  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               85163  page reclaims
+                   0  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+              459248  messages sent
+             5175185  messages received
+                   0  signals received
+                 528  voluntary context switches
+             3023402  involuntary context switches
+     749446256934747  instructions retired
+     315252343646264  cycles elapsed
+           377111392  peak memory footprint

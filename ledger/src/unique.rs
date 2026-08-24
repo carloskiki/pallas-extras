@@ -123,6 +123,7 @@ impl<T: CborLen, const STRICT: bool> CborLen for Unique<T, STRICT> {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn decode_dedup_by_key<T, E, K: Hash + Eq, const STRICT: bool>(
     mut value: impl FnMut() -> Option<Result<T, E>>,
     key: impl Fn(&T) -> &K,

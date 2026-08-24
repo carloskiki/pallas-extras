@@ -101,12 +101,16 @@ impl Buffer {
         }
     }
 
-    fn encode_iter<'a, I: ?Sized + Encode + 'a, T: IntoIterator<Item = &'a I>>(&mut self, iter: T) {
+    fn encode_iter<'a, I: ?Sized + Encode + 'a, T: IntoIterator<Item = &'a I>>(
+        &mut self,
+        iter: T,
+    ) -> Option<()> {
         for item in iter {
             self.write_bits::<1>(1);
-            item.encode(self);
+            item.encode(self)?;
         }
         self.write_bits::<1>(0);
+        Some(())
     }
 
     pub fn finish(mut self) -> Vec<u8> {
@@ -373,8 +377,10 @@ impl Encode for Constant<'_> {
                     Ok(constants) => buffer.encode_iter(constants.iter()),
                     Err(_) => buffer.encode_iter::<(), _>(std::iter::empty()),
                 },
-                _ => return None,
-            },
+                List::BLSG1Element([]) => buffer.encode_iter::<(), _>(std::iter::empty()),
+                List::BLSG2Element([]) => buffer.encode_iter::<(), _>(std::iter::empty()),
+                _ => None,
+            }?,
             Constant::Pair(first, second) => {
                 first.encode(buffer)?;
                 second.encode(buffer)?;
@@ -443,6 +449,12 @@ fn encode_type(ty: &Constant<'_>, buffer: &mut Buffer) -> Option<()> {
             }
             Constant::Data(_) => {
                 buffer.write_bits::<4>(8);
+            }
+            Constant::BLSG1Element(_) => {
+                buffer.write_bits::<4>(9);
+            }
+            Constant::BLSG2Element(_) => {
+                buffer.write_bits::<4>(10);
             }
             Constant::Array(Array(array_ty)) => {
                 buffer.write_bits::<4>(7);
@@ -861,6 +873,11 @@ fn decode_constant<'a>(
                 *d = from_fn(reader, arena, |r, _| Data::decode(r))
                     .map(|datas| arena.datas(datas))?;
             }
+            List::BLSG1Element(_) | List::BLSG2Element(_) => {
+                let 0 = reader.read_bits::<1>()? else {
+                    return None;
+                };
+            }
             List::Generic(Err(list_ty)) => {
                 ty = from_fn(reader, arena, |r, a| decode_with_type(**list_ty, r, a)).map(
                     |constants| {
@@ -935,6 +952,8 @@ fn decode_type<'a>(reader: &mut Reader<'_>, arena: &'a constant::Arena) -> Optio
         Some(match reader.read_bits::<4>()? {
             0 => List::INTEGER_TYPE,
             8 => List::DATA_TYPE,
+            9 => List::BLSG1Element(&[]),
+            10 => List::BLSG2Element(&[]),
             // Pair Data
             7 if reader.read_bits::<5>()? == 0b10111
                 && reader.read_bits::<5>()? == 0b10110
@@ -974,6 +993,8 @@ fn decode_type<'a>(reader: &mut Reader<'_>, arena: &'a constant::Arena) -> Optio
                 _ => return None,
             },
             8 => Constant::DATA_TYPE,
+            9 => Constant::BLSG1_TYPE,
+            10 => Constant::BLSG2_TYPE,
             _ => return None,
         };
         Some(ty)
@@ -1045,5 +1066,77 @@ impl<'a> Decode<'a> for Integer {
             integer = -integer;
         }
         Some(integer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bwst::{g1, g2};
+
+    use super::*;
+
+    fn program_with_constant<'a>(
+        constant: Constant<'a>,
+        arena: &'a constant::Arena,
+    ) -> Program<'a, DeBruijn> {
+        Program {
+            version: Version {
+                major: 1,
+                minor: 0,
+                patch: 0,
+            },
+            arena,
+            constants: vec![constant],
+            program: vec![Instruction::Constant(ConstantIndex(0))],
+        }
+    }
+
+    #[test]
+    fn empty_bls_collections_round_trip() {
+        let arena = constant::Arena::default();
+
+        for constant in [
+            Constant::List(List::BLSG1Element(&[])),
+            Constant::List(List::BLSG2Element(&[])),
+            Constant::Array(Array(List::BLSG1Element(&[]))),
+            Constant::Array(Array(List::BLSG2Element(&[]))),
+        ] {
+            let program = program_with_constant(constant, &arena);
+            let flat = program
+                .to_flat()
+                .expect("empty BLS collections can be encoded");
+            let decoded =
+                Program::from_flat(&flat, &arena).expect("encoded program can be decoded");
+
+            assert_eq!(program, decoded);
+        }
+    }
+
+    #[test]
+    fn populated_bls_collections_cannot_be_encoded() {
+        let arena = constant::Arena::default();
+        let g1s = arena.slice_fill([g1::Projective::IDENTITY]);
+        let g2s = arena.slice_fill([g2::Projective::IDENTITY]);
+        let nested_g1s = mitsein::slice1::Slice1::try_from_slice(
+            arena.slice_fill([Constant::List(List::BLSG1Element(g1s))]),
+        )
+        .expect("list is non-empty");
+        let nested_g2s = mitsein::slice1::Slice1::try_from_slice(
+            arena.slice_fill([Constant::List(List::BLSG2Element(g2s))]),
+        )
+        .expect("list is non-empty");
+
+        for constant in [
+            Constant::List(List::BLSG1Element(g1s)),
+            Constant::List(List::BLSG2Element(g2s)),
+            Constant::Array(Array(List::BLSG1Element(g1s))),
+            Constant::Array(Array(List::BLSG2Element(g2s))),
+            Constant::List(List::Generic(Ok(nested_g1s))),
+            Constant::List(List::Generic(Ok(nested_g2s))),
+        ] {
+            let program = program_with_constant(constant, &arena);
+
+            assert!(program.to_flat().is_none());
+        }
     }
 }
